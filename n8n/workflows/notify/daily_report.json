@@ -1,0 +1,193 @@
+{
+  "name": "Ops: Daily Report",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Daily at 9 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.MIRRORFLOW_API_URL }}/overview",
+        "options": {}
+      },
+      "id": "get-overview",
+      "name": "Get System Overview",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.MIRRORFLOW_API_URL }}/overview/activity/recent?hours=24",
+        "options": {}
+      },
+      "id": "get-activity",
+      "name": "Get Recent Activity",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.MIRRORFLOW_API_URL }}/overview/stats/combined",
+        "options": {}
+      },
+      "id": "get-stats",
+      "name": "Get Combined Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 700]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "mergeByFields": {
+          "values": []
+        },
+        "options": {}
+      },
+      "id": "merge-data",
+      "name": "Merge Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [680, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build daily report\nconst overview = $('Get System Overview').first().json;\nconst activity = $('Get Recent Activity').first().json;\nconst stats = $('Get Combined Stats').first().json;\n\nconst report = {\n  date: new Date().toISOString().split('T')[0],\n  summary: {\n    total_sources: overview.total_sources,\n    total_items: overview.total_items,\n    total_pipelines: overview.total_pipelines,\n    active_jobs: overview.active_jobs,\n    new_items_24h: activity.new_items\n  },\n  by_source_type: overview.by_source_type,\n  jobs: {\n    total: stats.jobs.total,\n    by_status: stats.jobs.by_status\n  },\n  recent_items: activity.items.slice(0, 5)\n};\n\n// Calculate completion rate\nconst completed = stats.jobs.by_status?.completed || 0;\nconst failed = stats.jobs.by_status?.failed || 0;\nconst total_finished = completed + failed;\nreport.completion_rate = total_finished > 0 ? \n  Math.round((completed / total_finished) * 100) : 100;\n\nreturn [{ json: report }];"
+      },
+      "id": "build-report",
+      "name": "Build Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.NOTIFICATION_WEBHOOK }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"MirrorFlow Daily Report - {{ $json.date }}\",\n  \"blocks\": [\n    {\n      \"type\": \"header\",\n      \"text\": {\n        \"type\": \"plain_text\",\n        \"text\": \"MirrorFlow Daily Report\"\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*Date:* {{ $json.date }}\"\n      }\n    },\n    {\n      \"type\": \"divider\"\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*System Overview*\"\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"fields\": [\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Sources:*\\n{{ $json.summary.total_sources }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Items:*\\n{{ $json.summary.total_items }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Pipelines:*\\n{{ $json.summary.total_pipelines }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Active Jobs:*\\n{{ $json.summary.active_jobs }}\"\n        }\n      ]\n    },\n    {\n      \"type\": \"divider\"\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*Last 24 Hours*\"\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"fields\": [\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*New Items:*\\n{{ $json.summary.new_items_24h }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Completion Rate:*\\n{{ $json.completion_rate }}%\"\n        }\n      ]\n    },\n    {\n      \"type\": \"divider\"\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*Jobs by Status:*\\nCompleted: {{ $json.jobs.by_status.completed || 0 }}\\nFailed: {{ $json.jobs.by_status.failed || 0 }}\\nPending: {{ $json.jobs.by_status.pending || 0 }}\"\n      }\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "send-report",
+      "name": "Send Daily Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 500],
+      "disabled": true
+    }
+  ],
+  "connections": {
+    "Daily at 9 AM": {
+      "main": [
+        [
+          {
+            "node": "Get System Overview",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Recent Activity",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Combined Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get System Overview": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Recent Activity": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get Combined Stats": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Data": {
+      "main": [
+        [
+          {
+            "node": "Build Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Report": {
+      "main": [
+        [
+          {
+            "node": "Send Daily Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "ops"
+    },
+    {
+      "name": "report"
+    },
+    {
+      "name": "mirrorflow-v2"
+    }
+  ],
+  "triggerCount": 0,
+  "versionId": "1"
+}

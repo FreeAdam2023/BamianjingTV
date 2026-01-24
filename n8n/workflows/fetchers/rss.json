@@ -1,0 +1,310 @@
+{
+  "name": "Fetcher: RSS",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Every 30 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.MIRRORFLOW_API_URL }}/sources",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "source_type",
+              "value": "rss"
+            },
+            {
+              "name": "enabled_only",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-sources",
+      "name": "Get RSS Sources",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-feed-url",
+              "leftValue": "={{ $json.config.feed_url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-valid-sources",
+      "name": "Filter Valid Sources",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.config.feed_url }}",
+        "options": {}
+      },
+      "id": "fetch-rss",
+      "name": "Fetch RSS Feed",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract items from RSS feed\nconst items = $input.all();\nconst source = $('Filter Valid Sources').first().json;\n\n// Filter entries newer than last_fetched_at\nconst lastFetched = source.last_fetched_at ? new Date(source.last_fetched_at) : new Date(0);\n\nconst newItems = items\n  .filter(item => {\n    const published = item.json.pubDate ? new Date(item.json.pubDate) : new Date();\n    return published > lastFetched;\n  })\n  .map(item => ({\n    source_type: 'rss',\n    source_id: source.source_id,\n    original_url: item.json.link || item.json.guid,\n    original_title: item.json.title,\n    original_description: item.json.contentSnippet || item.json.content,\n    original_thumbnail: item.json['media:thumbnail'] || item.json.enclosure?.url || null,\n    published_at: item.json.pubDate || item.json.isoDate\n  }))\n  .filter(item => item.original_url);\n\nreturn newItems.map(v => ({ json: v }));"
+      },
+      "id": "extract-new-items",
+      "name": "Extract New Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-url",
+              "leftValue": "={{ $json.original_url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-valid-items",
+      "name": "Filter Valid Items",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MIRRORFLOW_API_URL }}/items",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "create-item",
+      "name": "Create Item",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-new-item",
+              "leftValue": "={{ $json.is_new }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-new-items",
+      "name": "Filter New Items",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MIRRORFLOW_API_URL }}/sources/{{ $json.item.source_id }}/fetch",
+        "options": {}
+      },
+      "id": "update-last-fetched",
+      "name": "Update Last Fetched",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.FANOUT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"item_id\": \"{{ $json.item.item_id }}\",\n  \"source_id\": \"{{ $json.item.source_id }}\",\n  \"source_type\": \"{{ $json.item.source_type }}\"\n}",
+        "options": {}
+      },
+      "id": "trigger-fanout",
+      "name": "Trigger Fan-out",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2220, 300],
+      "disabled": true
+    }
+  ],
+  "connections": {
+    "Every 30 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get RSS Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get RSS Sources": {
+      "main": [
+        [
+          {
+            "node": "Filter Valid Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Valid Sources": {
+      "main": [
+        [
+          {
+            "node": "Fetch RSS Feed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch RSS Feed": {
+      "main": [
+        [
+          {
+            "node": "Extract New Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract New Items": {
+      "main": [
+        [
+          {
+            "node": "Filter Valid Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Valid Items": {
+      "main": [
+        [
+          {
+            "node": "Create Item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Item": {
+      "main": [
+        [
+          {
+            "node": "Filter New Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter New Items": {
+      "main": [
+        [
+          {
+            "node": "Update Last Fetched",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Trigger Fan-out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "fetcher"
+    },
+    {
+      "name": "rss"
+    },
+    {
+      "name": "mirrorflow-v2"
+    }
+  ],
+  "triggerCount": 0,
+  "versionId": "1"
+}

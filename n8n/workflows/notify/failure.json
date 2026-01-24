@@ -1,0 +1,85 @@
+{
+  "name": "Notify: Job Failure",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "notify/failure",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 300],
+      "webhookId": "notify-failure"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse job failure data\nconst job = $input.first().json.body;\n\n// Format failure alert\nconst message = {\n  title: `Job Failed: ${job.id}`,\n  job_id: job.id,\n  status: job.status,\n  error: job.error || 'Unknown error',\n  url: job.url,\n  title: job.title || 'Unknown',\n  source_type: job.source_type,\n  source_id: job.source_id,\n  item_id: job.item_id,\n  pipeline_id: job.pipeline_id,\n  failed_at: new Date().toISOString()\n};\n\nreturn [{ json: message }];"
+      },
+      "id": "format-message",
+      "name": "Format Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.NOTIFICATION_WEBHOOK }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"Job Failed\",\n  \"blocks\": [\n    {\n      \"type\": \"header\",\n      \"text\": {\n        \"type\": \"plain_text\",\n        \"text\": \"Job Failed\",\n        \"emoji\": true\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"fields\": [\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Job ID:*\\n{{ $json.job_id }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Pipeline:*\\n{{ $json.pipeline_id }}\"\n        }\n      ]\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*Error:*\\n```{{ $json.error }}```\"\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"fields\": [\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Source:*\\n{{ $json.source_type }}/{{ $json.source_id }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Item:*\\n{{ $json.item_id }}\"\n        }\n      ]\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*URL:* {{ $json.url }}\"\n      }\n    },\n    {\n      \"type\": \"actions\",\n      \"elements\": [\n        {\n          \"type\": \"button\",\n          \"text\": {\n            \"type\": \"plain_text\",\n            \"text\": \"Retry Job\"\n          },\n          \"url\": \"{{ $env.MIRRORFLOW_API_URL }}/jobs/{{ $json.job_id }}/retry\",\n          \"style\": \"primary\"\n        }\n      ]\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "send-slack-alert",
+      "name": "Send Slack Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 300],
+      "disabled": true
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Format Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Message": {
+      "main": [
+        [
+          {
+            "node": "Send Slack Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "notify"
+    },
+    {
+      "name": "alert"
+    },
+    {
+      "name": "mirrorflow-v2"
+    }
+  ],
+  "triggerCount": 0,
+  "versionId": "1"
+}

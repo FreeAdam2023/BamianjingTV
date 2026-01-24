@@ -9,6 +9,7 @@
   - [方式一：本地开发部署](#方式一本地开发部署)
   - [方式二：Docker 生产部署](#方式二docker-生产部署)
   - [方式三：CPU 开发模式](#方式三cpu-开发模式)
+- [v2 n8n 工作流配置](#v2-n8n-工作流配置)
 - [环境变量配置](#环境变量配置)
 - [API Keys 获取](#api-keys-获取)
 - [YouTube 上传配置](#youtube-上传配置)
@@ -190,6 +191,95 @@ FFMPEG_NVENC=false
 
 ---
 
+## v2 n8n 工作流配置
+
+MirrorFlow v2 引入了新的三层 n8n 工作流架构。
+
+### 工作流导入
+
+1. 启动 n8n 服务后访问 http://localhost:5678
+
+2. 导入 Fetcher 工作流（根据需要选择）：
+   - `n8n/workflows/fetchers/youtube_channel.json` - YouTube 频道监控
+   - `n8n/workflows/fetchers/rss.json` - RSS 订阅监控
+   - `n8n/workflows/fetchers/podcast.json` - 播客监控
+
+3. 导入 Fan-out 工作流（必需）：
+   - `n8n/workflows/fanout/trigger_pipelines.json`
+
+4. 导入通知工作流（可选）：
+   - `n8n/workflows/notify/completion.json`
+   - `n8n/workflows/notify/failure.json`
+   - `n8n/workflows/notify/daily_report.json`
+
+### n8n 环境变量配置
+
+在 n8n 中配置以下环境变量（Settings → Variables）：
+
+| 变量 | 值 | 说明 |
+|------|----|----|
+| `MIRRORFLOW_API_URL` | `http://mirrorflow:8000` | MirrorFlow API 地址（Docker 网络内） |
+| `NOTIFICATION_WEBHOOK` | Slack/Discord webhook URL | 通知 webhook |
+
+### 创建 Sources
+
+使用 v2 API 创建内容来源：
+
+```bash
+# YouTube 频道
+curl -X POST http://localhost:8000/sources \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source_id": "yt_lex",
+    "source_type": "youtube",
+    "sub_type": "channel",
+    "display_name": "Lex Fridman",
+    "fetcher": "youtube_rss",
+    "config": {
+      "channel_id": "UCSHZKyawb77ixDdsGog4iWA"
+    },
+    "default_pipelines": ["default_zh"]
+  }'
+
+# RSS 订阅
+curl -X POST http://localhost:8000/sources \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source_id": "rss_blog",
+    "source_type": "rss",
+    "sub_type": "website",
+    "display_name": "My Blog",
+    "fetcher": "rss_reader",
+    "config": {
+      "feed_url": "https://example.com/feed.xml"
+    },
+    "default_pipelines": ["default_zh"]
+  }'
+```
+
+### 激活工作流
+
+1. 在 n8n 中打开每个导入的工作流
+2. 检查节点配置是否正确
+3. 点击右上角开关激活工作流
+
+### WebSocket 实时监控
+
+v2 支持 WebSocket 实时状态推送：
+
+```bash
+# 使用 wscat 连接
+wscat -c ws://localhost:8000/ws
+
+# 订阅所有更新
+{"action": "subscribe", "topic": "all"}
+
+# 或订阅特定任务
+{"action": "subscribe", "job_id": "abc12345"}
+```
+
+---
+
 ## 环境变量配置
 
 ### 必需变量
@@ -227,6 +317,10 @@ HOST=0.0.0.0
 PORT=8000
 DEBUG=false
 
+# 数据目录 (v2)
+MIRRORFLOW_JOBS_DIR=./data/jobs
+MIRRORFLOW_DATA_DIR=./data
+
 # 视频设置
 MAX_VIDEO_DURATION=7200
 FFMPEG_NVENC=true
@@ -234,6 +328,11 @@ FFMPEG_NVENC=true
 # YouTube（可选）
 YOUTUBE_CREDENTIALS_FILE=credentials/youtube_oauth.json
 YOUTUBE_TOKEN_FILE=credentials/youtube_token.json
+
+# n8n 集成 (v2)
+MIRRORFLOW_API_URL=http://localhost:8000
+FANOUT_WEBHOOK_URL=http://localhost:5678/webhook/fanout/trigger
+NOTIFICATION_WEBHOOK=https://hooks.slack.com/xxx
 ```
 
 ---
@@ -368,6 +467,25 @@ curl http://localhost:8000/jobs/{job_id}
 curl http://localhost:8000/stats
 ```
 
+### v2 特定验证
+
+```bash
+# 检查 v2 系统总览
+curl http://localhost:8000/overview
+
+# 检查健康状态
+curl http://localhost:8000/overview/health
+
+# 列出来源
+curl http://localhost:8000/sources
+
+# 列出流水线
+curl http://localhost:8000/pipelines
+
+# 检查 WebSocket 连接统计
+curl http://localhost:8000/ws/stats
+```
+
 ---
 
 ## 常见问题
@@ -435,5 +553,8 @@ PORT=8001 uvicorn app.main:app --port 8001
 ## 更多资源
 
 - [API 文档](http://localhost:8000/docs)
-- [n8n 工作流指南](../n8n/README.md)
+- [API 参考文档](./API_REFERENCE.md)
+- [v2 迁移指南](./MIGRATION_V2.md)
+- [n8n 工作流指南](../n8n/workflows/README.md)
 - [项目设计文档](./PROJECT_KICKOFF.md)
+- [v2 升级计划](./MIRRORFLOW_V2_UPGRADE_PLAN.md)

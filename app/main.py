@@ -24,7 +24,23 @@ from app.workers.mux import MuxWorker
 from app.workers.thumbnail import ThumbnailWorker
 from app.workers.content import ContentWorker
 from app.workers.youtube import YouTubeWorker
-from app.api import content_router, youtube_router
+from app.api import (
+    content_router,
+    youtube_router,
+    sources_router,
+    items_router,
+    pipelines_router,
+    overview_router,
+    websocket_router,
+    set_source_manager,
+    set_item_manager,
+    set_pipeline_manager,
+    set_overview_managers,
+    get_connection_manager,
+)
+from app.services.source_manager import SourceManager
+from app.services.item_manager import ItemManager
+from app.services.pipeline_manager import PipelineManager
 
 
 # Services
@@ -32,6 +48,11 @@ job_manager: JobManager = None
 job_queue: JobQueue = None
 batch_processor: BatchProcessor = None
 webhook_service: WebhookService = None
+
+# v2 Services
+source_manager: SourceManager = None
+item_manager: ItemManager = None
+pipeline_manager: PipelineManager = None
 
 # Workers
 download_worker = DownloadWorker()
@@ -283,19 +304,47 @@ async def process_job(job_id: str) -> None:
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     global job_manager, job_queue, batch_processor, webhook_service
+    global source_manager, item_manager, pipeline_manager
 
     logger.info(f"Starting MirrorFlow v{__version__}")
     logger.info(f"Jobs directory: {settings.jobs_dir}")
+    logger.info(f"Data directory: {settings.data_dir}")
 
     # Initialize webhook service
     webhook_service = WebhookService()
 
-    # Initialize job manager with webhook callback
+    # ========== v2: Initialize managers ==========
+    source_manager = SourceManager()
+    item_manager = ItemManager()
+    pipeline_manager = PipelineManager()
+
+    # Set API module managers
+    set_source_manager(source_manager)
+    set_item_manager(item_manager)
+    set_pipeline_manager(pipeline_manager)
+
+    logger.info(f"Initialized v2 managers: {source_manager.get_stats()['total']} sources, "
+                f"{item_manager.get_stats()['total']} items, "
+                f"{pipeline_manager.get_stats()['total']} pipelines")
+
+    # v2: Get WebSocket connection manager
+    ws_manager = get_connection_manager()
+
+    # Create WebSocket broadcast callback
+    async def ws_broadcast(job_id: str, data: dict):
+        await ws_manager.broadcast_job_update(job_id, data)
+
+    # Initialize job manager with webhook callback and item_manager
     job_manager = JobManager(
         max_retries=3,
         retry_delay=5.0,
         webhook_callback=job_status_callback,
+        item_manager=item_manager,  # v2: Enable item status updates
+        ws_broadcast_callback=ws_broadcast,  # v2: WebSocket real-time updates
     )
+
+    # Set overview managers
+    set_overview_managers(source_manager, item_manager, pipeline_manager, job_manager)
 
     # Initialize job queue
     job_queue = JobQueue(
@@ -330,6 +379,13 @@ app = FastAPI(
 # Include API routers
 app.include_router(content_router)
 app.include_router(youtube_router)
+
+# v2 API routers
+app.include_router(sources_router)
+app.include_router(items_router)
+app.include_router(pipelines_router)
+app.include_router(overview_router)
+app.include_router(websocket_router)
 
 
 # ============ Request/Response Models ============
@@ -379,6 +435,12 @@ async def root():
         "version": __version__,
         "status": "running",
         "features": ["transcription", "diarization", "translation", "tts", "thumbnail", "youtube"],
+        "v2": {
+            "sources": True,
+            "items": True,
+            "pipelines": True,
+            "overview": True,
+        },
     }
 
 
@@ -402,6 +464,11 @@ async def create_job(
     job = job_manager.create_job(
         url=job_create.url,
         target_language=job_create.target_language,
+        # v2 fields
+        source_type=job_create.source_type,
+        source_id=job_create.source_id,
+        item_id=job_create.item_id,
+        pipeline_id=job_create.pipeline_id,
     )
 
     # Set Phase 3 options

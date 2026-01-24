@@ -1,0 +1,310 @@
+{
+  "name": "Fetcher: Podcast",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Every Hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.MIRRORFLOW_API_URL }}/sources",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "source_type",
+              "value": "podcast"
+            },
+            {
+              "name": "enabled_only",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-sources",
+      "name": "Get Podcast Sources",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-feed-url",
+              "leftValue": "={{ $json.config.feed_url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-valid-sources",
+      "name": "Filter Valid Sources",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.config.feed_url }}",
+        "options": {}
+      },
+      "id": "fetch-rss",
+      "name": "Fetch Podcast RSS",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract episodes from podcast RSS feed\nconst items = $input.all();\nconst source = $('Filter Valid Sources').first().json;\n\n// Filter entries newer than last_fetched_at\nconst lastFetched = source.last_fetched_at ? new Date(source.last_fetched_at) : new Date(0);\n\nconst newEpisodes = items\n  .filter(item => {\n    const published = item.json.pubDate ? new Date(item.json.pubDate) : new Date();\n    return published > lastFetched;\n  })\n  .map(item => {\n    // Try to get audio URL from enclosure\n    const audioUrl = item.json.enclosure?.url || item.json['media:content']?.url;\n    \n    // Try to get duration\n    let duration = null;\n    if (item.json['itunes:duration']) {\n      const d = item.json['itunes:duration'];\n      if (typeof d === 'number') {\n        duration = d;\n      } else if (typeof d === 'string') {\n        const parts = d.split(':').map(Number);\n        if (parts.length === 3) {\n          duration = parts[0] * 3600 + parts[1] * 60 + parts[2];\n        } else if (parts.length === 2) {\n          duration = parts[0] * 60 + parts[1];\n        }\n      }\n    }\n    \n    return {\n      source_type: 'podcast',\n      source_id: source.source_id,\n      original_url: audioUrl || item.json.link || item.json.guid,\n      original_title: item.json.title,\n      original_description: item.json.contentSnippet || item.json.content || item.json['itunes:summary'],\n      original_thumbnail: item.json['itunes:image']?.href || item.json.image?.url || null,\n      duration: duration,\n      published_at: item.json.pubDate || item.json.isoDate\n    };\n  })\n  .filter(item => item.original_url);\n\nreturn newEpisodes.map(v => ({ json: v }));"
+      },
+      "id": "extract-new-episodes",
+      "name": "Extract New Episodes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-url",
+              "leftValue": "={{ $json.original_url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-valid-episodes",
+      "name": "Filter Valid Episodes",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MIRRORFLOW_API_URL }}/items",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "create-item",
+      "name": "Create Item",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-new-item",
+              "leftValue": "={{ $json.is_new }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-new-items",
+      "name": "Filter New Items",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MIRRORFLOW_API_URL }}/sources/{{ $json.item.source_id }}/fetch",
+        "options": {}
+      },
+      "id": "update-last-fetched",
+      "name": "Update Last Fetched",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.FANOUT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"item_id\": \"{{ $json.item.item_id }}\",\n  \"source_id\": \"{{ $json.item.source_id }}\",\n  \"source_type\": \"{{ $json.item.source_type }}\"\n}",
+        "options": {}
+      },
+      "id": "trigger-fanout",
+      "name": "Trigger Fan-out",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2220, 300],
+      "disabled": true
+    }
+  ],
+  "connections": {
+    "Every Hour": {
+      "main": [
+        [
+          {
+            "node": "Get Podcast Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Podcast Sources": {
+      "main": [
+        [
+          {
+            "node": "Filter Valid Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Valid Sources": {
+      "main": [
+        [
+          {
+            "node": "Fetch Podcast RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Podcast RSS": {
+      "main": [
+        [
+          {
+            "node": "Extract New Episodes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract New Episodes": {
+      "main": [
+        [
+          {
+            "node": "Filter Valid Episodes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Valid Episodes": {
+      "main": [
+        [
+          {
+            "node": "Create Item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Item": {
+      "main": [
+        [
+          {
+            "node": "Filter New Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter New Items": {
+      "main": [
+        [
+          {
+            "node": "Update Last Fetched",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Trigger Fan-out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "fetcher"
+    },
+    {
+      "name": "podcast"
+    },
+    {
+      "name": "mirrorflow-v2"
+    }
+  ],
+  "triggerCount": 0,
+  "versionId": "1"
+}

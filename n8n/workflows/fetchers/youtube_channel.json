@@ -1,0 +1,339 @@
+{
+  "name": "Fetcher: YouTube Channel",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.MIRRORFLOW_API_URL }}/sources",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "source_type",
+              "value": "youtube"
+            },
+            {
+              "name": "enabled_only",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-sources",
+      "name": "Get YouTube Sources",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-channel-id",
+              "leftValue": "={{ $json.config.channel_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-valid-sources",
+      "name": "Filter Valid Sources",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.youtube.com/feeds/videos.xml?channel_id={{ $json.config.channel_id }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "fetch-youtube-rss",
+      "name": "Fetch YouTube RSS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "mode": "xmlToJson",
+        "options": {}
+      },
+      "id": "parse-xml",
+      "name": "Parse RSS XML",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract video entries from RSS feed\nconst feed = $input.first().json;\nconst source = $('Filter Valid Sources').first().json;\n\n// Get entries from feed\nlet entries = [];\nif (feed.feed && feed.feed.entry) {\n  entries = Array.isArray(feed.feed.entry) ? feed.feed.entry : [feed.feed.entry];\n}\n\n// Filter entries newer than last_fetched_at\nconst lastFetched = source.last_fetched_at ? new Date(source.last_fetched_at) : new Date(0);\n\nconst newVideos = entries\n  .filter(entry => {\n    const published = new Date(entry.published);\n    return published > lastFetched;\n  })\n  .map(entry => ({\n    source_type: 'youtube',\n    source_id: source.source_id,\n    original_url: entry.link['$'].href,\n    original_title: entry.title,\n    original_description: entry['media:group'] ? entry['media:group']['media:description'] : null,\n    original_thumbnail: entry['media:group'] ? entry['media:group']['media:thumbnail']['$'].url : null,\n    published_at: entry.published,\n    video_id: entry['yt:videoId']\n  }));\n\nreturn newVideos.map(v => ({ json: v }));"
+      },
+      "id": "extract-new-videos",
+      "name": "Extract New Videos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-url",
+              "leftValue": "={{ $json.original_url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-valid-videos",
+      "name": "Filter Valid Videos",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MIRRORFLOW_API_URL }}/items",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "create-item",
+      "name": "Create Item",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-new-item",
+              "leftValue": "={{ $json.is_new }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-new-items",
+      "name": "Filter New Items",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MIRRORFLOW_API_URL }}/sources/{{ $json.item.source_id }}/fetch",
+        "options": {}
+      },
+      "id": "update-last-fetched",
+      "name": "Update Last Fetched",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2220, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.FANOUT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"item_id\": \"{{ $json.item.item_id }}\",\n  \"source_id\": \"{{ $json.item.source_id }}\",\n  \"source_type\": \"{{ $json.item.source_type }}\"\n}",
+        "options": {}
+      },
+      "id": "trigger-fanout",
+      "name": "Trigger Fan-out",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2440, 300],
+      "disabled": true
+    }
+  ],
+  "connections": {
+    "Every 15 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get YouTube Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get YouTube Sources": {
+      "main": [
+        [
+          {
+            "node": "Filter Valid Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Valid Sources": {
+      "main": [
+        [
+          {
+            "node": "Fetch YouTube RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch YouTube RSS": {
+      "main": [
+        [
+          {
+            "node": "Parse RSS XML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse RSS XML": {
+      "main": [
+        [
+          {
+            "node": "Extract New Videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract New Videos": {
+      "main": [
+        [
+          {
+            "node": "Filter Valid Videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Valid Videos": {
+      "main": [
+        [
+          {
+            "node": "Create Item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Item": {
+      "main": [
+        [
+          {
+            "node": "Filter New Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter New Items": {
+      "main": [
+        [
+          {
+            "node": "Update Last Fetched",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Trigger Fan-out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "fetcher"
+    },
+    {
+      "name": "youtube"
+    },
+    {
+      "name": "mirrorflow-v2"
+    }
+  ],
+  "triggerCount": 0,
+  "versionId": "1"
+}

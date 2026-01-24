@@ -9,7 +9,23 @@ class Settings(BaseSettings):
 
     # Paths
     jobs_dir: Path = Path("jobs")
+    data_dir: Path = Path("data")  # v2: Base data directory
     models_cache_dir: Path = Path(".cache/models")
+
+    @property
+    def sources_file(self) -> Path:
+        """Path to sources.json file."""
+        return self.data_dir / "sources.json"
+
+    @property
+    def pipelines_file(self) -> Path:
+        """Path to pipelines.json file."""
+        return self.data_dir / "pipelines.json"
+
+    @property
+    def items_dir(self) -> Path:
+        """Path to items directory."""
+        return self.data_dir / "items"
 
     # Whisper settings
     whisper_model: str = "large-v3"
@@ -51,4 +67,6 @@ settings = Settings()
 
 # Ensure directories exist
 settings.jobs_dir.mkdir(parents=True, exist_ok=True)
+settings.data_dir.mkdir(parents=True, exist_ok=True)
+settings.items_dir.mkdir(parents=True, exist_ok=True)
 settings.models_cache_dir.mkdir(parents=True, exist_ok=True)
