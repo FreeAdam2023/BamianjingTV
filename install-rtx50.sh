@@ -2,65 +2,76 @@
 # MirrorFlow RTX 50 Series Installation Script
 # Python 3.12 + CUDA 12.8 + PyTorch Nightly
 #
-# Compatible versions found:
-# - pyannote-audio 3.1.1: requires torch>=2.0.0 (flexible), pyannote-core>=5.0.0
-# - pyannote-core 5.0.0: requires numpy>=1.10.4 (compatible with coqui-tts)
-# - coqui-tts: requires numpy<2.0
+# Key version locks:
+# - pyannote.core==5.0.0 (numpy>=1.10.4, NOT 6.x which needs numpy>=2.0)
+# - pyannote.audio==3.1.1 with --no-deps to prevent core upgrade
 
 set -e
 
 echo "=== MirrorFlow RTX 50 Installation ==="
-echo "Compatible stack: pyannote 3.1.1 + numpy 1.x + PyTorch nightly"
 echo ""
 
 # 0. Clean slate
-echo "[0/8] Cleaning conflicting packages..."
-pip uninstall -y pyannote-audio pyannote-core pyannote-pipeline pyannote-database pyannote-metrics torch torchvision torchaudio 2>/dev/null || true
+echo "[0/9] Cleaning all conflicting packages..."
+pip uninstall -y pyannote-audio pyannote-core pyannote-pipeline pyannote-database pyannote-metrics \
+    torch torchvision torchaudio numpy 2>/dev/null || true
 
-# 1. PyTorch Nightly (CUDA 12.8)
-echo "[1/8] Installing PyTorch Nightly..."
+# 1. PyTorch Nightly
+echo "[1/9] Installing PyTorch Nightly (CUDA 12.8)..."
 pip install --pre torch torchvision torchaudio \
     --index-url https://download.pytorch.org/whl/nightly/cu128
 
-# 2. Verify PyTorch
-echo "[2/8] Verifying PyTorch..."
+# 2. Lock numpy to 1.x FIRST
+echo "[2/9] Installing numpy 1.x..."
+pip install "numpy>=1.26.0,<2.0"
+
+# 3. Verify
+echo "[3/9] Verifying PyTorch + numpy..."
 python -c "import torch; print(f'PyTorch {torch.__version__} CUDA {torch.version.cuda}')"
+python -c "import numpy; print(f'NumPy {numpy.__version__}')"
 
-# 3. Pin pyannote-core to 5.x (numpy 1.x compatible)
-echo "[3/8] Installing pyannote stack (3.1.1 + core 5.x)..."
-pip install "pyannote.core>=5.0.0,<6.0"
-pip install "pyannote.audio==3.1.1"
+# 4. Install pyannote.core 5.x FIRST (locked)
+echo "[4/9] Installing pyannote.core 5.0.0 (locked)..."
+pip install "pyannote.core==5.0.0"
+pip install "pyannote.database>=5.0.1,<6.0"
+pip install "pyannote.metrics>=3.2,<4.0"
+pip install "pyannote.pipeline>=3.0.1,<4.0"
 
-# 4. Verify numpy is still 1.x
-echo "[4/8] Checking numpy version..."
-python -c "import numpy; v=numpy.__version__; assert v.startswith('1.'), f'numpy {v} not 1.x!'; print(f'NumPy {v} ✓')"
+# 5. Install pyannote.audio with --no-deps (prevent core upgrade)
+echo "[5/9] Installing pyannote.audio 3.1.1 (no deps)..."
+pip install "pyannote.audio==3.1.1" --no-deps
+# Install remaining pyannote.audio deps manually
+pip install pytorch-lightning speechbrain asteroid-filterbanks \
+    torch-audiomentations pytorch-metric-learning einops optuna \
+    tensorboardX rich semver omegaconf hyperpyyaml
 
-# 5. FastAPI stack
-echo "[5/8] Installing FastAPI stack..."
+# 6. Verify numpy still 1.x
+echo "[6/9] Verifying numpy is still 1.x..."
+python -c "import numpy; v=numpy.__version__; assert v.startswith('1.'), f'FAIL: numpy {v}'; print(f'NumPy {v} ✓')"
+
+# 7. FastAPI + TTS + ML
+echo "[7/9] Installing FastAPI, TTS, ML packages..."
 pip install fastapi uvicorn[standard] python-multipart \
     pydantic pydantic-settings python-dotenv aiofiles loguru
-
-# 6. coqui-tts + ML packages
-echo "[6/8] Installing TTS and ML packages..."
 pip install transformers==4.39.3 tokenizers==0.15.2 accelerate diffusers Pillow
 pip install coqui-tts
 
-# 7. ASR + Audio/Video
-echo "[7/8] Installing ASR and media packages..."
+# 8. ASR + Media
+echo "[8/9] Installing ASR and media packages..."
 pip install openai-whisper faster-whisper
 pip install ffmpeg-python pydub soundfile yt-dlp
 
-# 8. APIs and testing
-echo "[8/8] Installing APIs and utilities..."
+# 9. APIs and testing
+echo "[9/9] Installing APIs and utilities..."
 pip install openai httpx google-api-python-client google-auth-oauthlib \
     pytest pytest-asyncio
 
 echo ""
-echo "=== Verifying Installation ==="
-python -c "import torch; print(f'✓ PyTorch {torch.__version__} (CUDA {torch.version.cuda})')"
+echo "=== Final Verification ==="
+python -c "import torch; print(f'✓ PyTorch {torch.__version__}')"
 python -c "import numpy; print(f'✓ NumPy {numpy.__version__}')"
-python -c "from pyannote.audio import Pipeline; print('✓ pyannote.audio 3.1.1')"
-python -c "from TTS.api import TTS; print('✓ coqui-tts (XTTS)')"
+python -c "from pyannote.audio import Pipeline; print('✓ pyannote.audio')"
+python -c "from TTS.api import TTS; print('✓ coqui-tts')"
 python -c "from fastapi import FastAPI; print('✓ FastAPI')"
 echo ""
-echo "=== All components verified! ==="
+echo "=== SUCCESS ==="
