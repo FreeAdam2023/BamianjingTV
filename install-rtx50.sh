@@ -97,7 +97,7 @@ pip install ffmpeg-python pydub soundfile yt-dlp
 # 10. APIs and testing
 echo "[10/10] Installing APIs and utilities..."
 pip install openai httpx google-api-python-client google-auth-oauthlib \
-    pytest pytest-asyncio
+    pytest pytest-asyncio opencc-python-reimplemented
 
 echo ""
 echo "=== Final Verification ==="

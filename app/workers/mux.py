@@ -9,6 +9,33 @@ import numpy as np
 from app.config import settings
 
 
+# ASS subtitle template with bilingual style
+ASS_HEADER = """[Script Info]
+Title: MirrorFlow Bilingual Subtitles
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: English,Arial,48,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,8,20,20,20,1
+Style: Chinese,Microsoft YaHei,52,&H0000FFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,1,2,20,20,20,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+
+
+def _seconds_to_ass_time(seconds: float) -> str:
+    """Convert seconds to ASS timestamp format (H:MM:SS.cc)."""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = seconds % 60
+    centiseconds = int((secs - int(secs)) * 100)
+    return f"{hours}:{minutes:02d}:{int(secs):02d}.{centiseconds:02d}"
+
+
 class MuxWorker:
     """Worker for audio alignment and video muxing."""
 
@@ -230,5 +257,175 @@ class MuxWorker:
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError(f"ffmpeg subtitle failed: {result.stderr}")
+
+        return output_path
+
+    async def generate_bilingual_ass(
+        self,
+        segments: List[Dict],
+        output_path: Path,
+        use_traditional: bool = True,
+    ) -> Path:
+        """
+        Generate ASS subtitle file with bilingual subtitles.
+
+        Args:
+            segments: List of segments with 'text' (English) and 'translation' (Chinese)
+            output_path: Path to save ASS file
+            use_traditional: Use Traditional Chinese (default True)
+
+        Returns:
+            Path to ASS file
+        """
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Convert Simplified to Traditional if needed
+        if use_traditional:
+            try:
+                import opencc
+                converter = opencc.OpenCC('s2t')  # Simplified to Traditional
+            except ImportError:
+                logger.warning("opencc not installed, using Simplified Chinese")
+                converter = None
+        else:
+            converter = None
+
+        lines = [ASS_HEADER]
+
+        for seg in segments:
+            start = _seconds_to_ass_time(seg["start"])
+            end = _seconds_to_ass_time(seg["end"])
+
+            # English subtitle (top, white)
+            english_text = seg.get("text", "").replace("\n", "\\N")
+            if english_text:
+                lines.append(f"Dialogue: 0,{start},{end},English,,0,0,0,,{english_text}")
+
+            # Chinese subtitle (bottom, yellow)
+            chinese_text = seg.get("translation", "").replace("\n", "\\N")
+            if chinese_text:
+                if converter:
+                    chinese_text = converter.convert(chinese_text)
+                lines.append(f"Dialogue: 0,{start},{end},Chinese,,0,0,0,,{chinese_text}")
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+
+        logger.info(f"Generated bilingual ASS subtitle: {output_path}")
+        return output_path
+
+    async def burn_bilingual_subtitles(
+        self,
+        video_path: Path,
+        segments: List[Dict],
+        output_path: Path,
+        use_traditional: bool = True,
+    ) -> Path:
+        """
+        Burn bilingual subtitles into video.
+
+        Style:
+        - English: Top area, white text, black outline
+        - Chinese: Bottom area, yellow text (繁体), black outline
+
+        Args:
+            video_path: Input video path
+            segments: Transcript segments with 'text' and 'translation'
+            output_path: Output video path
+            use_traditional: Use Traditional Chinese
+
+        Returns:
+            Path to output video with burned subtitles
+        """
+        video_path = Path(video_path)
+        output_path = Path(output_path)
+
+        # Generate ASS file
+        ass_path = output_path.parent / "subtitles_bilingual.ass"
+        await self.generate_bilingual_ass(segments, ass_path, use_traditional)
+
+        # Escape special characters in path for ffmpeg filter
+        ass_path_escaped = str(ass_path).replace("\\", "/").replace(":", "\\:")
+
+        # Build ffmpeg command
+        cmd = [
+            "ffmpeg",
+            "-i", str(video_path),
+            "-vf", f"ass={ass_path_escaped}",
+        ]
+
+        if self.use_nvenc:
+            cmd.extend(["-c:v", "h264_nvenc", "-preset", "p4"])
+        else:
+            cmd.extend(["-c:v", "libx264", "-preset", "medium", "-crf", "23"])
+
+        cmd.extend(["-c:a", "copy", "-y", str(output_path)])
+
+        logger.info(f"Burning bilingual subtitles: {output_path}")
+        result = subprocess.run(cmd, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            raise RuntimeError(f"ffmpeg subtitle burn failed: {result.stderr}")
+
+        logger.info(f"Bilingual subtitles burned successfully: {output_path}")
+        return output_path
+
+    async def mux_video_with_subtitles(
+        self,
+        video_path: Path,
+        audio_path: Path,
+        segments: List[Dict],
+        output_path: Path,
+        keep_original_audio: bool = False,
+        original_audio_volume: float = 0.1,
+        burn_subtitles: bool = True,
+        use_traditional: bool = True,
+    ) -> Path:
+        """
+        Complete mux: replace audio + burn bilingual subtitles.
+
+        Args:
+            video_path: Source video
+            audio_path: New audio (TTS)
+            segments: Transcript segments for subtitles
+            output_path: Final output path
+            keep_original_audio: Mix original audio
+            original_audio_volume: Original audio volume
+            burn_subtitles: Whether to burn subtitles
+            use_traditional: Use Traditional Chinese
+
+        Returns:
+            Path to final video
+        """
+        output_path = Path(output_path)
+        temp_dir = output_path.parent
+
+        # Step 1: Mux video with new audio
+        temp_muxed = temp_dir / "temp_muxed.mp4"
+        await self.mux_video(
+            video_path=video_path,
+            audio_path=audio_path,
+            output_path=temp_muxed,
+            keep_original_audio=keep_original_audio,
+            original_audio_volume=original_audio_volume,
+        )
+
+        if not burn_subtitles:
+            # Just rename temp file to output
+            temp_muxed.rename(output_path)
+            return output_path
+
+        # Step 2: Burn bilingual subtitles
+        await self.burn_bilingual_subtitles(
+            video_path=temp_muxed,
+            segments=segments,
+            output_path=output_path,
+            use_traditional=use_traditional,
+        )
+
+        # Cleanup temp file
+        if temp_muxed.exists():
+            temp_muxed.unlink()
 
         return output_path
