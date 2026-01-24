@@ -12,6 +12,9 @@ set -e
 echo "=== MirrorFlow RTX 50 Installation ==="
 echo ""
 
+# Accept Coqui TOS automatically
+export COQUI_TOS_AGREED=1
+
 # 0. Clean slate
 echo "[0/9] Cleaning all conflicting packages..."
 pip uninstall -y pyannote-audio pyannote-core pyannote-pipeline pyannote-database pyannote-metrics \
@@ -55,6 +58,10 @@ pip install fastapi uvicorn[standard] python-multipart \
     pydantic pydantic-settings python-dotenv aiofiles loguru
 pip install transformers==4.39.3 tokenizers==0.15.2 accelerate diffusers Pillow
 pip install coqui-tts
+
+# Patch coqpit for Python 3.12 compatibility (union types like float | list[float])
+echo "Patching coqpit for Python 3.12..."
+python -c "f='$(python -c \"import coqpit;print(coqpit.__file__.replace('__init__.py','coqpit.py'))\")';c=open(f).read();c=c.replace('import typing','import typing\nimport types');c=c.replace('if issubclass(field_type, Serializable):','if isinstance(field_type, type) and issubclass(field_type, Serializable):');c=c.replace('if field_type is Any:','if hasattr(__import__(\"types\"),\"UnionType\") and isinstance(field_type,__import__(\"types\").UnionType): return x\n    if field_type is Any:');open(f,'w').write(c);print('coqpit patched')"
 
 # 8. ASR + Media
 echo "[8/9] Installing ASR and media packages..."
