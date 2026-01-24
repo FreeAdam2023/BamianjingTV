@@ -2,9 +2,10 @@
 # MirrorFlow RTX 50 Series Installation Script
 # Python 3.12 + CUDA 12.8 + PyTorch Nightly
 #
-# Key version locks:
-# - pyannote.core==5.0.0 (numpy>=1.10.4, NOT 6.x which needs numpy>=2.0)
-# - pyannote.audio==3.1.1 with --no-deps to prevent core upgrade
+# Solution:
+# - pyannote.audio from GitHub (fixes torchaudio.set_audio_backend removal)
+# - pyannote.core==5.0.0 (numpy 1.x compatible)
+# - Install with --no-deps to prevent dependency upgrades
 
 set -e
 
@@ -21,7 +22,7 @@ echo "[1/9] Installing PyTorch Nightly (CUDA 12.8)..."
 pip install --pre torch torchvision torchaudio \
     --index-url https://download.pytorch.org/whl/nightly/cu128
 
-# 2. Lock numpy to 1.x FIRST
+# 2. Lock numpy to 1.x
 echo "[2/9] Installing numpy 1.x..."
 pip install "numpy>=1.26.0,<2.0"
 
@@ -30,20 +31,19 @@ echo "[3/9] Verifying PyTorch + numpy..."
 python -c "import torch; print(f'PyTorch {torch.__version__} CUDA {torch.version.cuda}')"
 python -c "import numpy; print(f'NumPy {numpy.__version__}')"
 
-# 4. Install pyannote.core 5.x FIRST (locked)
-echo "[4/9] Installing pyannote.core 5.0.0 (locked)..."
+# 4. Install pyannote dependencies with locked versions
+echo "[4/9] Installing pyannote dependencies (locked versions)..."
 pip install "pyannote.core==5.0.0"
 pip install "pyannote.database>=5.0.1,<6.0"
 pip install "pyannote.metrics>=3.2,<4.0"
 pip install "pyannote.pipeline>=3.0.1,<4.0"
-
-# 5. Install pyannote.audio with --no-deps (prevent core upgrade)
-echo "[5/9] Installing pyannote.audio 3.1.1 (no deps)..."
-pip install "pyannote.audio==3.1.1" --no-deps
-# Install remaining pyannote.audio deps manually
 pip install pytorch-lightning speechbrain asteroid-filterbanks \
     torch-audiomentations pytorch-metric-learning einops optuna \
     tensorboardX rich semver omegaconf hyperpyyaml
+
+# 5. Install pyannote.audio from GitHub with --no-deps
+echo "[5/9] Installing pyannote.audio from GitHub (no deps)..."
+pip install git+https://github.com/pyannote/pyannote-audio.git --no-deps
 
 # 6. Verify numpy still 1.x
 echo "[6/9] Verifying numpy is still 1.x..."
