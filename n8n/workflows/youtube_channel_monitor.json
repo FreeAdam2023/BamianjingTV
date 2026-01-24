@@ -1,0 +1,137 @@
+{
+  "name": "MirrorFlow - YouTube Channel Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "hours", "hoursInterval": 6 }]
+        }
+      },
+      "id": "schedule",
+      "name": "Every 6 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {},
+      "id": "manual",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 480]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://172.17.0.1:8000/sources",
+        "options": {
+          "queryParameters": {
+            "parameters": [
+              { "name": "source_type", "value": "youtube" },
+              { "name": "enabled_only", "value": "true" }
+            ]
+          }
+        }
+      },
+      "id": "get_sources",
+      "name": "Get YouTube Sources",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 380]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.youtube.com/feeds/videos.xml?channel_id={{ $json.config.channel_id }}",
+        "options": {}
+      },
+      "id": "fetch_rss",
+      "name": "Fetch YouTube RSS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 380]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse YouTube RSS XML and extract video entries\nconst xml = $input.first().json.data;\nconst source = $('Get YouTube Sources').first().json;\n\n// Simple XML parsing for YouTube RSS\nconst entries = [];\nconst entryRegex = /<entry>(.*?)<\\/entry>/gs;\nlet match;\n\nwhile ((match = entryRegex.exec(xml)) !== null) {\n  const entry = match[1];\n  \n  const videoId = entry.match(/<yt:videoId>(.*?)<\\/yt:videoId>/)?.[1];\n  const title = entry.match(/<title>(.*?)<\\/title>/)?.[1];\n  const published = entry.match(/<published>(.*?)<\\/published>/)?.[1];\n  const description = entry.match(/<media:description>(.*?)<\\/media:description>/s)?.[1] || '';\n  const thumbnail = entry.match(/url=\"(https:\\/\\/i[^\"]+)\"/)?.[1];\n  \n  if (videoId && title) {\n    entries.push({\n      source_type: 'youtube',\n      source_id: source.source_id,\n      original_url: `https://www.youtube.com/watch?v=${videoId}`,\n      original_title: title.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>'),\n      original_description: description.substring(0, 500),\n      original_thumbnail: thumbnail,\n      published_at: published\n    });\n  }\n}\n\nreturn entries.slice(0, 10); // Return latest 10 videos"
+      },
+      "id": "parse_rss",
+      "name": "Parse RSS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 380]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://172.17.0.1:8000/items",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "create_item",
+      "name": "Create Item",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 380]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "is-new",
+              "leftValue": "={{ $json.is_new }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter_new",
+      "name": "Filter New Items",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1440, 380]
+    },
+    {
+      "parameters": {
+        "content": "## New Video Discovered!\n\n**{{ $json.item.original_title }}**\n\nSource: {{ $json.item.source_id }}\nURL: {{ $json.item.original_url }}\n\nItem ID: `{{ $json.item.item_id }}`\n\nTo process this video, call:\n```\nPOST http://172.17.0.1:8000/items/{{ $json.item.item_id }}/process\n```",
+        "options": {}
+      },
+      "id": "notification",
+      "name": "Log New Video",
+      "type": "n8n-nodes-base.markdown",
+      "typeVersion": 1,
+      "position": [1680, 380]
+    }
+  ],
+  "connections": {
+    "Every 6 Hours": {
+      "main": [[{ "node": "Get YouTube Sources", "type": "main", "index": 0 }]]
+    },
+    "Manual Trigger": {
+      "main": [[{ "node": "Get YouTube Sources", "type": "main", "index": 0 }]]
+    },
+    "Get YouTube Sources": {
+      "main": [[{ "node": "Fetch YouTube RSS", "type": "main", "index": 0 }]]
+    },
+    "Fetch YouTube RSS": {
+      "main": [[{ "node": "Parse RSS", "type": "main", "index": 0 }]]
+    },
+    "Parse RSS": {
+      "main": [[{ "node": "Create Item", "type": "main", "index": 0 }]]
+    },
+    "Create Item": {
+      "main": [[{ "node": "Filter New Items", "type": "main", "index": 0 }]]
+    },
+    "Filter New Items": {
+      "main": [[{ "node": "Log New Video", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}

@@ -173,6 +173,18 @@ class ItemManager:
         """Get all items for a source."""
         return [i for i in self.items.values() if i.source_id == source_id]
 
+    def update_item_status(self, item_id: str, status: ItemStatus) -> Optional[Item]:
+        """Update item status."""
+        item = self.items.get(item_id)
+        if not item:
+            return None
+
+        item.status = status
+        item.updated_at = datetime.now()
+        self._save_item(item)
+        logger.info(f"Updated item {item_id} status to {status.value}")
+        return item
+
     def get_recent_items(self, hours: int = 24) -> List[Item]:
         """Get items created within the last N hours."""
         cutoff = datetime.now() - timedelta(hours=hours)

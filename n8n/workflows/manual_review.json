@@ -1,0 +1,124 @@
+{
+  "name": "MirrorFlow - Manual Review",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://172.17.0.1:8000/items",
+        "options": {}
+      },
+      "id": "get_items",
+      "name": "Get Pending Items",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "pending-check",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "pending",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter_pending",
+      "name": "Filter Pending",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://172.17.0.1:8000/jobs",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ url: $json.original_url, item_id: $json.item_id }) }}",
+        "options": {}
+      },
+      "id": "create_job",
+      "name": "Create Job (Manual)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://172.17.0.1:8000/sources",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"source_id\": \"yt_wef\",\n  \"source_type\": \"youtube\",\n  \"sub_type\": \"channel\",\n  \"display_name\": \"World Economic Forum\",\n  \"fetcher\": \"youtube_rss\",\n  \"config\": {\n    \"channel_handle\": \"@wef\",\n    \"channel_url\": \"https://www.youtube.com/@wef\"\n  },\n  \"enabled\": true,\n  \"default_pipelines\": []\n}",
+        "options": {}
+      },
+      "id": "add_source",
+      "name": "Add WEF Source",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://172.17.0.1:8000/sources",
+        "options": {}
+      },
+      "id": "list_sources",
+      "name": "List Sources",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 500]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          { "node": "Get Pending Items", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Get Pending Items": {
+      "main": [
+        [
+          { "node": "Filter Pending", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Add WEF Source": {
+      "main": [
+        [
+          { "node": "List Sources", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {}
+}

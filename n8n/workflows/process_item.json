@@ -1,0 +1,83 @@
+{
+  "name": "MirrorFlow - Process Selected Item",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "process-video",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "process-video"
+    },
+    {
+      "parameters": {},
+      "id": "manual",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 480]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "item_id",
+              "value": "={{ $json.body?.item_id || $json.item_id || 'item_xxxxxxxx' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set_item_id",
+      "name": "Set Item ID",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [480, 380]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://172.17.0.1:8000/items/{{ $json.item_id }}/process",
+        "options": {}
+      },
+      "id": "process",
+      "name": "Process Item",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 380]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://172.17.0.1:8000/jobs/{{ $json.job_id }}",
+        "options": {}
+      },
+      "id": "get_job",
+      "name": "Get Job Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 380]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Set Item ID", "type": "main", "index": 0 }]]
+    },
+    "Manual Trigger": {
+      "main": [[{ "node": "Set Item ID", "type": "main", "index": 0 }]]
+    },
+    "Set Item ID": {
+      "main": [[{ "node": "Process Item", "type": "main", "index": 0 }]]
+    },
+    "Process Item": {
+      "main": [[{ "node": "Get Job Status", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}

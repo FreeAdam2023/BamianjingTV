@@ -210,3 +210,42 @@ async def get_items_stats():
 async def get_items_by_source_type():
     """Get overview statistics grouped by source type."""
     return item_manager.get_overview_by_source_type()
+
+
+# ============ Quick Actions ============
+
+@router.post("/{item_id}/process")
+async def process_item(item_id: str):
+    """Quick action: Create a job to process this item.
+
+    This is a convenience endpoint for the manual review workflow.
+    It creates a job using the item's original URL.
+    """
+    item = item_manager.get_item(item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail=f"Item '{item_id}' not found")
+
+    # Import job manager
+    from app.api.jobs import job_manager, job_queue
+
+    if job_manager is None:
+        raise HTTPException(status_code=500, detail="Job manager not initialized")
+
+    # Create job from item URL
+    job = job_manager.create_job(url=item.original_url)
+
+    # Queue the job
+    if job_queue:
+        await job_queue.add_job(job.job_id)
+
+    # Update item status
+    item_manager.update_item_status(item_id, ItemStatus.QUEUED)
+
+    logger.info(f"Created job {job.job_id} for item {item_id}")
+
+    return {
+        "item_id": item_id,
+        "job_id": job.job_id,
+        "status": "queued",
+        "message": f"Job created for '{item.original_title}'"
+    }
