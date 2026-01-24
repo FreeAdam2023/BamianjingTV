@@ -33,11 +33,59 @@
 
 ### 软件要求
 
-- Python 3.10+
+- Python 3.10+（推荐 3.12）
 - FFmpeg（支持 NVENC 用于 GPU 编码）
 - Docker + Docker Compose（可选）
 - NVIDIA Driver 535+（GPU 部署）
 - NVIDIA Container Toolkit（Docker GPU 部署）
+
+### RTX 50 系列 (Blackwell) 特殊配置
+
+RTX 5080/5090 等 Blackwell 架构 GPU 需要 PyTorch Nightly 版本。
+
+> **重要**：标准 `pip install -r requirements.txt` 会安装 PyTorch 稳定版，与 Blackwell GPU 不兼容。
+
+#### 安装步骤
+
+1. **先安装 PyTorch Nightly（CUDA 12.8）**：
+
+```bash
+pip install --pre torch torchvision torchaudio \
+  --index-url https://download.pytorch.org/whl/nightly/cu128
+```
+
+2. **再安装其他依赖**：
+
+```bash
+pip install -r requirements.txt --no-deps
+pip install -r requirements.txt
+```
+
+#### 版本冲突修复
+
+如果遇到 `torchvision requires torch==2.11.0.dev but you have torch 2.8.0` 类似错误：
+
+```bash
+# 卸载冲突包
+pip uninstall -y torch torchvision torchaudio triton nvidia-cudnn-cu12 nvidia-nccl-cu12
+
+# 重新安装 nightly 版本
+pip install --pre torch torchvision torchaudio \
+  --index-url https://download.pytorch.org/whl/nightly/cu128
+```
+
+#### 验证安装
+
+```python
+import torch
+print(f"PyTorch: {torch.__version__}")
+print(f"CUDA: {torch.version.cuda}")
+print(f"GPU: {torch.cuda.get_device_name(0)}")
+# 预期输出：
+# PyTorch: 2.11.0.dev2024xxxx+cu128
+# CUDA: 12.8
+# GPU: NVIDIA GeForce RTX 5080
+```
 
 ---
 
@@ -535,7 +583,23 @@ nvidia-container-cli info
 sudo systemctl restart docker
 ```
 
-### 5. 端口被占用
+### 5. PyTorch 版本冲突 (RTX 50 系列)
+
+**问题**：`torchvision requires torch==2.11.0.dev but you have torch 2.8.0`
+
+**原因**：安装 coqui-tts/pyannote 时，pip 将 PyTorch nightly 降级为稳定版，但 torchvision 仍是 nightly 版本。
+
+**解决方案**：
+```bash
+# 卸载冲突包
+pip uninstall -y torch torchvision torchaudio triton nvidia-cudnn-cu12 nvidia-nccl-cu12
+
+# 重新安装统一的 nightly 版本
+pip install --pre torch torchvision torchaudio \
+  --index-url https://download.pytorch.org/whl/nightly/cu128
+```
+
+### 6. 端口被占用
 
 **问题**：`Address already in use`
 
