@@ -87,6 +87,34 @@ print(f"GPU: {torch.cuda.get_device_name(0)}")
 # GPU: NVIDIA GeForce RTX 5080
 ```
 
+#### XTTS v2 兼容性修复
+
+如果遇到 XTTS/GPT2 相关错误，需要锁定 transformers 版本：
+
+```bash
+pip install "transformers==4.39.3" "tokenizers==0.15.2" --force-reinstall
+```
+
+> **说明**：这是 XTTS v2 最稳定的 GPT2 兼容版本组合。requirements.txt 已预设此版本。
+
+#### 完整安装流程（RTX 50 系列）
+
+```bash
+# 1. 创建虚拟环境
+python3.12 -m venv venv
+source venv/bin/activate
+
+# 2. 安装 PyTorch Nightly (CUDA 12.8)
+pip install --pre torch torchvision torchaudio \
+  --index-url https://download.pytorch.org/whl/nightly/cu128
+
+# 3. 安装项目依赖（transformers/tokenizers 已锁定版本）
+pip install -r requirements.txt
+
+# 4. 验证 XTTS
+python -c "from TTS.api import TTS; print('XTTS OK')"
+```
+
 ---
 
 ## 部署方式
