@@ -53,3 +53,8 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+.env
+credentials/
+credentials/client_secret_75175154082-64i7kd0a3i70lggqhb6ko00enq7b2a0f.apps.googleusercontent.com.json
+youtube_token.json
