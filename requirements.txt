@@ -11,13 +11,12 @@ openai-whisper>=20231117
 faster-whisper>=0.10.0
 
 # Speaker Diarization
-pyannote.audio>=3.1.0
-# Note: torch/torchaudio versions depend on GPU architecture
-# RTX 50 series (Blackwell): Install nightly separately before requirements.txt
-# pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
-# RTX 30/40 series: Uncomment below
-# torch>=2.1.0
-# torchaudio>=2.1.0
+# IMPORTANT: Use GitHub version for PyTorch nightly compatibility (PyPI version locks torch==2.8.0)
+# RTX 50 series: pip install git+https://github.com/pyannote/pyannote-audio.git
+# RTX 30/40 series: pyannote.audio>=3.1.0
+# Note: torch/torchaudio - install separately based on GPU architecture
+# RTX 50 series (Blackwell): pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
+# RTX 30/40 series: pip install torch torchvision torchaudio
 
 # Translation
 openai>=1.10.0
@@ -30,7 +29,8 @@ coqui-tts>=0.22.0
 ffmpeg-python>=0.2.0
 pydub>=0.25.1
 soundfile>=0.12.1
-numpy>=1.24.0
+# IMPORTANT: numpy pinned for numba compatibility (numba requires numpy<2.4)
+numpy>=1.24.0,<2.4
 
 # Image generation (for thumbnails)
 diffusers>=0.25.0

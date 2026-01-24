@@ -108,12 +108,22 @@ source venv/bin/activate
 pip install --pre torch torchvision torchaudio \
   --index-url https://download.pytorch.org/whl/nightly/cu128
 
-# 3. 安装项目依赖（transformers/tokenizers 已锁定版本）
+# 3. 安装 pyannote.audio 从 GitHub（PyPI 版本锁死 torch==2.8.0）
+pip install git+https://github.com/pyannote/pyannote-audio.git
+
+# 4. 锁定 numpy 版本（numba 要求 numpy<2.4）
+pip install "numpy>=1.24.0,<2.4" --force-reinstall
+
+# 5. 安装项目依赖
 pip install -r requirements.txt
 
-# 4. 验证 XTTS
+# 6. 验证安装
+python -c "import torch; print(f'PyTorch: {torch.__version__}')"
+python -c "from pyannote.audio import Pipeline; print('pyannote OK')"
 python -c "from TTS.api import TTS; print('XTTS OK')"
 ```
+
+> **关键点**：pyannote.audio PyPI 版本会强制降级 torch 到 2.8.0，必须从 GitHub 安装以兼容 nightly。
 
 ---
 
@@ -615,16 +625,31 @@ sudo systemctl restart docker
 
 **问题**：`torchvision requires torch==2.11.0.dev but you have torch 2.8.0`
 
-**原因**：安装 coqui-tts/pyannote 时，pip 将 PyTorch nightly 降级为稳定版，但 torchvision 仍是 nightly 版本。
+**原因**：pyannote.audio PyPI 版本锁死 `torch==2.8.0`，会强制降级 PyTorch nightly。
 
 **解决方案**：
 ```bash
-# 卸载冲突包
+# 1. 卸载 PyPI 版 pyannote
+pip uninstall -y pyannote-audio pyannote-core pyannote-pipeline pyannote-database pyannote-metrics
+
+# 2. 卸载冲突的 torch 包
 pip uninstall -y torch torchvision torchaudio triton nvidia-cudnn-cu12 nvidia-nccl-cu12
 
-# 重新安装统一的 nightly 版本
+# 3. 重装 PyTorch nightly
 pip install --pre torch torchvision torchaudio \
   --index-url https://download.pytorch.org/whl/nightly/cu128
+
+# 4. 从 GitHub 安装 pyannote（不锁 torch 版本）
+pip install git+https://github.com/pyannote/pyannote-audio.git
+```
+
+### 6. numpy 版本冲突
+
+**问题**：`numba requires numpy<2.4 but you have numpy 2.4.x`
+
+**解决方案**：
+```bash
+pip install "numpy>=1.24.0,<2.4" --force-reinstall
 ```
 
 ### 6. 端口被占用
