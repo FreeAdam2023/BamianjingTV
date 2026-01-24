@@ -1,3 +1,10 @@
+# MirrorFlow Requirements for RTX 50 Series (Blackwell) GPUs
+# Python 3.12 + CUDA 12.8 + PyTorch Nightly
+#
+# Installation order:
+# 1. pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
+# 2. pip install -r requirements-rtx50.txt
+
 # FastAPI and server
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
@@ -10,31 +17,28 @@ yt-dlp>=2024.1.0
 openai-whisper>=20231117
 faster-whisper>=0.10.0
 
-# Speaker Diarization
-# NOTE: RTX 50 series (Blackwell) users should use requirements-rtx50.txt instead
-pyannote.audio>=3.1.0
-torch>=2.1.0
-torchaudio>=2.1.0
+# Speaker Diarization (GitHub version - doesn't lock torch)
+pyannote.audio @ git+https://github.com/pyannote/pyannote-audio.git
 
 # Translation
 openai>=1.10.0
 httpx>=0.26.0
 
 # TTS (coqui-tts fork for Python 3.12+ compatibility)
+# IMPORTANT: transformers/tokenizers pinned for XTTS v2 GPT2 compatibility
 coqui-tts>=0.22.0
+transformers==4.39.3
+tokenizers==0.15.2
 
 # Audio/Video processing
 ffmpeg-python>=0.2.0
 pydub>=0.25.1
 soundfile>=0.12.1
-# IMPORTANT: numpy pinned for numba compatibility (numba requires numpy<2.4)
+# numpy pinned for numba compatibility (numba requires numpy<2.4)
 numpy>=1.24.0,<2.4
 
 # Image generation (for thumbnails)
 diffusers>=0.25.0
-# IMPORTANT: transformers/tokenizers pinned for XTTS v2 GPT2 compatibility
-transformers==4.39.3
-tokenizers==0.15.2
 accelerate>=0.26.0
 Pillow>=10.2.0
 
@@ -53,4 +57,3 @@ scipy>=1.11.0
 # Testing
 pytest>=7.4.0
 pytest-asyncio>=0.23.0
-httpx>=0.26.0

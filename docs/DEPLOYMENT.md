@@ -99,6 +99,8 @@ pip install "transformers==4.39.3" "tokenizers==0.15.2" --force-reinstall
 
 #### 完整安装流程（RTX 50 系列）
 
+使用专用的 `requirements-rtx50.txt` 文件：
+
 ```bash
 # 1. 创建虚拟环境
 python3.12 -m venv venv
@@ -108,22 +110,18 @@ source venv/bin/activate
 pip install --pre torch torchvision torchaudio \
   --index-url https://download.pytorch.org/whl/nightly/cu128
 
-# 3. 安装 pyannote.audio 从 GitHub（PyPI 版本锁死 torch==2.8.0）
-pip install git+https://github.com/pyannote/pyannote-audio.git
+# 3. 安装项目依赖（使用 RTX 50 专用文件）
+pip install -r requirements-rtx50.txt
 
-# 4. 锁定 numpy 版本（numba 要求 numpy<2.4）
-pip install "numpy>=1.24.0,<2.4" --force-reinstall
-
-# 5. 安装项目依赖
-pip install -r requirements.txt
-
-# 6. 验证安装
+# 4. 验证安装
 python -c "import torch; print(f'PyTorch: {torch.__version__}')"
 python -c "from pyannote.audio import Pipeline; print('pyannote OK')"
 python -c "from TTS.api import TTS; print('XTTS OK')"
 ```
 
-> **关键点**：pyannote.audio PyPI 版本会强制降级 torch 到 2.8.0，必须从 GitHub 安装以兼容 nightly。
+> **重要**：`requirements-rtx50.txt` 包含 pyannote.audio GitHub 版本，不会降级 PyTorch。
+>
+> 普通用户（RTX 30/40 系列）使用标准 `requirements.txt` 即可。
 
 ---
 
