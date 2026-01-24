@@ -19,8 +19,8 @@ torchaudio>=2.1.0
 openai>=1.10.0
 httpx>=0.26.0
 
-# TTS
-TTS>=0.22.0
+# TTS (coqui-tts fork for Python 3.12+ compatibility)
+coqui-tts>=0.22.0
 
 # Audio/Video processing
 ffmpeg-python>=0.2.0
