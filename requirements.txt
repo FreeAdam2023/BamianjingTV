@@ -1,0 +1,52 @@
+# FastAPI and server
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.6
+
+# Video download
+yt-dlp>=2024.1.0
+
+# ASR (Speech Recognition)
+openai-whisper>=20231117
+faster-whisper>=0.10.0
+
+# Speaker Diarization
+pyannote.audio>=3.1.0
+torch>=2.1.0
+torchaudio>=2.1.0
+
+# Translation
+openai>=1.10.0
+httpx>=0.26.0
+
+# TTS
+TTS>=0.22.0
+
+# Audio/Video processing
+ffmpeg-python>=0.2.0
+pydub>=0.25.1
+soundfile>=0.12.1
+numpy>=1.24.0
+
+# Image generation (for thumbnails)
+diffusers>=0.25.0
+transformers>=4.37.0
+accelerate>=0.26.0
+Pillow>=10.2.0
+
+# YouTube upload
+google-api-python-client>=2.115.0
+google-auth-oauthlib>=1.2.0
+
+# Utilities
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
+aiofiles>=23.2.0
+loguru>=0.7.2
+scipy>=1.11.0
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.23.0
+httpx>=0.26.0

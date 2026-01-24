@@ -1,0 +1,160 @@
+{
+  "name": "MirrorFlow Batch Processing",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "batch-process",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "batch-trigger",
+      "name": "Batch Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 300],
+      "webhookId": "mirrorflow-batch"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://mirrorflow:8000/jobs/batch",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ urls: $json.body.urls, target_language: $json.body.target_language || 'zh', priority: $json.body.priority || 0, callback_url: 'http://n8n:5678/webhook/batch-callback' }) }}",
+        "options": {}
+      },
+      "id": "create-batch",
+      "name": "Create Batch Jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, batch_id: Date.now().toString(), job_ids: $json.body.job_ids, count: $json.body.count }) }}",
+        "options": {}
+      },
+      "id": "respond-batch",
+      "name": "Respond Batch Created",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "batch-callback",
+        "options": {}
+      },
+      "id": "callback-trigger",
+      "name": "Callback Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 500],
+      "webhookId": "mirrorflow-batch-callback"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "job-completed",
+              "leftValue": "={{ $json.body.event }}",
+              "rightValue": "job_completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-job-done",
+      "name": "If Job Completed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log completed job\nconst job = $input.first().json.body.job;\n\nconsole.log(`Job ${job.id} completed:`);\nconsole.log(`  Title: ${job.title}`);\nconsole.log(`  Output: ${job.output_video}`);\n\nreturn [{\n  json: {\n    job_id: job.id,\n    title: job.title,\n    output_video: job.output_video,\n    completed_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "log-completion",
+      "name": "Log Completion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 500]
+    }
+  ],
+  "connections": {
+    "Batch Trigger": {
+      "main": [
+        [
+          {
+            "node": "Create Batch Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Batch Jobs": {
+      "main": [
+        [
+          {
+            "node": "Respond Batch Created",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Callback Trigger": {
+      "main": [
+        [
+          {
+            "node": "If Job Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Job Completed": {
+      "main": [
+        [
+          {
+            "node": "Log Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "mirrorflow"
+  },
+  "tags": [
+    {
+      "name": "mirrorflow"
+    },
+    {
+      "name": "batch"
+    }
+  ]
+}

@@ -1,0 +1,164 @@
+{
+  "name": "MirrorFlow Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://mirrorflow:8000/stats",
+        "options": {}
+      },
+      "id": "get-stats",
+      "name": "Get Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-failed",
+              "leftValue": "={{ $json.body.jobs.by_status?.failed || 0 }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-failed-jobs",
+      "name": "If Failed Jobs",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://mirrorflow:8000/jobs?status=failed&limit=10",
+        "options": {}
+      },
+      "id": "get-failed-jobs",
+      "name": "Get Failed Jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 220]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format alert message\nconst stats = $('Get Stats').item.json.body;\nconst failedJobs = $input.first().json.body;\n\nconst message = `\n⚠️ MirrorFlow Alert\n\nFailed Jobs: ${stats.jobs.by_status?.failed || 0}\nPending: ${stats.jobs.by_status?.pending || 0}\nProcessing: ${stats.queue.active}\nQueue: ${stats.queue.pending}\n\nRecent Failures:\n${failedJobs.slice(0, 5).map(j => `- ${j.id}: ${j.error?.substring(0, 50)}...`).join('\\n')}\n`;\n\nreturn [{ json: { message, failed_count: failedJobs.length } }];"
+      },
+      "id": "format-alert",
+      "name": "Format Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 220]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log stats\nconst stats = $input.first().json.body;\nconsole.log('MirrorFlow Status:');\nconsole.log(`  Total Jobs: ${stats.jobs.total}`);\nconsole.log(`  Queue Active: ${stats.queue.active}`);\nconsole.log(`  Queue Pending: ${stats.queue.pending}`);\n\nreturn $input.all();"
+      },
+      "id": "log-stats",
+      "name": "Log Stats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 400]
+    }
+  ],
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Stats": {
+      "main": [
+        [
+          {
+            "node": "If Failed Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Failed Jobs": {
+      "main": [
+        [
+          {
+            "node": "Get Failed Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Failed Jobs": {
+      "main": [
+        [
+          {
+            "node": "Format Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "mirrorflow"
+  },
+  "tags": [
+    {
+      "name": "mirrorflow"
+    },
+    {
+      "name": "monitoring"
+    }
+  ]
+}

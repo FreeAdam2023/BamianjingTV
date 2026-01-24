@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  # MirrorFlow API Service
+  mirrorflow:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mirrorflow-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./jobs:/app/jobs
+      - ./credentials:/app/credentials:ro
+      - model-cache:/app/.cache/models
+    environment:
+      - HF_TOKEN=${HF_TOKEN}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - WHISPER_MODEL=${WHISPER_MODEL:-large-v3}
+      - WHISPER_DEVICE=cuda
+      - TTS_DEVICE=cuda
+      - FFMPEG_NVENC=true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - mirrorflow-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # n8n Workflow Automation
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: mirrorflow-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n-data:/home/node/.n8n
+      - ./n8n/workflows:/home/node/.n8n/workflows
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-mirrorflow}
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://n8n:5678
+      - GENERIC_TIMEZONE=Asia/Shanghai
+    networks:
+      - mirrorflow-net
+    depends_on:
+      - mirrorflow
+
+  # Redis for job queue (optional, for scaling)
+  redis:
+    image: redis:7-alpine
+    container_name: mirrorflow-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    networks:
+      - mirrorflow-net
+    command: redis-server --appendonly yes
+
+volumes:
+  model-cache:
+    driver: local
+  n8n-data:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  mirrorflow-net:
+    driver: bridge
