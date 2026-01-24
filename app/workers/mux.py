@@ -9,7 +9,7 @@ import numpy as np
 from app.config import settings
 
 
-# ASS subtitle template with bilingual style
+# ASS subtitle template with bilingual style (opaque box background)
 ASS_HEADER = """[Script Info]
 Title: MirrorFlow Bilingual Subtitles
 ScriptType: v4.00+
@@ -19,8 +19,8 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: English,Arial,48,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,8,20,20,20,1
-Style: Chinese,Microsoft YaHei,52,&H0000FFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,1,2,20,20,20,1
+Style: English,Arial,48,&H00FFFFFF,&H000000FF,&H00000000,&HC0000000,-1,0,0,0,100,100,0,0,3,0,0,8,20,20,60,1
+Style: Chinese,Microsoft YaHei,52,&H0000FFFF,&H000000FF,&H00000000,&HC0000000,-1,0,0,0,100,100,0,0,3,0,0,2,20,20,60,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
