@@ -38,17 +38,29 @@ class TranslationWorker:
     def _get_client(self):
         """Get or create OpenAI client."""
         if self.client is None:
-            from openai import AsyncOpenAI
-
             if not self.api_key:
                 raise ValueError(
                     "OpenAI API key required. Set OPENAI_API_KEY environment variable."
                 )
 
-            self.client = AsyncOpenAI(
-                api_key=self.api_key,
-                base_url=self.base_url,
-            )
+            if settings.is_azure_openai:
+                from openai import AsyncAzureOpenAI
+
+                # Extract resource URL from base_url
+                # e.g., https://xxx.openai.azure.com/openai/deployments/gpt-4.1-mini
+                azure_endpoint = self.base_url.split("/openai/")[0]
+                self.client = AsyncAzureOpenAI(
+                    api_key=self.api_key,
+                    api_version=settings.openai_api_version,
+                    azure_endpoint=azure_endpoint,
+                )
+            else:
+                from openai import AsyncOpenAI
+
+                self.client = AsyncOpenAI(
+                    api_key=self.api_key,
+                    base_url=self.base_url,
+                )
 
         return self.client
 

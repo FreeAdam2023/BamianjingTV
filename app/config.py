@@ -39,7 +39,13 @@ class Settings(BaseSettings):
     # Translation settings
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"
+    openai_api_version: str = "2024-12-01-preview"  # For Azure OpenAI
     translation_model: str = "gpt-4o-mini"
+
+    @property
+    def is_azure_openai(self) -> bool:
+        """Check if using Azure OpenAI."""
+        return "azure" in self.openai_base_url.lower()
 
     # TTS settings
     tts_model: str = "tts_models/multilingual/multi-dataset/xtts_v2"
