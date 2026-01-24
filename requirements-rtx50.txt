@@ -34,6 +34,8 @@ tokenizers==0.15.2
 ffmpeg-python>=0.2.0
 pydub>=0.25.1
 soundfile>=0.12.1
+# numba >= 0.59.0 required for Python 3.12 support
+numba>=0.59.0
 # numpy pinned for numba compatibility (numba requires numpy<2.4)
 numpy>=1.24.0,<2.4
 
