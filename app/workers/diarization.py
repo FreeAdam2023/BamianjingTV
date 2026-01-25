@@ -36,7 +36,7 @@ class DiarizationWorker:
             logger.info("Loading diarization pipeline...")
             self.pipeline = Pipeline.from_pretrained(
                 "pyannote/speaker-diarization-3.1",
-                use_auth_token=self.hf_token,
+                token=self.hf_token,
             )
 
             # Move to GPU if available
