@@ -66,6 +66,9 @@ class Settings(BaseSettings):
     ffmpeg_nvenc: bool = True
     max_video_duration: int = 7200  # 2 hours in seconds
 
+    # Queue settings
+    max_concurrent_jobs: int = 2  # Max concurrent job processing (adjust based on GPU memory)
+
     # YouTube settings
     youtube_credentials_file: str = "credentials/youtube_oauth.json"
     youtube_token_file: str = "credentials/youtube_token.json"

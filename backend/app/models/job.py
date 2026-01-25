@@ -28,6 +28,7 @@ class JobStatus(str, Enum):
     EXPORTING = "exporting"  # Video export with subtitles
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"  # User cancelled the job
 
 
 def infer_source_type_from_url(url: str) -> SourceType:
@@ -142,6 +143,9 @@ class Job(BaseModel):
     use_traditional_chinese: bool = Field(
         default=True, description="Use Traditional Chinese for subtitles"
     )
+
+    # ========== Job Control ==========
+    cancel_requested: bool = Field(default=False, description="User requested cancellation")
 
     def get_job_dir(self, base_dir: Path) -> Path:
         """Get the job directory path."""

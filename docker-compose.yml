@@ -22,6 +22,7 @@ services:
       - DIARIZATION_DEVICE=cuda
       - TTS_DEVICE=cuda
       - FFMPEG_NVENC=true
+      - MAX_CONCURRENT_JOBS=${MAX_CONCURRENT_JOBS:-2}
       - FRONTEND_URL=http://192.168.2.64:3001
       - CORS_ORIGINS=["http://localhost:3001","http://192.168.2.64:3001","http://frontend:3001"]
     deploy:

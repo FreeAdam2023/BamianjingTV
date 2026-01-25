@@ -89,6 +89,14 @@ async def process_job(job_id: str) -> None:
 
     job_dir = job.get_job_dir(settings.jobs_dir)
 
+    def check_cancelled() -> bool:
+        """Check if job was cancelled and update status if so."""
+        # Reload job to get latest cancel_requested flag
+        fresh_job = job_manager.get_job(job_id)
+        if fresh_job and fresh_job.cancel_requested:
+            return True
+        return False
+
     try:
         # ============ Stage 1: Download (10%) ============
         await job_manager.update_status(job, JobStatus.DOWNLOADING, 0.10)
@@ -105,6 +113,12 @@ async def process_job(job_id: str) -> None:
         job.channel = download_result["channel"]
         job_manager.save_job(job)
 
+        # Check for cancellation after download
+        if check_cancelled():
+            await job_manager.update_status(job, JobStatus.CANCELLED)
+            logger.info(f"Job {job_id} cancelled after download stage")
+            return
+
         # ============ Stage 2: Transcribe (30%) ============
         await job_manager.update_status(job, JobStatus.TRANSCRIBING, 0.30)
 
@@ -117,6 +131,12 @@ async def process_job(job_id: str) -> None:
         await whisper_worker.save_transcript(transcript, raw_path)
         job.transcript_raw = str(raw_path)
         job_manager.save_job(job)
+
+        # Check for cancellation after transcription
+        if check_cancelled():
+            await job_manager.update_status(job, JobStatus.CANCELLED)
+            logger.info(f"Job {job_id} cancelled after transcription stage")
+            return
 
         # ============ Stage 3: Diarize (50%) ============
         await job_manager.update_status(job, JobStatus.DIARIZING, 0.50)
@@ -137,6 +157,12 @@ async def process_job(job_id: str) -> None:
         job.transcript_diarized = str(diarized_path)
         job_manager.save_job(job)
 
+        # Check for cancellation after diarization
+        if check_cancelled():
+            await job_manager.update_status(job, JobStatus.CANCELLED)
+            logger.info(f"Job {job_id} cancelled after diarization stage")
+            return
+
         # ============ Stage 4: Translate (70%) ============
         await job_manager.update_status(job, JobStatus.TRANSLATING, 0.70)
 
@@ -151,6 +177,12 @@ async def process_job(job_id: str) -> None:
         )
         job.translation = str(translation_path)
         job_manager.save_job(job)
+
+        # Check for cancellation after translation
+        if check_cancelled():
+            await job_manager.update_status(job, JobStatus.CANCELLED)
+            logger.info(f"Job {job_id} cancelled after translation stage")
+            return
 
         # ============ Stage 5: Create Timeline (80%) ============
         # Create timeline for UI review
@@ -242,7 +274,7 @@ async def lifespan(app: FastAPI):
 
     # Initialize job queue
     job_queue = JobQueue(
-        max_concurrent=2,
+        max_concurrent=settings.max_concurrent_jobs,
         process_func=process_job,
     )
     await job_queue.start()
@@ -489,6 +521,36 @@ async def retry_job(job_id: str):
     await job_queue.add(job_id, priority=1)
 
     return {"message": f"Job {job_id} queued for retry"}
+
+
+@app.post("/jobs/{job_id}/cancel")
+async def cancel_job(job_id: str):
+    """Cancel a running job (will stop at next stage boundary)."""
+    job = job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    # Can only cancel jobs that are in progress
+    cancellable_statuses = {
+        JobStatus.PENDING,
+        JobStatus.DOWNLOADING,
+        JobStatus.TRANSCRIBING,
+        JobStatus.DIARIZING,
+        JobStatus.TRANSLATING,
+    }
+
+    if job.status not in cancellable_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"无法取消此状态的任务: {job.status.value}"
+        )
+
+    # Set cancel flag - job will check this between stages
+    job.cancel_requested = True
+    job_manager.save_job(job)
+
+    logger.info(f"Cancel requested for job {job_id}")
+    return {"message": f"任务 {job_id} 已标记为取消，将在当前阶段完成后停止"}
 
 
 # ============ Queue Endpoints ============

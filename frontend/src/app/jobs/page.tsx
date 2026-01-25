@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
-import { listJobs, createJob, deleteJob, formatDuration } from "@/lib/api";
+import { listJobs, createJob, deleteJob, cancelJob, formatDuration } from "@/lib/api";
 import type { Job } from "@/lib/types";
 
 export default function JobsPage() {
@@ -12,6 +12,7 @@ export default function JobsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const loadJobs = useCallback(async () => {
     try {
@@ -68,6 +69,29 @@ export default function JobsPage() {
     }
   }
 
+  async function handleCancel(jobId: string, title: string) {
+    if (!confirm(`确定要取消任务 "${title || jobId}" 吗？\n\n任务将在当前阶段完成后停止。`)) {
+      return;
+    }
+
+    setCancellingId(jobId);
+    try {
+      await cancelJob(jobId);
+      loadJobs();
+    } catch (err) {
+      console.error("Failed to cancel job:", err);
+      const message = err instanceof Error ? err.message : "取消任务失败";
+      setError(message);
+    } finally {
+      setCancellingId(null);
+    }
+  }
+
+  // Check if a job can be cancelled
+  function canCancel(status: string): boolean {
+    return ["pending", "downloading", "transcribing", "diarizing", "translating"].includes(status);
+  }
+
   function getStatusBadge(status: string) {
     switch (status) {
       case "completed":
@@ -88,6 +112,8 @@ export default function JobsPage() {
         return <span className="badge badge-info">📤 导出中</span>;
       case "pending":
         return <span className="badge badge-info">⏳ 等待中</span>;
+      case "cancelled":
+        return <span className="badge badge-secondary">⏹ 已取消</span>;
       default:
         return <span className="badge badge-info">{status}</span>;
     }
@@ -220,6 +246,20 @@ export default function JobsPage() {
                         >
                           去审阅 →
                         </Link>
+                      )}
+                      {canCancel(job.status) && (
+                        <button
+                          onClick={() => handleCancel(job.id, job.title || "")}
+                          disabled={cancellingId === job.id}
+                          className="btn btn-warning text-sm py-1.5"
+                          title="取消任务"
+                        >
+                          {cancellingId === job.id ? (
+                            <span className="spinner" />
+                          ) : (
+                            "⏹"
+                          )}
+                        </button>
                       )}
                       <button
                         onClick={() => handleDelete(job.id, job.title || "")}
