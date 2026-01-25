@@ -25,41 +25,51 @@ class DiarizationWorker:
         self.pipeline = None
         self.hf_token = settings.hf_token
         self.device = settings.diarization_device
-        self._loading = False
+        self._load_lock: Optional[asyncio.Lock] = None
+
+    def _get_lock(self) -> asyncio.Lock:
+        """Get or create the async lock (must be created in async context)."""
+        if self._load_lock is None:
+            self._load_lock = asyncio.Lock()
+        return self._load_lock
 
     def _load_pipeline_sync(self):
         """Synchronous pipeline loading (runs in thread pool)."""
-        if self.pipeline is None and not self._loading:
-            self._loading = True
-            try:
-                from pyannote.audio import Pipeline
-                import torch
+        from pyannote.audio import Pipeline
+        import torch
 
-                if not self.hf_token:
-                    raise ValueError(
-                        "HuggingFace token required for pyannote.audio. "
-                        "Set HF_TOKEN environment variable."
-                    )
+        if not self.hf_token:
+            raise ValueError(
+                "HuggingFace token required for pyannote.audio. "
+                "Set HF_TOKEN environment variable."
+            )
 
-                logger.info("Loading diarization pipeline...")
-                self.pipeline = Pipeline.from_pretrained(
-                    "pyannote/speaker-diarization-3.1",
-                    token=self.hf_token,
-                )
+        logger.info("Loading diarization pipeline...")
+        pipeline = Pipeline.from_pretrained(
+            "pyannote/speaker-diarization-3.1",
+            token=self.hf_token,
+        )
 
-                # Move to GPU if available
-                if self.device == "cuda" and torch.cuda.is_available():
-                    self.pipeline.to(torch.device("cuda"))
+        # Move to GPU if available
+        if self.device == "cuda" and torch.cuda.is_available():
+            pipeline.to(torch.device("cuda"))
 
-                logger.info("Diarization pipeline loaded")
-            finally:
-                self._loading = False
+        logger.info("Diarization pipeline loaded")
+        return pipeline
 
-    async def _load_pipeline(self):
-        """Async pipeline loading - runs in thread pool to avoid blocking event loop."""
-        if self.pipeline is None:
+    async def _ensure_pipeline_loaded(self):
+        """Ensure pipeline is loaded, with proper locking to prevent race conditions."""
+        if self.pipeline is not None:
+            return
+
+        async with self._get_lock():
+            # Double-check after acquiring lock
+            if self.pipeline is not None:
+                return
+
+            logger.info("Waiting for diarization pipeline to load...")
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(_diarization_executor, self._load_pipeline_sync)
+            self.pipeline = await loop.run_in_executor(_diarization_executor, self._load_pipeline_sync)
 
     def _diarize_sync(self, audio_path: str, num_speakers: Optional[int]) -> List[dict]:
         """Synchronous diarization (runs in thread pool)."""
@@ -93,8 +103,8 @@ class DiarizationWorker:
         Returns:
             List of diarization segments with speaker labels
         """
-        # Load pipeline in thread pool (non-blocking)
-        await self._load_pipeline()
+        # Ensure pipeline is loaded (with lock to prevent race conditions)
+        await self._ensure_pipeline_loaded()
 
         audio_path = Path(audio_path)
         if not audio_path.exists():

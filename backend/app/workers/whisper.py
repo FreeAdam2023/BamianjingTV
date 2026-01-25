@@ -21,30 +21,40 @@ class WhisperWorker:
         self.model_name = settings.whisper_model
         self.device = settings.whisper_device
         self.compute_type = settings.whisper_compute_type
-        self._loading = False
+        self._load_lock: Optional[asyncio.Lock] = None
+
+    def _get_lock(self) -> asyncio.Lock:
+        """Get or create the async lock (must be created in async context)."""
+        if self._load_lock is None:
+            self._load_lock = asyncio.Lock()
+        return self._load_lock
 
     def _load_model_sync(self):
         """Synchronous model loading (runs in thread pool)."""
-        if self.model is None and not self._loading:
-            self._loading = True
-            try:
-                from faster_whisper import WhisperModel
+        from faster_whisper import WhisperModel
 
-                logger.info(f"Loading Whisper model: {self.model_name}")
-                self.model = WhisperModel(
-                    self.model_name,
-                    device=self.device,
-                    compute_type=self.compute_type,
-                )
-                logger.info("Whisper model loaded")
-            finally:
-                self._loading = False
+        logger.info(f"Loading Whisper model: {self.model_name}")
+        model = WhisperModel(
+            self.model_name,
+            device=self.device,
+            compute_type=self.compute_type,
+        )
+        logger.info("Whisper model loaded")
+        return model
 
-    async def _load_model(self):
-        """Async model loading - runs in thread pool to avoid blocking event loop."""
-        if self.model is None:
+    async def _ensure_model_loaded(self):
+        """Ensure model is loaded, with proper locking to prevent race conditions."""
+        if self.model is not None:
+            return
+
+        async with self._get_lock():
+            # Double-check after acquiring lock
+            if self.model is not None:
+                return
+
+            logger.info("Waiting for Whisper model to load...")
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(_model_executor, self._load_model_sync)
+            self.model = await loop.run_in_executor(_model_executor, self._load_model_sync)
 
     def _transcribe_sync(self, audio_path: str, language: Optional[str]) -> tuple:
         """Synchronous transcription (runs in thread pool)."""
@@ -73,8 +83,8 @@ class WhisperWorker:
         Returns:
             Transcript with timestamped segments
         """
-        # Load model in thread pool (non-blocking)
-        await self._load_model()
+        # Ensure model is loaded (with lock to prevent race conditions)
+        await self._ensure_model_loaded()
 
         audio_path = Path(audio_path)
         if not audio_path.exists():
