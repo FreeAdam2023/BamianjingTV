@@ -525,6 +525,7 @@ async def delete_job(job_id: str, delete_files: bool = True):
 async def get_job_video(job_id: str):
     """Download the source video for a job."""
     from fastapi.responses import FileResponse
+    from urllib.parse import quote
 
     job = job_manager.get_job(job_id)
     if not job:
@@ -540,12 +541,14 @@ async def get_job_video(job_id: str):
     # Use title for filename, fallback to job_id
     safe_title = (job.title or job_id).replace("/", "_").replace("\\", "_")[:100]
     filename = f"{safe_title}_原版.mp4"
+    # URL-encode for Content-Disposition header (RFC 5987)
+    filename_encoded = quote(filename)
 
     return FileResponse(
         video_path,
         media_type="video/mp4",
         filename=filename,
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"}
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"}
     )
 
 
@@ -553,6 +556,7 @@ async def get_job_video(job_id: str):
 async def get_job_export_video(job_id: str):
     """Download the exported video (with subtitles) for a job."""
     from fastapi.responses import FileResponse
+    from urllib.parse import quote
 
     job = job_manager.get_job(job_id)
     if not job:
@@ -568,12 +572,14 @@ async def get_job_export_video(job_id: str):
     # Use title for filename, fallback to job_id
     safe_title = (job.title or job_id).replace("/", "_").replace("\\", "_")[:100]
     filename = f"{safe_title}_双语字幕.mp4"
+    # URL-encode for Content-Disposition header (RFC 5987)
+    filename_encoded = quote(filename)
 
     return FileResponse(
         video_path,
         media_type="video/mp4",
         filename=filename,
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"}
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"}
     )
 
 
