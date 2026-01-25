@@ -14,7 +14,18 @@ import type {
   SegmentState,
 } from "./types";
 
-const API_BASE = "/api";
+// Get API URL: use env var or derive from current host with port 8000
+function getApiBase(): string {
+  // Server-side: use env var
+  if (typeof window === "undefined") {
+    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  }
+  // Client-side: use same host with port 8000
+  const { protocol, hostname } = window.location;
+  return `${protocol}//${hostname}:8000`;
+}
+
+const API_BASE = getApiBase();
 
 async function fetchAPI<T>(
   endpoint: string,
@@ -168,7 +179,7 @@ export async function getStats(): Promise<{
 // ============ Helper functions ============
 
 export function getVideoUrl(jobId: string): string {
-  return `${API_BASE}/jobs/${jobId}/video`;
+  return `${API_BASE || ""}/jobs/${jobId}/video`;
 }
 
 export function formatDuration(seconds: number): string {
