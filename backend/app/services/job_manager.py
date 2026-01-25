@@ -41,6 +41,10 @@ class JobManager:
         if not jobs_dir.exists():
             return
 
+        # Track URLs to detect duplicates
+        url_to_job: Dict[str, Job] = {}
+        duplicate_job_dirs = []
+
         for job_dir in jobs_dir.iterdir():
             if not job_dir.is_dir():
                 continue
@@ -53,16 +57,43 @@ class JobManager:
                 with open(meta_path) as f:
                     data = json.load(f)
                 job = Job(**data)
+
+                # Check for duplicate URLs - keep the newer job
+                if job.url in url_to_job:
+                    existing_job = url_to_job[job.url]
+                    if job.created_at > existing_job.created_at:
+                        # New job is newer, mark old one for deletion
+                        duplicate_job_dirs.append(existing_job.get_job_dir(jobs_dir))
+                        url_to_job[job.url] = job
+                        logger.warning(f"发现重复URL任务，保留较新的: {job.id}, 删除: {existing_job.id}")
+                    else:
+                        # Existing job is newer, mark new one for deletion
+                        duplicate_job_dirs.append(job_dir)
+                        logger.warning(f"发现重复URL任务，保留较新的: {existing_job.id}, 删除: {job.id}")
+                        continue
+                else:
+                    url_to_job[job.url] = job
+
                 self.jobs[job.id] = job
 
                 # Check for incomplete jobs that need recovery
-                if job.status not in (JobStatus.COMPLETED, JobStatus.FAILED):
+                if job.status not in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.AWAITING_REVIEW):
                     logger.warning(
                         f"Found incomplete job {job.id} in status {job.status}"
                     )
 
             except Exception as e:
                 logger.error(f"Failed to load job from {meta_path}: {e}")
+
+        # Clean up duplicate job directories
+        import shutil
+        for dup_dir in duplicate_job_dirs:
+            if dup_dir.exists():
+                try:
+                    shutil.rmtree(dup_dir)
+                    logger.info(f"已删除重复任务目录: {dup_dir}")
+                except Exception as e:
+                    logger.error(f"删除重复任务目录失败: {dup_dir}, {e}")
 
         logger.info(f"Loaded {len(self.jobs)} existing jobs")
 
