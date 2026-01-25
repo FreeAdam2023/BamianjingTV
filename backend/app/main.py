@@ -500,24 +500,57 @@ async def delete_job(job_id: str, delete_files: bool = True):
 
 @app.get("/jobs/{job_id}/video")
 async def get_job_video(job_id: str):
-    """Stream the source video for a job."""
+    """Download the source video for a job."""
     from fastapi.responses import FileResponse
 
     job = job_manager.get_job(job_id)
     if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+        raise HTTPException(status_code=404, detail="任务不存在")
 
     if not job.source_video:
-        raise HTTPException(status_code=404, detail="Video not yet downloaded")
+        raise HTTPException(status_code=404, detail="视频尚未下载")
 
     video_path = Path(job.source_video)
     if not video_path.exists():
-        raise HTTPException(status_code=404, detail="Video file not found")
+        raise HTTPException(status_code=404, detail="视频文件不存在")
+
+    # Use title for filename, fallback to job_id
+    safe_title = (job.title or job_id).replace("/", "_").replace("\\", "_")[:100]
+    filename = f"{safe_title}_原版.mp4"
 
     return FileResponse(
         video_path,
         media_type="video/mp4",
-        filename=f"{job_id}.mp4",
+        filename=filename,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"}
+    )
+
+
+@app.get("/jobs/{job_id}/video/export")
+async def get_job_export_video(job_id: str):
+    """Download the exported video (with subtitles) for a job."""
+    from fastapi.responses import FileResponse
+
+    job = job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    if not job.output_video:
+        raise HTTPException(status_code=404, detail="导出视频尚未生成，请先完成审阅并导出")
+
+    video_path = Path(job.output_video)
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="导出视频文件不存在")
+
+    # Use title for filename, fallback to job_id
+    safe_title = (job.title or job_id).replace("/", "_").replace("\\", "_")[:100]
+    filename = f"{safe_title}_双语字幕.mp4"
+
+    return FileResponse(
+        video_path,
+        media_type="video/mp4",
+        filename=filename,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"}
     )
 
 

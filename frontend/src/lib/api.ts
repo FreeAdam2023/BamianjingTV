@@ -194,6 +194,10 @@ export function getVideoUrl(jobId: string): string {
   return `${API_BASE || ""}/jobs/${jobId}/video`;
 }
 
+export function getExportVideoUrl(jobId: string): string {
+  return `${API_BASE || ""}/jobs/${jobId}/video/export`;
+}
+
 export function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);

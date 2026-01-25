@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
-import { listJobs, createJob, deleteJob, cancelJob, formatDuration } from "@/lib/api";
+import { listJobs, createJob, deleteJob, cancelJob, formatDuration, getVideoUrl, getExportVideoUrl } from "@/lib/api";
 import type { Job } from "@/lib/types";
 
 export default function JobsPage() {
@@ -284,6 +284,31 @@ export default function JobsPage() {
                       className="progress-fill bg-gradient-to-r from-blue-500 to-cyan-400"
                       style={{ width: `${job.progress * 100}%` }}
                     />
+                  </div>
+                )}
+
+                {/* Download buttons */}
+                {(job.source_video || job.output_video) && (
+                  <div className="mt-4 flex items-center gap-3">
+                    <span className="text-gray-500 text-sm">下载：</span>
+                    {job.source_video && (
+                      <a
+                        href={getVideoUrl(job.id)}
+                        className="btn btn-secondary text-sm py-1.5"
+                        download
+                      >
+                        📥 原版视频
+                      </a>
+                    )}
+                    {job.output_video && (
+                      <a
+                        href={getExportVideoUrl(job.id)}
+                        className="btn btn-primary text-sm py-1.5"
+                        download
+                      >
+                        📥 双语字幕版
+                      </a>
+                    )}
                   </div>
                 )}
 

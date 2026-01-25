@@ -86,6 +86,8 @@ export interface Job {
   duration: number | null;
   channel: string | null;
   timeline_id: string | null;
+  source_video: string | null;
+  output_video: string | null;
 }
 
 export interface JobCreate {
