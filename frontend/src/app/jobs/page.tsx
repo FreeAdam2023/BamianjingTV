@@ -3,16 +3,23 @@
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import { listJobs, createJob, deleteJob, cancelJob, formatDuration, getVideoUrl, getExportVideoUrl } from "@/lib/api";
-import type { Job } from "@/lib/types";
+import type { Job, JobCreate } from "@/lib/types";
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newUrl, setNewUrl] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+  // Modal state
+  const [showModal, setShowModal] = useState(false);
+  const [newUrl, setNewUrl] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [jobOptions, setJobOptions] = useState<Partial<JobCreate>>({
+    use_traditional_chinese: true,
+    skip_diarization: false,
+  });
 
   const loadJobs = useCallback(async () => {
     try {
@@ -27,10 +34,25 @@ export default function JobsPage() {
 
   useEffect(() => {
     loadJobs();
-    // Auto-refresh every 5 seconds
     const interval = setInterval(loadJobs, 5000);
     return () => clearInterval(interval);
   }, [loadJobs]);
+
+  function openModal() {
+    setNewUrl("");
+    setJobOptions({
+      use_traditional_chinese: true,
+      skip_diarization: false,
+    });
+    setError(null);
+    setShowModal(true);
+  }
+
+  function closeModal() {
+    setShowModal(false);
+    setNewUrl("");
+    setError(null);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,8 +61,11 @@ export default function JobsPage() {
     setSubmitting(true);
     setError(null);
     try {
-      await createJob({ url: newUrl.trim() });
-      setNewUrl("");
+      await createJob({
+        url: newUrl.trim(),
+        ...jobOptions,
+      });
+      closeModal();
       loadJobs();
     } catch (err) {
       console.error("Failed to create job:", err);
@@ -87,7 +112,6 @@ export default function JobsPage() {
     }
   }
 
-  // Check if a job can be cancelled
   function canCancel(status: string): boolean {
     return ["pending", "downloading", "transcribing", "diarizing", "translating"].includes(status);
   }
@@ -146,52 +170,27 @@ export default function JobsPage() {
               </div>
             </Link>
           </div>
-          <Link href="/" className="btn btn-secondary">
-            ← 返回首页
-          </Link>
+          <div className="flex items-center gap-3">
+            <button onClick={openModal} className="btn btn-primary">
+              + 添加任务
+            </button>
+            <Link href="/" className="btn btn-secondary">
+              ← 返回首页
+            </Link>
+          </div>
         </div>
       </header>
 
       <div className="max-w-6xl mx-auto px-6 py-8">
-        {/* New Job Form */}
-        <form onSubmit={handleSubmit} className="card mb-8">
-          <h2 className="text-lg font-semibold mb-4">添加新视频</h2>
-          <div className="flex gap-4">
-            <input
-              type="url"
-              value={newUrl}
-              onChange={(e) => setNewUrl(e.target.value)}
-              placeholder="粘贴 YouTube 视频链接..."
-              className="input flex-1"
-              disabled={submitting}
-            />
-            <button
-              type="submit"
-              disabled={submitting || !newUrl.trim()}
-              className="btn btn-primary whitespace-nowrap"
-            >
-              {submitting ? (
-                <>
-                  <span className="spinner mr-2" />
-                  添加中...
-                </>
-              ) : (
-                "+ 添加任务"
-              )}
+        {/* Global Error */}
+        {error && !showModal && (
+          <div className="mb-6 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center justify-between">
+            <p className="text-red-400 text-sm">{error}</p>
+            <button onClick={() => setError(null)} className="text-red-400 hover:text-red-300 ml-4">
+              ✕
             </button>
           </div>
-          {error && (
-            <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center justify-between">
-              <p className="text-red-400 text-sm">{error}</p>
-              <button
-                onClick={() => setError(null)}
-                className="text-red-400 hover:text-red-300 ml-4"
-              >
-                ✕
-              </button>
-            </div>
-          )}
-        </form>
+        )}
 
         {/* Jobs List */}
         <div className="mb-6 flex items-center justify-between">
@@ -203,7 +202,10 @@ export default function JobsPage() {
           <div className="card text-center py-12">
             <div className="text-5xl mb-4">📽️</div>
             <h3 className="text-xl font-medium mb-2">暂无任务</h3>
-            <p className="text-gray-400">在上方添加视频链接开始处理</p>
+            <p className="text-gray-400 mb-4">点击上方按钮添加视频开始处理</p>
+            <button onClick={openModal} className="btn btn-primary">
+              + 添加第一个任务
+            </button>
           </div>
         ) : (
           <div className="space-y-4">
@@ -325,6 +327,114 @@ export default function JobsPage() {
           </div>
         )}
       </div>
+
+      {/* Create Job Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={closeModal}
+          />
+
+          {/* Modal */}
+          <div className="relative bg-[var(--card)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6">
+            <h2 className="text-xl font-bold mb-6">添加新任务</h2>
+
+            <form onSubmit={handleSubmit}>
+              {/* URL Input */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  视频链接
+                </label>
+                <input
+                  type="url"
+                  value={newUrl}
+                  onChange={(e) => setNewUrl(e.target.value)}
+                  placeholder="粘贴 YouTube 视频链接..."
+                  className="input"
+                  disabled={submitting}
+                  autoFocus
+                />
+              </div>
+
+              {/* Options */}
+              <div className="mb-6 space-y-4">
+                <label className="block text-sm font-medium text-gray-300 mb-3">
+                  处理选项
+                </label>
+
+                {/* Traditional Chinese */}
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={jobOptions.use_traditional_chinese}
+                    onChange={(e) =>
+                      setJobOptions({ ...jobOptions, use_traditional_chinese: e.target.checked })
+                    }
+                    className="w-5 h-5 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+                    disabled={submitting}
+                  />
+                  <div>
+                    <span className="text-white">使用繁体中文</span>
+                    <p className="text-gray-500 text-xs">字幕翻译使用繁体中文</p>
+                  </div>
+                </label>
+
+                {/* Skip Diarization */}
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={jobOptions.skip_diarization}
+                    onChange={(e) =>
+                      setJobOptions({ ...jobOptions, skip_diarization: e.target.checked })
+                    }
+                    className="w-5 h-5 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+                    disabled={submitting}
+                  />
+                  <div>
+                    <span className="text-white">跳过说话人识别</span>
+                    <p className="text-gray-500 text-xs">不进行说话人分离，所有内容标记为同一说话人</p>
+                  </div>
+                </label>
+              </div>
+
+              {/* Error */}
+              {error && (
+                <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                  <p className="text-red-400 text-sm">{error}</p>
+                </div>
+              )}
+
+              {/* Buttons */}
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="btn btn-secondary"
+                  disabled={submitting}
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || !newUrl.trim()}
+                  className="btn btn-primary"
+                >
+                  {submitting ? (
+                    <>
+                      <span className="spinner mr-2" />
+                      添加中...
+                    </>
+                  ) : (
+                    "添加任务"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

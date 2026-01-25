@@ -155,6 +155,26 @@ async def process_job(job_id: str) -> None:
         if diarized_path.exists():
             logger.info(f"说话人识别文件已存在，跳过识别阶段: {job_id}")
             diarized_transcript = load_json_model(diarized_path, DiarizedTranscript)
+        elif job.skip_diarization:
+            # Skip diarization - convert transcript to diarized format without speakers
+            logger.info(f"用户选择跳过说话人识别: {job_id}")
+            from app.models.transcript import DiarizedSegment
+            diarized_transcript = DiarizedTranscript(
+                language=transcript.language,
+                num_speakers=1,
+                segments=[
+                    DiarizedSegment(
+                        start=seg.start,
+                        end=seg.end,
+                        text=seg.text,
+                        speaker="SPEAKER_0",
+                    )
+                    for seg in transcript.segments
+                ],
+            )
+            await diarization_worker.save_diarized_transcript(
+                diarized_transcript, diarized_path
+            )
         else:
             await job_manager.update_status(job, JobStatus.DIARIZING, 0.50)
             diarization_segments = await diarization_worker.diarize(
@@ -431,6 +451,7 @@ async def create_job(
 
     # Hardcore Player options
     job.use_traditional_chinese = job_create.use_traditional_chinese
+    job.skip_diarization = job_create.skip_diarization
     job_manager.save_job(job)
 
     # Register webhook if provided

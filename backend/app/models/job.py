@@ -57,6 +57,9 @@ class JobCreate(BaseModel):
     use_traditional_chinese: bool = Field(
         default=True, description="Use Traditional Chinese for subtitles"
     )
+    skip_diarization: bool = Field(
+        default=False, description="Skip speaker diarization step"
+    )
 
     # v2 fields - auto-populated if not provided
     source_type: Optional[SourceType] = Field(default=None, description="Source type")
@@ -142,6 +145,9 @@ class Job(BaseModel):
     timeline_id: Optional[str] = Field(default=None, description="Associated timeline ID")
     use_traditional_chinese: bool = Field(
         default=True, description="Use Traditional Chinese for subtitles"
+    )
+    skip_diarization: bool = Field(
+        default=False, description="Skip speaker diarization step"
     )
 
     # ========== Job Control ==========

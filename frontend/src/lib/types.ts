@@ -94,4 +94,5 @@ export interface JobCreate {
   url: string;
   target_language?: string;
   use_traditional_chinese?: boolean;
+  skip_diarization?: boolean;
 }
