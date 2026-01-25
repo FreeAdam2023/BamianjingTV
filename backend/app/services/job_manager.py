@@ -41,8 +41,9 @@ class JobManager:
         if not jobs_dir.exists():
             return
 
-        # Track URLs to detect duplicates
+        # First pass: load all jobs and track duplicates
         url_to_job: Dict[str, Job] = {}
+        duplicate_job_ids: set = set()
         duplicate_job_dirs = []
 
         for job_dir in jobs_dir.iterdir():
@@ -64,16 +65,23 @@ class JobManager:
                     if job.created_at > existing_job.created_at:
                         # New job is newer, mark old one for deletion
                         duplicate_job_dirs.append(existing_job.get_job_dir(jobs_dir))
+                        duplicate_job_ids.add(existing_job.id)
                         url_to_job[job.url] = job
                         logger.warning(f"发现重复URL任务，保留较新的: {job.id}, 删除: {existing_job.id}")
                     else:
                         # Existing job is newer, mark new one for deletion
                         duplicate_job_dirs.append(job_dir)
+                        duplicate_job_ids.add(job.id)
                         logger.warning(f"发现重复URL任务，保留较新的: {existing_job.id}, 删除: {job.id}")
-                        continue
                 else:
                     url_to_job[job.url] = job
 
+            except Exception as e:
+                logger.error(f"Failed to load job from {meta_path}: {e}")
+
+        # Second pass: add only non-duplicate jobs
+        for job in url_to_job.values():
+            if job.id not in duplicate_job_ids:
                 self.jobs[job.id] = job
 
                 # Check for incomplete jobs that need recovery
@@ -81,9 +89,6 @@ class JobManager:
                     logger.warning(
                         f"Found incomplete job {job.id} in status {job.status}"
                     )
-
-            except Exception as e:
-                logger.error(f"Failed to load job from {meta_path}: {e}")
 
         # Clean up duplicate job directories
         import shutil

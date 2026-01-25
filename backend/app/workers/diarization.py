@@ -73,10 +73,18 @@ class DiarizationWorker:
 
     def _diarize_sync(self, audio_path: str, num_speakers: Optional[int]) -> List[dict]:
         """Synchronous diarization (runs in thread pool)."""
-        diarization = self.pipeline(
+        result = self.pipeline(
             audio_path,
             num_speakers=num_speakers,
         )
+
+        # Handle new pyannote API (DiarizeOutput) vs old API (Annotation)
+        if hasattr(result, 'speaker_diarization'):
+            # New API: DiarizeOutput object
+            diarization = result.speaker_diarization
+        else:
+            # Old API: direct Annotation object
+            diarization = result
 
         # Convert to list of segments
         segments = []
