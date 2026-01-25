@@ -56,5 +56,10 @@ Thumbs.db
 
 .env
 credentials/
-credentials/client_secret_75175154082-64i7kd0a3i70lggqhb6ko00enq7b2a0f.apps.googleusercontent.com.json
-youtube_token.jsonnode_modules/
+credentials/client_secret_*.json
+youtube_token.json
+
+# Node.js
+node_modules/
+.next/
+.pnpm-store/

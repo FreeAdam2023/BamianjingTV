@@ -1,6 +1,7 @@
-# Hardcore Player Development Dockerfile (CPU only)
+# Hardcore Player - Development Backend
+# CPU-only development environment
 
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -16,12 +17,17 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Create directories
-RUN mkdir -p jobs .cache/models credentials
+RUN mkdir -p jobs data data/timelines data/items .cache/models credentials
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV JOBS_DIR=/app/jobs
+ENV DATA_DIR=/app/data
+ENV MODELS_CACHE_DIR=/app/.cache/models
 
+# Expose port
 EXPOSE 8000
 
+# Run with hot reload
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

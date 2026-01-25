@@ -1,57 +1,80 @@
-.PHONY: help install dev test lint clean docker-build docker-up docker-down
+.PHONY: help install dev test lint clean docker-build docker-up docker-down frontend-install frontend-dev
 
 # Default target
 help:
-	@echo "Hardcore Player - Automated Video Language Conversion"
+	@echo "Hardcore Player - Learning Video Factory"
 	@echo ""
-	@echo "Usage:"
-	@echo "  make install      Install dependencies"
-	@echo "  make dev          Run development server"
-	@echo "  make test         Run tests"
-	@echo "  make lint         Run linter"
-	@echo "  make clean        Clean cache files"
+	@echo "Development:"
+	@echo "  make install         Install backend dependencies"
+	@echo "  make dev             Run backend dev server"
+	@echo "  make frontend-install Install frontend dependencies"
+	@echo "  make frontend-dev    Run frontend dev server"
+	@echo "  make dev-all         Run both backend and frontend"
+	@echo "  make test            Run tests"
+	@echo "  make lint            Run linter"
+	@echo "  make clean           Clean cache files"
 	@echo ""
-	@echo "Docker:"
-	@echo "  make docker-build Build Docker images"
-	@echo "  make docker-up    Start all services"
-	@echo "  make docker-down  Stop all services"
-	@echo "  make docker-logs  View logs"
+	@echo "Docker (Production with GPU):"
+	@echo "  make docker-build    Build Docker images"
+	@echo "  make docker-up       Start API + Frontend"
+	@echo "  make docker-down     Stop all services"
+	@echo "  make docker-logs     View logs"
+	@echo ""
+	@echo "Docker (Development - CPU only):"
+	@echo "  make docker-dev      Start dev environment"
 	@echo ""
 
-# Install dependencies
+# ============ Backend ============
+
 install:
 	pip install -r requirements.txt
 
-# Run development server
 dev:
 	uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# Run tests
 test:
 	pytest tests/ -v
 
-# Run linter
 lint:
 	ruff check app/ tests/
 	ruff format --check app/ tests/
 
-# Format code
 format:
 	ruff format app/ tests/
 
-# Clean cache files
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
 	find . -type d -name ".pytest_cache" -exec rm -rf {} +
 	find . -type d -name ".ruff_cache" -exec rm -rf {} +
+	find . -type d -name ".next" -exec rm -rf {} +
 
-# Docker commands
+# ============ Frontend ============
+
+frontend-install:
+	cd frontend && pnpm install
+
+frontend-dev:
+	cd frontend && pnpm dev
+
+frontend-build:
+	cd frontend && pnpm build
+
+# Run both backend and frontend
+dev-all:
+	@echo "Starting backend on :8000 and frontend on :3000"
+	@make dev & make frontend-dev
+
+# ============ Docker (Production) ============
+
 docker-build:
 	docker-compose build
 
 docker-up:
-	docker-compose up -d
+	docker-compose up -d api frontend
+
+docker-up-all:
+	docker-compose --profile automation up -d
 
 docker-down:
 	docker-compose down
@@ -59,14 +82,26 @@ docker-down:
 docker-logs:
 	docker-compose logs -f
 
+docker-logs-api:
+	docker-compose logs -f api
+
+docker-logs-frontend:
+	docker-compose logs -f frontend
+
+# ============ Docker (Development) ============
+
 docker-dev:
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+	docker-compose -f docker-compose.dev.yml up --build
 
-# Production with GPU
-docker-prod:
-	docker-compose up -d hardcore-player n8n
+docker-dev-down:
+	docker-compose -f docker-compose.dev.yml down
 
-# View API docs
+# ============ Utilities ============
+
 docs:
-	@echo "API documentation available at: http://localhost:8000/docs"
-	@open http://localhost:8000/docs 2>/dev/null || xdg-open http://localhost:8000/docs 2>/dev/null || echo "Open http://localhost:8000/docs in your browser"
+	@echo "API documentation: http://localhost:8000/docs"
+	@open http://localhost:8000/docs 2>/dev/null || xdg-open http://localhost:8000/docs 2>/dev/null || echo "Open http://localhost:8000/docs"
+
+app:
+	@echo "Frontend: http://localhost:3000"
+	@open http://localhost:3000 2>/dev/null || xdg-open http://localhost:3000 2>/dev/null || echo "Open http://localhost:3000"

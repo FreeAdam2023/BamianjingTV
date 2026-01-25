@@ -1,8 +1,8 @@
 version: '3.8'
 
 services:
-  # Hardcore Player API Service
-  hardcore-player:
+  # Hardcore Player Backend API
+  api:
     build:
       context: .
       dockerfile: Dockerfile
@@ -12,6 +12,7 @@ services:
       - "8000:8000"
     volumes:
       - ./jobs:/app/jobs
+      - ./data:/app/data
       - ./credentials:/app/credentials:ro
       - model-cache:/app/.cache/models
     environment:
@@ -20,8 +21,11 @@ services:
       - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
       - WHISPER_MODEL=${WHISPER_MODEL:-large-v3}
       - WHISPER_DEVICE=cuda
+      - DIARIZATION_DEVICE=cuda
       - TTS_DEVICE=cuda
       - FFMPEG_NVENC=true
+      - FRONTEND_URL=http://localhost:3000
+      - CORS_ORIGINS=["http://localhost:3000","http://frontend:3000"]
     deploy:
       resources:
         reservations:
@@ -38,7 +42,23 @@ services:
       retries: 3
       start_period: 60s
 
-  # n8n Workflow Automation
+  # Hardcore Player Frontend (Next.js)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hardcore-player-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    networks:
+      - hardcore-player-net
+    depends_on:
+      - api
+
+  # n8n Workflow Automation (optional)
   n8n:
     image: n8nio/n8n:latest
     container_name: hardcore-player-n8n
@@ -51,7 +71,7 @@ services:
     environment:
       - N8N_BASIC_AUTH_ACTIVE=true
       - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
-      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-hardcore-player}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-hardcoreplayer}
       - N8N_HOST=0.0.0.0
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
@@ -60,25 +80,14 @@ services:
     networks:
       - hardcore-player-net
     depends_on:
-      - hardcore-player
-
-  # Redis for job queue (optional, for scaling)
-  redis:
-    image: redis:7-alpine
-    container_name: hardcore-player-redis
-    restart: unless-stopped
-    volumes:
-      - redis-data:/data
-    networks:
-      - hardcore-player-net
-    command: redis-server --appendonly yes
+      - api
+    profiles:
+      - automation
 
 volumes:
   model-cache:
     driver: local
   n8n-data:
-    driver: local
-  redis-data:
     driver: local
 
 networks:

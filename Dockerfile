@@ -1,5 +1,5 @@
-# Hardcore Player Dockerfile
-# GPU-enabled container for video language conversion
+# Hardcore Player - Backend API
+# Learning video factory with bilingual subtitles
 
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
 
@@ -8,16 +8,16 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    python3.10 \
+    python3.11 \
     python3-pip \
-    python3.10-venv \
+    python3.11-venv \
     ffmpeg \
     git \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app user
-RUN useradd -m -u 1000 hardcore-player
+RUN useradd -m -u 1000 app
 WORKDIR /app
 
 # Install Python dependencies
@@ -29,16 +29,17 @@ COPY app/ ./app/
 COPY pyproject.toml .
 
 # Create directories
-RUN mkdir -p jobs .cache/models credentials \
-    && chown -R hardcore-player:hardcore-player /app
+RUN mkdir -p jobs data data/timelines data/items .cache/models credentials \
+    && chown -R app:app /app
 
 # Switch to non-root user
-USER hardcore-player
+USER app
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV JOBS_DIR=/app/jobs
+ENV DATA_DIR=/app/data
 ENV MODELS_CACHE_DIR=/app/.cache/models
 
 # Expose port

@@ -1,15 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Enable experimental features for better performance
-  experimental: {
-    // Allow streaming for faster page loads
-  },
+  // Output standalone for Docker deployment
+  output: 'standalone',
+
   // Proxy API requests to backend during development
   async rewrites() {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:8000/:path*',
+        destination: `${apiUrl}/:path*`,
       },
     ];
   },

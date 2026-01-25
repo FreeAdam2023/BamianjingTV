@@ -1,23 +1,55 @@
 version: '3.8'
 
-# Development configuration without GPU requirements
-# Use: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+# Development configuration (CPU-only, hot reload)
+# Usage: docker-compose -f docker-compose.dev.yml up
 
 services:
-  hardcore-player:
+  # Backend API (development mode)
+  api:
     build:
       context: .
       dockerfile: Dockerfile.dev
+    container_name: hardcore-player-api-dev
+    ports:
+      - "8000:8000"
     volumes:
-      - .:/app
+      - ./app:/app/app
       - ./jobs:/app/jobs
+      - ./data:/app/data
+      - ./credentials:/app/credentials:ro
     environment:
+      - HF_TOKEN=${HF_TOKEN}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - WHISPER_MODEL=base
       - WHISPER_DEVICE=cpu
+      - DIARIZATION_DEVICE=cpu
       - TTS_DEVICE=cpu
       - FFMPEG_NVENC=false
       - DEBUG=true
-    deploy:
-      resources:
-        reservations:
-          devices: []
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      - FRONTEND_URL=http://localhost:3000
+      - CORS_ORIGINS=["http://localhost:3000"]
+    networks:
+      - dev-net
+
+  # Frontend (development mode)
+  frontend:
+    image: node:20-alpine
+    container_name: hardcore-player-frontend-dev
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    command: sh -c "corepack enable && pnpm install && pnpm dev"
+    networks:
+      - dev-net
+    depends_on:
+      - api
+
+networks:
+  dev-net:
+    driver: bridge
