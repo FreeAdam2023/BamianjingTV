@@ -64,8 +64,8 @@ class TranslationWorker:
 
         return self.client
 
-    async def translate_text(self, text: str) -> str:
-        """Translate a single text segment."""
+    async def translate_text(self, text: str, max_retries: int = 3, timeout: int = 30) -> str:
+        """Translate a single text segment with timeout and retry."""
         client = self._get_client()
 
         # Use Azure deployment name for Azure, model name for OpenAI
@@ -73,27 +73,48 @@ class TranslationWorker:
             settings.azure_deployment_name if settings.is_azure_openai else self.model
         )
 
-        response = await client.chat.completions.create(
-            model=model_or_deployment,
-            messages=[
-                {"role": "system", "content": TRANSLATION_SYSTEM_PROMPT},
-                {"role": "user", "content": text},
-            ],
-            temperature=0.3,
-        )
+        for attempt in range(max_retries):
+            try:
+                response = await asyncio.wait_for(
+                    client.chat.completions.create(
+                        model=model_or_deployment,
+                        messages=[
+                            {"role": "system", "content": TRANSLATION_SYSTEM_PROMPT},
+                            {"role": "user", "content": text},
+                        ],
+                        temperature=0.3,
+                    ),
+                    timeout=timeout,
+                )
 
-        # Handle content filtering (Azure returns content=None when filtered)
-        content = response.choices[0].message.content
-        if content is None:
-            finish_reason = response.choices[0].finish_reason
-            if finish_reason == "content_filter":
-                logger.warning(f"Content filtered by Azure, returning original text: {text[:50]}...")
-                return text  # Return original text if filtered
-            else:
-                logger.warning(f"Empty response from API (finish_reason={finish_reason})")
-                return text
+                # Handle content filtering (Azure returns content=None when filtered)
+                content = response.choices[0].message.content
+                if content is None:
+                    finish_reason = response.choices[0].finish_reason
+                    if finish_reason == "content_filter":
+                        logger.warning(f"Content filtered by Azure, returning original text: {text[:50]}...")
+                        return text  # Return original text if filtered
+                    else:
+                        logger.warning(f"Empty response from API (finish_reason={finish_reason})")
+                        return text
 
-        return content.strip()
+                return content.strip()
+
+            except asyncio.TimeoutError:
+                logger.warning(f"Translation timeout (attempt {attempt + 1}/{max_retries}): {text[:50]}...")
+                if attempt == max_retries - 1:
+                    logger.error(f"Translation failed after {max_retries} attempts, returning original text")
+                    return text
+                await asyncio.sleep(1)  # Wait before retry
+
+            except Exception as e:
+                logger.warning(f"Translation error (attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt == max_retries - 1:
+                    logger.error(f"Translation failed after {max_retries} attempts, returning original text")
+                    return text
+                await asyncio.sleep(1)  # Wait before retry
+
+        return text  # Fallback
 
     async def translate_transcript(
         self,
@@ -118,12 +139,21 @@ class TranslationWorker:
         for i in range(0, len(transcript.segments), batch_size):
             batch = transcript.segments[i : i + batch_size]
 
-            # Translate batch concurrently
+            # Translate batch concurrently with error handling
             tasks = [self.translate_text(seg.text) for seg in batch]
-            translations = await asyncio.gather(*tasks)
+            try:
+                translations = await asyncio.gather(*tasks, return_exceptions=True)
+            except Exception as e:
+                logger.error(f"Batch translation failed: {e}")
+                # Fall back to original text for this batch
+                translations = [seg.text for seg in batch]
 
-            # Create translated segments
+            # Create translated segments, handling any exceptions
             for seg, translation in zip(batch, translations):
+                if isinstance(translation, Exception):
+                    logger.warning(f"Segment translation failed, using original: {translation}")
+                    translation = seg.text
+
                 translated_segments.append(
                     TranslatedSegment(
                         start=seg.start,
@@ -139,9 +169,9 @@ class TranslationWorker:
                 f"/{len(transcript.segments)} segments"
             )
 
-            # Small delay between batches to respect rate limits
+            # Delay between batches to respect rate limits (Azure: 60 RPM for gpt-4)
             if i + batch_size < len(transcript.segments):
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(1.0)
 
         return TranslatedTranscript(
             source_language=transcript.language,
