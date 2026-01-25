@@ -71,21 +71,23 @@ export default function JobsPage() {
   function getStatusBadge(status: string) {
     switch (status) {
       case "completed":
-        return <span className="badge badge-success">✓ Completed</span>;
+        return <span className="badge badge-success">✓ 已完成</span>;
       case "failed":
-        return <span className="badge badge-danger">✕ Failed</span>;
+        return <span className="badge badge-danger">✕ 失败</span>;
       case "awaiting_review":
-        return <span className="badge badge-warning">⏸ Awaiting Review</span>;
+        return <span className="badge badge-warning">⏸ 待审阅</span>;
       case "downloading":
-        return <span className="badge badge-info">↓ Downloading</span>;
+        return <span className="badge badge-info">↓ 下载中</span>;
       case "transcribing":
-        return <span className="badge badge-info">🎤 Transcribing</span>;
+        return <span className="badge badge-info">🎤 转录中</span>;
       case "diarizing":
-        return <span className="badge badge-info">👥 Diarizing</span>;
+        return <span className="badge badge-info">👥 说话人识别</span>;
       case "translating":
-        return <span className="badge badge-info">🌐 Translating</span>;
+        return <span className="badge badge-info">🌐 翻译中</span>;
       case "exporting":
-        return <span className="badge badge-info">📤 Exporting</span>;
+        return <span className="badge badge-info">📤 导出中</span>;
+      case "pending":
+        return <span className="badge badge-info">⏳ 等待中</span>;
       default:
         return <span className="badge badge-info">{status}</span>;
     }
@@ -96,7 +98,7 @@ export default function JobsPage() {
       <main className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="spinner mx-auto mb-4" />
-          <p className="text-gray-400">Loading jobs...</p>
+          <p className="text-gray-400">加载中...</p>
         </div>
       </main>
     );
@@ -113,13 +115,13 @@ export default function JobsPage() {
                 🎬
               </div>
               <div>
-                <h1 className="text-xl font-bold">Jobs</h1>
-                <p className="text-xs text-gray-500">Video Processing Queue</p>
+                <h1 className="text-xl font-bold">任务队列</h1>
+                <p className="text-xs text-gray-500">视频处理任务</p>
               </div>
             </Link>
           </div>
           <Link href="/" className="btn btn-secondary">
-            ← Dashboard
+            ← 返回首页
           </Link>
         </div>
       </header>
@@ -127,13 +129,13 @@ export default function JobsPage() {
       <div className="max-w-6xl mx-auto px-6 py-8">
         {/* New Job Form */}
         <form onSubmit={handleSubmit} className="card mb-8">
-          <h2 className="text-lg font-semibold mb-4">Add New Video</h2>
+          <h2 className="text-lg font-semibold mb-4">添加新视频</h2>
           <div className="flex gap-4">
             <input
               type="url"
               value={newUrl}
               onChange={(e) => setNewUrl(e.target.value)}
-              placeholder="Paste YouTube URL here..."
+              placeholder="粘贴 YouTube 视频链接..."
               className="input flex-1"
               disabled={submitting}
             />
@@ -145,10 +147,10 @@ export default function JobsPage() {
               {submitting ? (
                 <>
                   <span className="spinner mr-2" />
-                  Adding...
+                  添加中...
                 </>
               ) : (
-                "+ Add Job"
+                "+ 添加任务"
               )}
             </button>
           </div>
@@ -167,15 +169,15 @@ export default function JobsPage() {
 
         {/* Jobs List */}
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold">All Jobs</h2>
-          <span className="text-gray-400 text-sm">{jobs.length} jobs</span>
+          <h2 className="text-2xl font-bold">所有任务</h2>
+          <span className="text-gray-400 text-sm">共 {jobs.length} 个任务</span>
         </div>
 
         {jobs.length === 0 ? (
           <div className="card text-center py-12">
             <div className="text-5xl mb-4">📽️</div>
-            <h3 className="text-xl font-medium mb-2">No jobs yet</h3>
-            <p className="text-gray-400">Add a video URL above to get started</p>
+            <h3 className="text-xl font-medium mb-2">暂无任务</h3>
+            <p className="text-gray-400">在上方添加视频链接开始处理</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -189,7 +191,7 @@ export default function JobsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-1">
                       <h3 className="text-lg font-semibold truncate">
-                        {job.title || "Processing..."}
+                        {job.title || "处理中..."}
                       </h3>
                       {getStatusBadge(job.status)}
                     </div>
@@ -216,7 +218,7 @@ export default function JobsPage() {
                           href={`/review/${job.timeline_id}`}
                           className="btn btn-success text-sm py-1.5"
                         >
-                          Review →
+                          去审阅 →
                         </Link>
                       )}
                       <button
@@ -249,7 +251,7 @@ export default function JobsPage() {
                 {job.error && (
                   <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
                     <p className="text-red-400 text-sm">
-                      <span className="font-medium">Error:</span> {job.error}
+                      <span className="font-medium">错误：</span> {job.error}
                     </p>
                   </div>
                 )}
