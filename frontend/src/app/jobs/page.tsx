@@ -69,7 +69,7 @@ export default function JobsPage() {
       loadJobs();
     } catch (err) {
       console.error("Failed to create job:", err);
-      const message = err instanceof Error ? err.message : "创建任务失败";
+      const message = err instanceof Error ? err.message : "Failed to create job";
       setError(message);
     } finally {
       setSubmitting(false);
@@ -77,7 +77,7 @@ export default function JobsPage() {
   }
 
   async function handleDelete(jobId: string, title: string) {
-    if (!confirm(`确定要删除任务 "${title || jobId}" 吗？\n\n这将删除所有相关文件。`)) {
+    if (!confirm(`Are you sure you want to delete "${title || jobId}"?\n\nThis will delete all related files.`)) {
       return;
     }
 
@@ -87,7 +87,7 @@ export default function JobsPage() {
       loadJobs();
     } catch (err) {
       console.error("Failed to delete job:", err);
-      const message = err instanceof Error ? err.message : "删除任务失败";
+      const message = err instanceof Error ? err.message : "Failed to delete job";
       setError(message);
     } finally {
       setDeletingId(null);
@@ -95,7 +95,7 @@ export default function JobsPage() {
   }
 
   async function handleCancel(jobId: string, title: string) {
-    if (!confirm(`确定要取消任务 "${title || jobId}" 吗？\n\n任务将在当前阶段完成后停止。`)) {
+    if (!confirm(`Are you sure you want to cancel "${title || jobId}"?\n\nThe job will stop after the current stage completes.`)) {
       return;
     }
 
@@ -105,7 +105,7 @@ export default function JobsPage() {
       loadJobs();
     } catch (err) {
       console.error("Failed to cancel job:", err);
-      const message = err instanceof Error ? err.message : "取消任务失败";
+      const message = err instanceof Error ? err.message : "Failed to cancel job";
       setError(message);
     } finally {
       setCancellingId(null);
@@ -119,25 +119,25 @@ export default function JobsPage() {
   function getStatusBadge(status: string) {
     switch (status) {
       case "completed":
-        return <span className="badge badge-success">✓ 已完成</span>;
+        return <span className="badge badge-success">Completed</span>;
       case "failed":
-        return <span className="badge badge-danger">✕ 失败</span>;
+        return <span className="badge badge-danger">Failed</span>;
       case "awaiting_review":
-        return <span className="badge badge-warning">⏸ 待审阅</span>;
+        return <span className="badge badge-warning">Awaiting Review</span>;
       case "downloading":
-        return <span className="badge badge-info">↓ 下载中</span>;
+        return <span className="badge badge-info">Downloading</span>;
       case "transcribing":
-        return <span className="badge badge-info">🎤 转录中</span>;
+        return <span className="badge badge-info">Transcribing</span>;
       case "diarizing":
-        return <span className="badge badge-info">👥 说话人识别</span>;
+        return <span className="badge badge-info">Diarizing</span>;
       case "translating":
-        return <span className="badge badge-info">🌐 翻译中</span>;
+        return <span className="badge badge-info">Translating</span>;
       case "exporting":
-        return <span className="badge badge-info">📤 导出中</span>;
+        return <span className="badge badge-info">Exporting</span>;
       case "pending":
-        return <span className="badge badge-info">⏳ 等待中</span>;
+        return <span className="badge badge-info">Pending</span>;
       case "cancelled":
-        return <span className="badge badge-secondary">⏹ 已取消</span>;
+        return <span className="badge badge-secondary">Cancelled</span>;
       default:
         return <span className="badge badge-info">{status}</span>;
     }
@@ -148,7 +148,7 @@ export default function JobsPage() {
       <main className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="spinner mx-auto mb-4" />
-          <p className="text-gray-400">加载中...</p>
+          <p className="text-gray-400">Loading...</p>
         </div>
       </main>
     );
@@ -165,17 +165,17 @@ export default function JobsPage() {
                 🎬
               </div>
               <div>
-                <h1 className="text-xl font-bold">任务队列</h1>
-                <p className="text-xs text-gray-500">视频处理任务</p>
+                <h1 className="text-xl font-bold">Job Queue</h1>
+                <p className="text-xs text-gray-500">Video Processing Tasks</p>
               </div>
             </Link>
           </div>
           <div className="flex items-center gap-3">
             <button onClick={openModal} className="btn btn-primary">
-              + 添加任务
+              + Add Job
             </button>
             <Link href="/" className="btn btn-secondary">
-              ← 返回首页
+              ← Home
             </Link>
           </div>
         </div>
@@ -194,17 +194,17 @@ export default function JobsPage() {
 
         {/* Jobs List */}
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold">所有任务</h2>
-          <span className="text-gray-400 text-sm">共 {jobs.length} 个任务</span>
+          <h2 className="text-2xl font-bold">All Jobs</h2>
+          <span className="text-gray-400 text-sm">{jobs.length} job(s)</span>
         </div>
 
         {jobs.length === 0 ? (
           <div className="card text-center py-12">
             <div className="text-5xl mb-4">📽️</div>
-            <h3 className="text-xl font-medium mb-2">暂无任务</h3>
-            <p className="text-gray-400 mb-4">点击上方按钮添加视频开始处理</p>
+            <h3 className="text-xl font-medium mb-2">No Jobs Yet</h3>
+            <p className="text-gray-400 mb-4">Click the button above to add a video for processing</p>
             <button onClick={openModal} className="btn btn-primary">
-              + 添加第一个任务
+              + Add First Job
             </button>
           </div>
         ) : (
@@ -219,7 +219,7 @@ export default function JobsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-1">
                       <h3 className="text-lg font-semibold truncate">
-                        {job.title || "处理中..."}
+                        {job.title || "Processing..."}
                       </h3>
                       {getStatusBadge(job.status)}
                     </div>
@@ -246,7 +246,7 @@ export default function JobsPage() {
                           href={`/review/${job.timeline_id}`}
                           className="btn btn-success text-sm py-1.5"
                         >
-                          去审阅 →
+                          Review →
                         </Link>
                       )}
                       {canCancel(job.status) && (
@@ -254,7 +254,7 @@ export default function JobsPage() {
                           onClick={() => handleCancel(job.id, job.title || "")}
                           disabled={cancellingId === job.id}
                           className="btn btn-warning text-sm py-1.5"
-                          title="取消任务"
+                          title="Cancel Job"
                         >
                           {cancellingId === job.id ? (
                             <span className="spinner" />
@@ -267,7 +267,7 @@ export default function JobsPage() {
                         onClick={() => handleDelete(job.id, job.title || "")}
                         disabled={deletingId === job.id}
                         className="btn btn-danger text-sm py-1.5"
-                        title="删除任务"
+                        title="Delete Job"
                       >
                         {deletingId === job.id ? (
                           <span className="spinner" />
@@ -292,14 +292,14 @@ export default function JobsPage() {
                 {/* Download buttons */}
                 {(job.source_video || job.output_video) && (
                   <div className="mt-4 flex items-center gap-3">
-                    <span className="text-gray-500 text-sm">下载：</span>
+                    <span className="text-gray-500 text-sm">Download:</span>
                     {job.source_video && (
                       <a
                         href={getVideoUrl(job.id)}
                         className="btn btn-secondary text-sm py-1.5"
                         download
                       >
-                        📥 原版视频
+                        📥 Original
                       </a>
                     )}
                     {job.output_video && (
@@ -308,7 +308,7 @@ export default function JobsPage() {
                         className="btn btn-primary text-sm py-1.5"
                         download
                       >
-                        📥 双语字幕版
+                        📥 Bilingual
                       </a>
                     )}
                   </div>
@@ -318,7 +318,7 @@ export default function JobsPage() {
                 {job.error && (
                   <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
                     <p className="text-red-400 text-sm">
-                      <span className="font-medium">错误：</span> {job.error}
+                      <span className="font-medium">Error:</span> {job.error}
                     </p>
                   </div>
                 )}
@@ -339,19 +339,19 @@ export default function JobsPage() {
 
           {/* Modal */}
           <div className="relative bg-[var(--card)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6">
-            <h2 className="text-xl font-bold mb-6">添加新任务</h2>
+            <h2 className="text-xl font-bold mb-6">Add New Job</h2>
 
             <form onSubmit={handleSubmit}>
               {/* URL Input */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  视频链接
+                  Video URL
                 </label>
                 <input
                   type="url"
                   value={newUrl}
                   onChange={(e) => setNewUrl(e.target.value)}
-                  placeholder="粘贴 YouTube 视频链接..."
+                  placeholder="Paste YouTube video URL..."
                   className="input"
                   disabled={submitting}
                   autoFocus
@@ -361,7 +361,7 @@ export default function JobsPage() {
               {/* Options */}
               <div className="mb-6 space-y-4">
                 <label className="block text-sm font-medium text-gray-300 mb-3">
-                  处理选项
+                  Processing Options
                 </label>
 
                 {/* Traditional Chinese */}
@@ -376,8 +376,8 @@ export default function JobsPage() {
                     disabled={submitting}
                   />
                   <div>
-                    <span className="text-white">使用繁体中文</span>
-                    <p className="text-gray-500 text-xs">字幕翻译使用繁体中文</p>
+                    <span className="text-white">Use Traditional Chinese</span>
+                    <p className="text-gray-500 text-xs">Translate subtitles to Traditional Chinese</p>
                   </div>
                 </label>
 
@@ -393,8 +393,8 @@ export default function JobsPage() {
                     disabled={submitting}
                   />
                   <div>
-                    <span className="text-white">跳过说话人识别</span>
-                    <p className="text-gray-500 text-xs">不进行说话人分离，所有内容标记为同一说话人</p>
+                    <span className="text-white">Skip Speaker Diarization</span>
+                    <p className="text-gray-500 text-xs">All content marked as single speaker</p>
                   </div>
                 </label>
               </div>
@@ -414,7 +414,7 @@ export default function JobsPage() {
                   className="btn btn-secondary"
                   disabled={submitting}
                 >
-                  取消
+                  Cancel
                 </button>
                 <button
                   type="submit"
@@ -424,10 +424,10 @@ export default function JobsPage() {
                   {submitting ? (
                     <>
                       <span className="spinner mr-2" />
-                      添加中...
+                      Adding...
                     </>
                   ) : (
-                    "添加任务"
+                    "Add Job"
                   )}
                 </button>
               </div>

@@ -67,12 +67,12 @@ class JobManager:
                         duplicate_job_dirs.append(existing_job.get_job_dir(jobs_dir))
                         duplicate_job_ids.add(existing_job.id)
                         url_to_job[job.url] = job
-                        logger.warning(f"发现重复URL任务，保留较新的: {job.id}, 删除: {existing_job.id}")
+                        logger.warning(f"Found duplicate URL job, keeping newer: {job.id}, deleting: {existing_job.id}")
                     else:
                         # Existing job is newer, mark new one for deletion
                         duplicate_job_dirs.append(job_dir)
                         duplicate_job_ids.add(job.id)
-                        logger.warning(f"发现重复URL任务，保留较新的: {existing_job.id}, 删除: {job.id}")
+                        logger.warning(f"Found duplicate URL job, keeping newer: {existing_job.id}, deleting: {job.id}")
                 else:
                     url_to_job[job.url] = job
 
@@ -96,9 +96,9 @@ class JobManager:
             if dup_dir.exists():
                 try:
                     shutil.rmtree(dup_dir)
-                    logger.info(f"已删除重复任务目录: {dup_dir}")
+                    logger.info(f"Deleted duplicate job directory: {dup_dir}")
                 except Exception as e:
-                    logger.error(f"删除重复任务目录失败: {dup_dir}, {e}")
+                    logger.error(f"Failed to delete duplicate job directory: {dup_dir}, {e}")
 
         logger.info(f"Loaded {len(self.jobs)} existing jobs")
 

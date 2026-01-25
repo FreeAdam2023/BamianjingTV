@@ -66,7 +66,7 @@ class PipelineConfig(BaseModel):
 
     # Subtitle options
     subtitle_style: SubtitleStyle = Field(default=SubtitleStyle.BILINGUAL, description="Subtitle style")
-    use_traditional_chinese: bool = Field(default=True, description="Use Traditional Chinese (繁體)")
+    use_traditional_chinese: bool = Field(default=True, description="Use Traditional Chinese characters")
     burn_subtitles: bool = Field(default=True, description="Burn subtitles into video")
 
     # Content generation configuration
@@ -127,7 +127,7 @@ DEFAULT_PIPELINES = {
     "default_zh": PipelineConfig(
         pipeline_id="default_zh",
         pipeline_type=PipelineType.FULL_DUB,
-        display_name="中文配音+双语字幕",
+        display_name="Chinese Dubbing + Bilingual Subtitles",
         target_language="zh",
         steps=["download", "transcribe", "diarize", "translate", "tts", "export"],
         enable_dubbing=True,
@@ -145,7 +145,7 @@ DEFAULT_PIPELINES = {
     "subtitle_only": PipelineConfig(
         pipeline_id="subtitle_only",
         pipeline_type=PipelineType.SUBTITLE_ONLY,
-        display_name="仅字幕(保留原声)",
+        display_name="Subtitles Only (Keep Original Audio)",
         target_language="zh",
         enable_dubbing=False,
         keep_original_audio=True,
@@ -164,7 +164,7 @@ DEFAULT_PIPELINES = {
     "dub_with_bg": PipelineConfig(
         pipeline_id="dub_with_bg",
         pipeline_type=PipelineType.FULL_DUB,
-        display_name="配音+原声背景",
+        display_name="Dubbing + Background Audio",
         target_language="zh",
         steps=["download", "transcribe", "diarize", "translate", "tts", "export"],
         enable_dubbing=True,

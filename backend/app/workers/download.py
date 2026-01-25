@@ -50,7 +50,7 @@ class DownloadWorker:
 
         # Check if video already exists (cache)
         if video_path.exists():
-            logger.info(f"视频已存在，跳过下载: {info.get('title', 'Unknown')}")
+            logger.info(f"Video already exists, skipping download: {info.get('title', 'Unknown')}")
         else:
             # Download video
             logger.info(f"Downloading video: {info.get('title', 'Unknown')}")
@@ -60,7 +60,7 @@ class DownloadWorker:
         if extract_audio:
             # Check if audio already exists (cache)
             if audio_path.exists():
-                logger.info("音频已存在，跳过提取")
+                logger.info("Audio already exists, skipping extraction")
             else:
                 logger.info("Extracting audio...")
                 await self._extract_audio(video_path, audio_path)

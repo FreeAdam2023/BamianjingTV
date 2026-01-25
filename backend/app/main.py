@@ -132,7 +132,7 @@ async def process_job(job_id: str) -> None:
         raw_path = transcript_dir / "raw.json"
 
         if raw_path.exists():
-            logger.info(f"转录文件已存在，跳过转录阶段: {job_id}")
+            logger.info(f"Transcript already exists, skipping transcription: {job_id}")
             transcript = load_json_model(raw_path, Transcript)
         else:
             await job_manager.update_status(job, JobStatus.TRANSCRIBING, 0.30)
@@ -153,11 +153,11 @@ async def process_job(job_id: str) -> None:
         diarized_path = transcript_dir / "diarized.json"
 
         if diarized_path.exists():
-            logger.info(f"说话人识别文件已存在，跳过识别阶段: {job_id}")
+            logger.info(f"Diarization file already exists, skipping diarization: {job_id}")
             diarized_transcript = load_json_model(diarized_path, DiarizedTranscript)
         elif job.skip_diarization:
             # Skip diarization - convert transcript to diarized format without speakers
-            logger.info(f"用户选择跳过说话人识别: {job_id}")
+            logger.info(f"User chose to skip speaker diarization: {job_id}")
             from app.models.transcript import DiarizedSegment
             diarized_transcript = DiarizedTranscript(
                 language=transcript.language,
@@ -200,7 +200,7 @@ async def process_job(job_id: str) -> None:
         translation_path = translation_dir / "zh.json"
 
         if translation_path.exists():
-            logger.info(f"翻译文件已存在，跳过翻译阶段: {job_id}")
+            logger.info(f"Translation file already exists, skipping translation: {job_id}")
             translated_transcript = load_json_model(translation_path, TranslatedTranscript)
         else:
             await job_manager.update_status(job, JobStatus.TRANSLATING, 0.70)
@@ -222,7 +222,7 @@ async def process_job(job_id: str) -> None:
         # ============ Stage 5: Create Timeline (80%) ============
         # Check if timeline already exists
         if job.timeline_id and timeline_manager.get_timeline(job.timeline_id):
-            logger.info(f"Timeline已存在，跳过创建: {job.timeline_id}")
+            logger.info(f"Timeline already exists, skipping creation: {job.timeline_id}")
             timeline = timeline_manager.get_timeline(job.timeline_id)
         else:
             timeline = timeline_manager.create_from_transcript(
@@ -436,7 +436,7 @@ async def create_job(
     if existing_job:
         raise HTTPException(
             status_code=409,
-            detail=f"该视频链接已存在任务 (Job ID: {existing_job.id}, 状态: {existing_job.status.value})"
+            detail=f"A job already exists for this URL (Job ID: {existing_job.id}, status: {existing_job.status.value})"
         )
 
     job = job_manager.create_job(
@@ -529,18 +529,18 @@ async def get_job_video(job_id: str):
 
     job = job_manager.get_job(job_id)
     if not job:
-        raise HTTPException(status_code=404, detail="任务不存在")
+        raise HTTPException(status_code=404, detail="Job not found")
 
     if not job.source_video:
-        raise HTTPException(status_code=404, detail="视频尚未下载")
+        raise HTTPException(status_code=404, detail="Video not downloaded yet")
 
     video_path = Path(job.source_video)
     if not video_path.exists():
-        raise HTTPException(status_code=404, detail="视频文件不存在")
+        raise HTTPException(status_code=404, detail="Video file not found")
 
     # Use title for filename, fallback to job_id
     safe_title = (job.title or job_id).replace("/", "_").replace("\\", "_")[:100]
-    filename = f"{safe_title}_原版.mp4"
+    filename = f"{safe_title}_original.mp4"
     # URL-encode for Content-Disposition header (RFC 5987)
     filename_encoded = quote(filename)
 
@@ -560,18 +560,18 @@ async def get_job_export_video(job_id: str):
 
     job = job_manager.get_job(job_id)
     if not job:
-        raise HTTPException(status_code=404, detail="任务不存在")
+        raise HTTPException(status_code=404, detail="Job not found")
 
     if not job.output_video:
-        raise HTTPException(status_code=404, detail="导出视频尚未生成，请先完成审阅并导出")
+        raise HTTPException(status_code=404, detail="Exported video not generated. Please complete review and export first")
 
     video_path = Path(job.output_video)
     if not video_path.exists():
-        raise HTTPException(status_code=404, detail="导出视频文件不存在")
+        raise HTTPException(status_code=404, detail="Exported video file not found")
 
     # Use title for filename, fallback to job_id
     safe_title = (job.title or job_id).replace("/", "_").replace("\\", "_")[:100]
-    filename = f"{safe_title}_双语字幕.mp4"
+    filename = f"{safe_title}_bilingual.mp4"
     # URL-encode for Content-Disposition header (RFC 5987)
     filename_encoded = quote(filename)
 
@@ -608,7 +608,7 @@ async def cancel_job(job_id: str):
     """Cancel a running job (will stop at next stage boundary)."""
     job = job_manager.get_job(job_id)
     if not job:
-        raise HTTPException(status_code=404, detail="任务不存在")
+        raise HTTPException(status_code=404, detail="Job not found")
 
     # Can only cancel jobs that are in progress
     cancellable_statuses = {
@@ -622,7 +622,7 @@ async def cancel_job(job_id: str):
     if job.status not in cancellable_statuses:
         raise HTTPException(
             status_code=400,
-            detail=f"无法取消此状态的任务: {job.status.value}"
+            detail=f"Cannot cancel job in status: {job.status.value}"
         )
 
     # Set cancel flag - job will check this between stages
@@ -630,7 +630,7 @@ async def cancel_job(job_id: str):
     job_manager.save_job(job)
 
     logger.info(f"Cancel requested for job {job_id}")
-    return {"message": f"任务 {job_id} 已标记为取消，将在当前阶段完成后停止"}
+    return {"message": f"Job {job_id} marked for cancellation, will stop after current stage completes"}
 
 
 # ============ Queue Endpoints ============

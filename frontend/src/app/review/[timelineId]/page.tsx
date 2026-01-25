@@ -307,7 +307,7 @@ export default function ReviewPage() {
                   checked={useTraditional}
                   onChange={(e) => setUseTraditional(e.target.checked)}
                 />
-                <span>Use Traditional Chinese (繁體)</span>
+                <span>Use Traditional Chinese</span>
               </label>
             </div>
 
