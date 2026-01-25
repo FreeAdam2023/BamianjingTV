@@ -136,6 +136,18 @@ export async function triggerExport(
   });
 }
 
+export async function generateThumbnail(
+  timelineId: string
+): Promise<{ timeline_id: string; thumbnail_url: string; message: string }> {
+  return fetchAPI(`/timelines/${timelineId}/thumbnail`, {
+    method: "POST",
+  });
+}
+
+export function getThumbnailUrl(jobId: string, filename: string): string {
+  return `${API_BASE || ""}/jobs/${jobId}/thumbnail/${filename}`;
+}
+
 // ============ Job API ============
 
 export async function listJobs(

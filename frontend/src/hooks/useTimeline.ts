@@ -80,6 +80,38 @@ export function useTimeline(timelineId: string) {
     }
   }, [timeline, timelineId]);
 
+  // Update segment text (English and Chinese)
+  const setSegmentText = useCallback(
+    async (segmentId: number, en: string, zh: string) => {
+      if (!timeline) return;
+
+      // Optimistic update
+      setTimeline((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          segments: prev.segments.map((seg) =>
+            seg.id === segmentId ? { ...seg, en, zh } : seg
+          ),
+        };
+      });
+
+      // Persist to backend
+      setSaving(true);
+      try {
+        await updateSegment(timelineId, segmentId, { en, zh });
+      } catch (err) {
+        // Revert on error
+        console.error("Failed to update segment text:", err);
+        // Reload timeline to get correct state
+        getTimeline(timelineId).then(setTimeline);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [timeline, timelineId]
+  );
+
   // Trigger export
   const startExport = useCallback(
     async (request: ExportRequest) => {
@@ -118,6 +150,7 @@ export function useTimeline(timelineId: string) {
     saving,
     stats,
     setSegmentState,
+    setSegmentText,
     markReviewed,
     startExport,
   };

@@ -26,6 +26,7 @@ from app.workers.diarization import DiarizationWorker
 from app.workers.translation import TranslationWorker
 from app.workers.export import ExportWorker
 from app.workers.youtube import YouTubeWorker
+from app.workers.thumbnail import ThumbnailWorker
 from app.api import (
     sources_router,
     items_router,
@@ -40,6 +41,7 @@ from app.api import (
     set_timeline_manager,
     set_export_worker,
     set_youtube_worker,
+    set_thumbnail_worker,
     set_jobs_dir,
     get_connection_manager,
 )
@@ -197,7 +199,14 @@ async def process_job(job_id: str) -> None:
             return
 
         # ============ Stage 4: Translate (70%) ============
-        translation_path = translation_dir / "zh.json"
+        # Determine target language code
+        # zh-TW = Traditional Chinese (default), zh-CN = Simplified Chinese
+        if job.target_language == "zh":
+            target_lang_code = "zh-TW" if job.use_traditional_chinese else "zh-CN"
+        else:
+            target_lang_code = job.target_language
+
+        translation_path = translation_dir / f"{target_lang_code}.json"
 
         if translation_path.exists():
             logger.info(f"Translation file already exists, skipping translation: {job_id}")
@@ -206,6 +215,7 @@ async def process_job(job_id: str) -> None:
             await job_manager.update_status(job, JobStatus.TRANSLATING, 0.70)
             translated_transcript = await translation_worker.translate_transcript(
                 transcript=diarized_transcript,
+                target_language=target_lang_code,
             )
             await translation_worker.save_translation(
                 translated_transcript, translation_path
@@ -287,6 +297,8 @@ async def lifespan(app: FastAPI):
     set_timeline_manager(timeline_manager)
     set_export_worker(export_worker)
     set_youtube_worker(youtube_worker)
+    thumbnail_worker = ThumbnailWorker()
+    set_thumbnail_worker(thumbnail_worker)
     set_jobs_dir(settings.jobs_dir)
 
     logger.info(f"Initialized timeline manager: {timeline_manager.get_stats()['total']} timelines")
@@ -580,6 +592,24 @@ async def get_job_export_video(job_id: str):
         media_type="video/mp4",
         filename=filename,
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"}
+    )
+
+
+@app.get("/jobs/{job_id}/thumbnail/{filename}")
+async def get_thumbnail(job_id: str, filename: str):
+    """Get generated thumbnail image for a job."""
+    from fastapi.responses import FileResponse
+
+    job_dir = settings.jobs_dir / job_id
+    thumbnail_path = job_dir / "output" / filename
+
+    if not thumbnail_path.exists():
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+
+    return FileResponse(
+        thumbnail_path,
+        media_type="image/png",
+        filename=filename,
     )
 
 

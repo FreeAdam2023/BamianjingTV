@@ -7,7 +7,7 @@ import VideoPlayer from "@/components/VideoPlayer";
 import SegmentList from "@/components/SegmentList";
 import { useTimeline } from "@/hooks/useTimeline";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
-import { formatDuration, keepAllSegments, dropAllSegments, resetAllSegments } from "@/lib/api";
+import { formatDuration, keepAllSegments, dropAllSegments, resetAllSegments, generateThumbnail } from "@/lib/api";
 import type { SegmentState, ExportProfile, ExportRequest } from "@/lib/types";
 
 export default function ReviewPage() {
@@ -21,6 +21,7 @@ export default function ReviewPage() {
     saving,
     stats,
     setSegmentState,
+    setSegmentText,
     markReviewed,
     startExport,
   } = useTimeline(timelineId);
@@ -39,6 +40,10 @@ export default function ReviewPage() {
   const [youtubeDescription, setYoutubeDescription] = useState("");
   const [youtubeTags, setYoutubeTags] = useState("");
   const [youtubePrivacy, setYoutubePrivacy] = useState<"private" | "unlisted" | "public">("private");
+
+  // Thumbnail generation
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [generatingThumbnail, setGeneratingThumbnail] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -110,6 +115,22 @@ export default function ReviewPage() {
       alert("Export failed: " + (err instanceof Error ? err.message : "Unknown error"));
     } finally {
       setExporting(false);
+    }
+  };
+
+  // Handle thumbnail generation
+  const handleGenerateThumbnail = async () => {
+    setGeneratingThumbnail(true);
+    try {
+      const result = await generateThumbnail(timelineId);
+      // Build full URL for the thumbnail
+      const { protocol, hostname } = window.location;
+      const baseUrl = `${protocol}//${hostname}:8000`;
+      setThumbnailUrl(`${baseUrl}${result.thumbnail_url}`);
+    } catch (err) {
+      alert("Thumbnail generation failed: " + (err instanceof Error ? err.message : "Unknown error"));
+    } finally {
+      setGeneratingThumbnail(false);
     }
   };
 
@@ -200,16 +221,18 @@ export default function ReviewPage() {
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Video panel */}
-        <div className="flex-1 flex flex-col p-4">
-          <VideoPlayer
-            jobId={timeline.job_id}
-            segments={timeline.segments}
-            currentSegmentId={currentSegmentId}
-            onSegmentChange={setCurrentSegmentId}
-          />
+        <div className="flex-1 flex flex-col p-4 min-h-0">
+          <div className="flex-1 min-h-0">
+            <VideoPlayer
+              jobId={timeline.job_id}
+              segments={timeline.segments}
+              currentSegmentId={currentSegmentId}
+              onSegmentChange={setCurrentSegmentId}
+            />
+          </div>
 
           {/* Keyboard shortcuts help */}
-          <div className="mt-4 text-xs text-gray-500 flex flex-wrap gap-4">
+          <div className="mt-4 text-xs text-gray-500 flex flex-wrap gap-4 flex-shrink-0">
             <span><kbd className="kbd">Space</kbd> Play/Pause</span>
             <span><kbd className="kbd">j</kbd>/<kbd className="kbd">k</kbd> Next/Prev</span>
             <span><kbd className="kbd">Shift+K</kbd> Keep</span>
@@ -250,6 +273,7 @@ export default function ReviewPage() {
             currentSegmentId={currentSegmentId}
             onSegmentClick={handleSegmentClick}
             onStateChange={setSegmentState}
+            onTextChange={setSegmentText}
           />
         </div>
       </div>
@@ -381,6 +405,68 @@ export default function ReviewPage() {
                       <option value="public">Public</option>
                     </select>
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* Thumbnail Generation Section */}
+            <div className="border-t border-gray-700 pt-4 mt-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="font-medium">Video Thumbnail</span>
+                <button
+                  onClick={handleGenerateThumbnail}
+                  disabled={generatingThumbnail}
+                  className="px-3 py-1 text-sm bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 rounded flex items-center gap-2"
+                >
+                  {generatingThumbnail ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Generating...
+                    </>
+                  ) : thumbnailUrl ? (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Regenerate
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      Generate Thumbnail
+                    </>
+                  )}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mb-3">
+                AI-generated YouTube-style thumbnail based on video content
+              </p>
+              {thumbnailUrl && (
+                <div className="relative rounded-lg overflow-hidden bg-gray-900">
+                  <img
+                    src={thumbnailUrl}
+                    alt="Generated thumbnail"
+                    className="w-full aspect-video object-cover"
+                  />
+                  <a
+                    href={thumbnailUrl}
+                    download="thumbnail.png"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="absolute bottom-2 right-2 px-2 py-1 text-xs bg-black/70 hover:bg-black/90 rounded"
+                  >
+                    Download
+                  </a>
+                </div>
+              )}
+              {!thumbnailUrl && !generatingThumbnail && (
+                <div className="border-2 border-dashed border-gray-600 rounded-lg aspect-video flex items-center justify-center text-gray-500">
+                  <span>Click "Generate Thumbnail" to create</span>
                 </div>
               )}
             </div>

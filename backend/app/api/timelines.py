@@ -19,6 +19,7 @@ from app.models.timeline import (
 from app.services.timeline_manager import TimelineManager
 from app.workers.export import ExportWorker
 from app.workers.youtube import YouTubeWorker
+from app.workers.thumbnail import ThumbnailWorker
 
 router = APIRouter(prefix="/timelines", tags=["timelines"])
 
@@ -26,6 +27,7 @@ router = APIRouter(prefix="/timelines", tags=["timelines"])
 _timeline_manager: Optional[TimelineManager] = None
 _export_worker: Optional[ExportWorker] = None
 _youtube_worker: Optional[YouTubeWorker] = None
+_thumbnail_worker: Optional[ThumbnailWorker] = None
 _jobs_dir: Optional[Path] = None
 
 
@@ -53,6 +55,12 @@ def set_jobs_dir(jobs_dir: Path) -> None:
     _jobs_dir = jobs_dir
 
 
+def set_thumbnail_worker(worker: ThumbnailWorker) -> None:
+    """Set the thumbnail worker instance."""
+    global _thumbnail_worker
+    _thumbnail_worker = worker
+
+
 def _get_manager() -> TimelineManager:
     """Get the timeline manager instance."""
     if _timeline_manager is None:
@@ -74,6 +82,13 @@ def _get_youtube_worker() -> YouTubeWorker:
     return _youtube_worker
 
 
+def _get_thumbnail_worker() -> ThumbnailWorker:
+    """Get the thumbnail worker instance."""
+    if _thumbnail_worker is None:
+        raise RuntimeError("ThumbnailWorker not initialized")
+    return _thumbnail_worker
+
+
 # ============ Response Models ============
 
 
@@ -91,6 +106,14 @@ class ExportResultResponse(BaseModel):
     timeline_id: str
     full_video_path: Optional[str] = None
     essence_video_path: Optional[str] = None
+
+
+class ThumbnailResponse(BaseModel):
+    """Response for thumbnail generation."""
+
+    timeline_id: str
+    thumbnail_url: str
+    message: str
 
 
 # ============ Endpoints ============
@@ -358,3 +381,64 @@ async def _run_export(
 
     except Exception as e:
         logger.exception(f"Export failed for timeline {timeline_id}: {e}")
+
+
+@router.post("/{timeline_id}/thumbnail", response_model=ThumbnailResponse)
+async def generate_thumbnail(timeline_id: str):
+    """Generate a YouTube-style thumbnail for the timeline.
+
+    Uses AI to analyze the video content and generate an eye-catching thumbnail.
+    Call this endpoint multiple times to regenerate if not satisfied.
+    """
+    from loguru import logger
+    import time
+
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    if _jobs_dir is None:
+        raise HTTPException(status_code=500, detail="Jobs directory not configured")
+
+    thumbnail_worker = _get_thumbnail_worker()
+
+    # Extract English subtitles for content analysis
+    subtitles = [seg.en for seg in timeline.segments if seg.en]
+
+    # Generate thumbnail
+    output_dir = _jobs_dir / timeline.job_id / "output"
+
+    # Use timestamp for unique filename on regeneration
+    filename = f"thumbnail_{int(time.time())}.png"
+
+    try:
+        thumbnail_path = await thumbnail_worker.generate_for_timeline(
+            title=timeline.source_title,
+            subtitles=subtitles,
+            output_dir=output_dir,
+            filename=filename,
+        )
+
+        if not thumbnail_path:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to generate thumbnail. Check if image API is configured."
+            )
+
+        # Return URL that can be served
+        thumbnail_url = f"/api/jobs/{timeline.job_id}/thumbnail/{filename}"
+
+        logger.info(f"Generated thumbnail for timeline {timeline_id}: {thumbnail_url}")
+
+        return ThumbnailResponse(
+            timeline_id=timeline_id,
+            thumbnail_url=thumbnail_url,
+            message="Thumbnail generated successfully",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Thumbnail generation failed for timeline {timeline_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

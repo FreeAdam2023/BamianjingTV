@@ -18,9 +18,20 @@ export default function JobsPage() {
   const [newUrl, setNewUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [jobOptions, setJobOptions] = useState<Partial<JobCreate>>({
+    target_language: "zh",
     use_traditional_chinese: true,
     skip_diarization: false,
   });
+
+  // Supported target languages
+  const SUPPORTED_LANGUAGES = [
+    { code: "zh", name: "中文 (Chinese)", hasVariants: true },
+    { code: "ja", name: "日本語 (Japanese)", hasVariants: false },
+    { code: "ko", name: "한국어 (Korean)", hasVariants: false },
+    { code: "es", name: "Español (Spanish)", hasVariants: false },
+    { code: "fr", name: "Français (French)", hasVariants: false },
+    { code: "de", name: "Deutsch (German)", hasVariants: false },
+  ];
 
   const loadJobs = useCallback(async (isInitial = false) => {
     if (isInitial) {
@@ -52,6 +63,7 @@ export default function JobsPage() {
   function openModal() {
     setNewUrl("");
     setJobOptions({
+      target_language: "zh",
       use_traditional_chinese: true,
       skip_diarization: false,
     });
@@ -382,22 +394,50 @@ export default function JobsPage() {
                   Processing Options
                 </label>
 
-                {/* Traditional Chinese */}
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={jobOptions.use_traditional_chinese}
+                {/* Target Language */}
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">
+                    Target Language
+                  </label>
+                  <select
+                    value={jobOptions.target_language || "zh"}
                     onChange={(e) =>
-                      setJobOptions({ ...jobOptions, use_traditional_chinese: e.target.checked })
+                      setJobOptions({
+                        ...jobOptions,
+                        target_language: e.target.value,
+                        // Reset traditional chinese when switching away from Chinese
+                        use_traditional_chinese: e.target.value === "zh" ? jobOptions.use_traditional_chinese : false,
+                      })
                     }
-                    className="w-5 h-5 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                     disabled={submitting}
-                  />
-                  <div>
-                    <span className="text-white">Use Traditional Chinese</span>
-                    <p className="text-gray-500 text-xs">Translate subtitles to Traditional Chinese</p>
-                  </div>
-                </label>
+                  >
+                    {SUPPORTED_LANGUAGES.map((lang) => (
+                      <option key={lang.code} value={lang.code}>
+                        {lang.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Traditional Chinese (only show for Chinese) */}
+                {jobOptions.target_language === "zh" && (
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={jobOptions.use_traditional_chinese}
+                      onChange={(e) =>
+                        setJobOptions({ ...jobOptions, use_traditional_chinese: e.target.checked })
+                      }
+                      className="w-5 h-5 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+                      disabled={submitting}
+                    />
+                    <div>
+                      <span className="text-white">Use Traditional Chinese (繁體)</span>
+                      <p className="text-gray-500 text-xs">Default: Traditional. Uncheck for Simplified (简体)</p>
+                    </div>
+                  </label>
+                )}
 
                 {/* Skip Diarization */}
                 <label className="flex items-center gap-3 cursor-pointer">

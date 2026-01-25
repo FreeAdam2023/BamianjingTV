@@ -10,6 +10,7 @@ from .timelines import (
     set_timeline_manager,
     set_export_worker,
     set_youtube_worker,
+    set_thumbnail_worker,
     set_jobs_dir,
 )
 
@@ -32,5 +33,6 @@ __all__ = [
     "set_timeline_manager",
     "set_export_worker",
     "set_youtube_worker",
+    "set_thumbnail_worker",
     "set_jobs_dir",
 ]
