@@ -118,6 +118,18 @@ make docker-logs-frontend
 make docker-down
 ```
 
+### 重新部署（更新后）
+
+```bash
+# 拉取最新代码
+git pull
+
+# 重新构建并启动
+make docker-build
+make docker-down
+make docker-up
+```
+
 ---
 
 ## Docker 生产环境 (CPU)
@@ -146,6 +158,18 @@ make docker-cpu-logs
 make docker-cpu-down
 ```
 
+### 重新部署（更新后）
+
+```bash
+# 拉取最新代码
+git pull
+
+# 重新构建并启动
+make docker-build
+make docker-cpu-down
+make docker-cpu-up
+```
+
 ---
 
 ## 环境变量配置
@@ -161,7 +185,32 @@ cp .env.example .env
 | 变量 | 说明 |
 |------|------|
 | `HF_TOKEN` | HuggingFace token，用于 pyannote.audio 说话人分离 |
-| `OPENAI_API_KEY` | OpenAI API Key，用于翻译 |
+| `LLM_API_KEY` | LLM API Key，用于翻译和缩略图生成 |
+| `LLM_BASE_URL` | LLM API 基础 URL |
+| `LLM_MODEL` | LLM 模型名称 |
+
+### LLM 配置示例
+
+**Grok (推荐 - 无内容审查，便宜)**
+```bash
+LLM_API_KEY=xai-your-key
+LLM_BASE_URL=https://api.x.ai/v1
+LLM_MODEL=grok-4-fast-non-reasoning
+```
+
+**OpenAI**
+```bash
+LLM_API_KEY=sk-your-openai-key
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_MODEL=gpt-4o-mini
+```
+
+**Azure OpenAI**
+```bash
+LLM_API_KEY=your-azure-key
+LLM_BASE_URL=https://your-resource.openai.azure.com/openai/deployments/your-deployment
+LLM_MODEL=gpt-4o-mini
+```
 
 ### 模型配置
 
