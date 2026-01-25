@@ -3,14 +3,22 @@
 @tailwind utilities;
 
 :root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --background: #0f0f0f;
+  --foreground: #fafafa;
+  --card: #1a1a1a;
+  --card-hover: #252525;
+  --border: #2a2a2a;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --success: #22c55e;
+  --warning: #eab308;
+  --danger: #ef4444;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 /* Custom scrollbar */
@@ -20,11 +28,11 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #1a1a1a;
+  background: var(--card);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333;
+  background: #444;
   border-radius: 4px;
 }
 
@@ -35,6 +43,86 @@ body {
 /* Video player custom styles */
 video::-webkit-media-controls {
   display: none !important;
+}
+
+/* Cards */
+@layer components {
+  .card {
+    @apply bg-[var(--card)] border border-[var(--border)] rounded-xl p-5
+           transition-all duration-200 hover:border-gray-600;
+  }
+
+  .card-hover {
+    @apply hover:bg-[var(--card-hover)] hover:shadow-lg hover:shadow-black/20;
+  }
+
+  .btn {
+    @apply px-4 py-2.5 rounded-lg font-medium transition-all duration-200
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/25;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-700 hover:bg-gray-600 text-white;
+  }
+
+  .btn-success {
+    @apply bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-600/25;
+  }
+
+  .btn-danger {
+    @apply bg-red-600 hover:bg-red-500 text-white;
+  }
+
+  .input {
+    @apply w-full px-4 py-3 bg-[var(--card)] border border-[var(--border)] rounded-lg
+           text-white placeholder-gray-500
+           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+           transition-all duration-200;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium;
+  }
+
+  .badge-success {
+    @apply bg-green-500/20 text-green-400;
+  }
+
+  .badge-warning {
+    @apply bg-yellow-500/20 text-yellow-400;
+  }
+
+  .badge-danger {
+    @apply bg-red-500/20 text-red-400;
+  }
+
+  .badge-info {
+    @apply bg-blue-500/20 text-blue-400;
+  }
+
+  .stat-card {
+    @apply card flex flex-col items-center justify-center py-6 text-center;
+  }
+
+  .stat-value {
+    @apply text-4xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent;
+  }
+
+  .stat-label {
+    @apply text-sm text-gray-400 mt-1;
+  }
+
+  .progress-bar {
+    @apply h-2 bg-gray-700 rounded-full overflow-hidden;
+  }
+
+  .progress-fill {
+    @apply h-full rounded-full transition-all duration-500;
+  }
 }
 
 /* Segment states */
@@ -58,4 +146,28 @@ video::-webkit-media-controls {
 .kbd {
   @apply inline-flex items-center justify-center px-2 py-1 text-xs font-mono
          bg-gray-700 border border-gray-600 rounded;
+}
+
+/* Loading spinner */
+.spinner {
+  @apply w-5 h-5 border-2 border-gray-600 border-t-blue-500 rounded-full animate-spin;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
 }

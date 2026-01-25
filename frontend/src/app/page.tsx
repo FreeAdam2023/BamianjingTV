@@ -14,7 +14,7 @@ export default function Home() {
     async function loadData() {
       try {
         const [timelinesData, statsData] = await Promise.all([
-          listTimelines(false, true, 10), // Unreviewed timelines
+          listTimelines(false, true, 10),
           getStats(),
         ]);
         setTimelines(timelinesData);
@@ -30,88 +30,109 @@ export default function Home() {
 
   if (loading) {
     return (
-      <main className="min-h-screen p-8">
-        <div className="text-center">Loading...</div>
+      <main className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="spinner mx-auto mb-4" />
+          <p className="text-gray-400">Loading...</p>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen p-8">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-4xl font-bold mb-2">Hardcore Player</h1>
-        <p className="text-gray-400 mb-8">Learning video factory with bilingual subtitles</p>
+    <main className="min-h-screen">
+      {/* Header */}
+      <header className="border-b border-[var(--border)] bg-[var(--card)]/50 backdrop-blur-sm sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xl">
+              🎬
+            </div>
+            <div>
+              <h1 className="text-xl font-bold">Hardcore Player</h1>
+              <p className="text-xs text-gray-500">Learning Video Factory</p>
+            </div>
+          </div>
+          <Link href="/jobs" className="btn btn-primary">
+            + Add Video
+          </Link>
+        </div>
+      </header>
 
+      <div className="max-w-6xl mx-auto px-6 py-8">
         {/* Stats */}
         {stats && (
-          <div className="grid grid-cols-3 gap-4 mb-8">
-            <div className="bg-gray-800 rounded-lg p-4">
-              <div className="text-3xl font-bold">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 animate-fade-in">
+            <div className="stat-card">
+              <div className="stat-value">
                 {(stats.timelines as Record<string, number>)?.pending || 0}
               </div>
-              <div className="text-gray-400">Pending Review</div>
+              <div className="stat-label">Pending Review</div>
             </div>
-            <div className="bg-gray-800 rounded-lg p-4">
-              <div className="text-3xl font-bold">
+            <div className="stat-card">
+              <div className="stat-value text-green-400">
                 {(stats.timelines as Record<string, number>)?.reviewed || 0}
               </div>
-              <div className="text-gray-400">Reviewed</div>
+              <div className="stat-label">Reviewed</div>
             </div>
-            <div className="bg-gray-800 rounded-lg p-4">
-              <div className="text-3xl font-bold">
+            <div className="stat-card">
+              <div className="stat-value text-blue-400 animate-pulse-soft">
                 {(stats.queue as Record<string, number>)?.active || 0}
               </div>
-              <div className="text-gray-400">Processing</div>
+              <div className="stat-label">Processing</div>
             </div>
           </div>
         )}
 
-        {/* Navigation */}
-        <div className="flex gap-4 mb-8">
-          <Link
-            href="/jobs"
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg"
-          >
-            View All Jobs
+        {/* Pending Reviews */}
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-2xl font-bold">Pending Reviews</h2>
+          <Link href="/jobs" className="text-blue-400 hover:text-blue-300 text-sm">
+            View all jobs →
           </Link>
         </div>
 
-        {/* Pending Reviews */}
-        <h2 className="text-2xl font-bold mb-4">Pending Reviews</h2>
         {timelines.length === 0 ? (
-          <div className="text-gray-400">No videos pending review</div>
+          <div className="card text-center py-12">
+            <div className="text-5xl mb-4">📭</div>
+            <h3 className="text-xl font-medium mb-2">No videos pending review</h3>
+            <p className="text-gray-400 mb-6">Add a video URL to get started</p>
+            <Link href="/jobs" className="btn btn-primary inline-flex">
+              + Add Video
+            </Link>
+          </div>
         ) : (
-          <div className="space-y-4">
-            {timelines.map((timeline) => (
+          <div className="space-y-4 animate-fade-in">
+            {timelines.map((timeline, index) => (
               <Link
                 key={timeline.timeline_id}
                 href={`/review/${timeline.timeline_id}`}
-                className="block bg-gray-800 hover:bg-gray-700 rounded-lg p-4 transition"
+                className="card card-hover block"
+                style={{ animationDelay: `${index * 50}ms` }}
               >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="text-lg font-medium">{timeline.source_title}</h3>
+                <div className="flex justify-between items-start gap-4">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold truncate mb-1">
+                      {timeline.source_title}
+                    </h3>
                     <p className="text-gray-400 text-sm">
-                      {formatDuration(timeline.source_duration)} &bull;{" "}
-                      {timeline.total_segments} segments
+                      {formatDuration(timeline.source_duration)} · {timeline.total_segments} segments
                     </p>
                   </div>
-                  <div className="text-right">
-                    <div className="text-sm">
-                      <span className="text-green-400">{timeline.keep_count} keep</span>
-                      {" / "}
-                      <span className="text-red-400">{timeline.drop_count} drop</span>
-                      {" / "}
-                      <span className="text-gray-400">{timeline.undecided_count} pending</span>
+                  <div className="text-right flex-shrink-0">
+                    <div className="flex gap-2 mb-1">
+                      <span className="badge badge-success">{timeline.keep_count} keep</span>
+                      <span className="badge badge-danger">{timeline.drop_count} drop</span>
+                      <span className="badge bg-gray-700 text-gray-300">{timeline.undecided_count} pending</span>
                     </div>
                     <div className="text-gray-400 text-sm">
                       {Math.round(timeline.review_progress)}% reviewed
                     </div>
                   </div>
                 </div>
-                <div className="mt-2 bg-gray-700 rounded-full h-2">
+                <div className="progress-bar mt-4">
                   <div
-                    className="bg-green-500 h-2 rounded-full"
+                    className="progress-fill bg-gradient-to-r from-green-500 to-emerald-400"
                     style={{ width: `${timeline.review_progress}%` }}
                   />
                 </div>
