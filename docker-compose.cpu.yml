@@ -1,5 +1,8 @@
+# CPU-only production configuration (no NVIDIA GPU required)
+# Usage: docker-compose -f docker-compose.cpu.yml up -d
+
 services:
-  # Hardcore Player Backend API
+  # Hardcore Player Backend API (CPU mode)
   api:
     build:
       context: .
@@ -17,20 +20,13 @@ services:
       - HF_TOKEN=${HF_TOKEN}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
-      - WHISPER_MODEL=${WHISPER_MODEL:-large-v3}
-      - WHISPER_DEVICE=cuda
-      - DIARIZATION_DEVICE=cuda
-      - TTS_DEVICE=cuda
-      - FFMPEG_NVENC=true
+      - WHISPER_MODEL=${WHISPER_MODEL:-base}
+      - WHISPER_DEVICE=cpu
+      - DIARIZATION_DEVICE=cpu
+      - TTS_DEVICE=cpu
+      - FFMPEG_NVENC=false
       - FRONTEND_URL=http://localhost:3000
       - CORS_ORIGINS=["http://localhost:3000","http://frontend:3000"]
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
     networks:
       - hardcore-player-net
     healthcheck:

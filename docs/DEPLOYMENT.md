@@ -120,6 +120,34 @@ make docker-down
 
 ---
 
+## Docker 生产环境 (CPU)
+
+没有 NVIDIA GPU 的服务器使用此配置。处理速度较慢，建议使用较小的 Whisper 模型 (base/small)。
+
+### 启动
+
+```bash
+# API + 前端
+make docker-cpu-up
+
+# API + 前端 + n8n 自动化
+make docker-cpu-up-all
+```
+
+### 查看日志
+
+```bash
+make docker-cpu-logs
+```
+
+### 停止
+
+```bash
+make docker-cpu-down
+```
+
+---
+
 ## 环境变量配置
 
 复制示例配置:

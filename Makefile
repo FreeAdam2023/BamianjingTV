@@ -16,12 +16,16 @@ help:
 	@echo ""
 	@echo "Docker (Production with GPU):"
 	@echo "  make docker-build    Build Docker images"
-	@echo "  make docker-up       Start API + Frontend"
+	@echo "  make docker-up       Start API + Frontend (requires NVIDIA GPU)"
 	@echo "  make docker-down     Stop all services"
 	@echo "  make docker-logs     View logs"
 	@echo ""
+	@echo "Docker (Production - CPU only):"
+	@echo "  make docker-cpu-up   Start API + Frontend (no GPU required)"
+	@echo "  make docker-cpu-down Stop CPU services"
+	@echo ""
 	@echo "Docker (Development - CPU only):"
-	@echo "  make docker-dev      Start dev environment"
+	@echo "  make docker-dev      Start dev environment with hot reload"
 	@echo ""
 
 # ============ Backend ============
@@ -87,6 +91,20 @@ docker-logs-api:
 
 docker-logs-frontend:
 	docker-compose logs -f frontend
+
+# ============ Docker (Production - CPU) ============
+
+docker-cpu-up:
+	docker-compose -f docker-compose.cpu.yml up -d api frontend
+
+docker-cpu-up-all:
+	docker-compose -f docker-compose.cpu.yml --profile automation up -d
+
+docker-cpu-down:
+	docker-compose -f docker-compose.cpu.yml down
+
+docker-cpu-logs:
+	docker-compose -f docker-compose.cpu.yml logs -f
 
 # ============ Docker (Development) ============
 
