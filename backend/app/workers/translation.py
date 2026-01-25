@@ -66,6 +66,8 @@ class TranslationWorker:
 
     async def translate_text(self, text: str, max_retries: int = 3, timeout: int = 30) -> str:
         """Translate a single text segment with timeout and retry."""
+        from openai import BadRequestError
+
         client = self._get_client()
 
         # Use Azure deployment name for Azure, model name for OpenAI
@@ -92,13 +94,23 @@ class TranslationWorker:
                 if content is None:
                     finish_reason = response.choices[0].finish_reason
                     if finish_reason == "content_filter":
-                        logger.warning(f"Content filtered by Azure, returning original text: {text[:50]}...")
+                        logger.warning(f"Output filtered by Azure, returning original: {text[:50]}...")
                         return text  # Return original text if filtered
                     else:
                         logger.warning(f"Empty response from API (finish_reason={finish_reason})")
                         return text
 
                 return content.strip()
+
+            except BadRequestError as e:
+                # Azure content filter blocks the input - don't retry, just return original
+                error_str = str(e)
+                if "content_filter" in error_str or "content management policy" in error_str:
+                    logger.warning(f"Input filtered by Azure content policy, returning original: {text[:50]}...")
+                    return text
+                # Other bad request errors - also don't retry
+                logger.warning(f"BadRequestError: {e}, returning original text")
+                return text
 
             except asyncio.TimeoutError:
                 logger.warning(f"Translation timeout (attempt {attempt + 1}/{max_retries}): {text[:50]}...")
