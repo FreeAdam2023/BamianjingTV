@@ -157,6 +157,16 @@ class Job(BaseModel):
         """Get the job directory path."""
         return base_dir / self.id
 
+    def validate_file_paths(self) -> "Job":
+        """Validate file paths exist, clear if not. Returns self for chaining."""
+        if self.source_video and not Path(self.source_video).exists():
+            self.source_video = None
+        if self.source_audio and not Path(self.source_audio).exists():
+            self.source_audio = None
+        if self.output_video and not Path(self.output_video).exists():
+            self.output_video = None
+        return self
+
     def update_status(self, status: JobStatus, progress: float = None):
         """Update job status and timestamp."""
         self.status = status

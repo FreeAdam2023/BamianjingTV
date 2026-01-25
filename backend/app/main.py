@@ -499,7 +499,9 @@ async def list_jobs(
     limit: int = Query(default=100, le=500),
 ):
     """List all jobs, optionally filtered by status."""
-    return job_manager.list_jobs(status=status, limit=limit)
+    jobs = job_manager.list_jobs(status=status, limit=limit)
+    # Validate file paths exist before returning
+    return [job.validate_file_paths() for job in jobs]
 
 
 @app.get("/jobs/{job_id}", response_model=Job)
@@ -508,7 +510,7 @@ async def get_job(job_id: str):
     job = job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    return job
+    return job.validate_file_paths()
 
 
 @app.delete("/jobs/{job_id}")
