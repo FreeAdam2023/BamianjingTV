@@ -1,6 +1,10 @@
-"""Configuration settings for MirrorFlow."""
+"""Configuration settings for Hardcore Player.
+
+Learning video factory: transcription, translation, and bilingual subtitles.
+"""
 
 from pathlib import Path
+from typing import List
 from pydantic_settings import BaseSettings
 
 
@@ -27,6 +31,11 @@ class Settings(BaseSettings):
         """Path to items directory."""
         return self.data_dir / "items"
 
+    @property
+    def timelines_dir(self) -> Path:
+        """Path to timelines directory."""
+        return self.data_dir / "timelines"
+
     # Whisper settings
     whisper_model: str = "large-v3"
     whisper_device: str = "cuda"
@@ -35,6 +44,10 @@ class Settings(BaseSettings):
     # Diarization settings
     hf_token: str = ""  # HuggingFace token for pyannote.audio
     diarization_device: str = "cuda"
+
+    # TTS settings (optional, for dubbing mode)
+    tts_model: str = "tts_models/multilingual/multi-dataset/xtts_v2"
+    tts_device: str = "cuda"
 
     # Translation settings
     openai_api_key: str = ""
@@ -46,10 +59,6 @@ class Settings(BaseSettings):
     def is_azure_openai(self) -> bool:
         """Check if using Azure OpenAI."""
         return "azure" in self.openai_base_url.lower()
-
-    # TTS settings
-    tts_model: str = "tts_models/multilingual/multi-dataset/xtts_v2"
-    tts_device: str = "cuda"
 
     # Video settings
     ffmpeg_nvenc: bool = True
@@ -64,10 +73,14 @@ class Settings(BaseSettings):
     port: int = 8000
     debug: bool = False
 
+    # Frontend settings
+    frontend_url: str = "http://localhost:3000"
+    cors_origins: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
-        extra = "ignore"  # Allow extra env vars like COQUI_TOS_AGREED
+        extra = "ignore"
 
 
 settings = Settings()
@@ -76,4 +89,5 @@ settings = Settings()
 settings.jobs_dir.mkdir(parents=True, exist_ok=True)
 settings.data_dir.mkdir(parents=True, exist_ok=True)
 settings.items_dir.mkdir(parents=True, exist_ok=True)
+settings.timelines_dir.mkdir(parents=True, exist_ok=True)
 settings.models_cache_dir.mkdir(parents=True, exist_ok=True)

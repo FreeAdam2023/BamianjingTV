@@ -1,0 +1,362 @@
+"""Timeline manager service for review UI."""
+
+import json
+from pathlib import Path
+from typing import List, Optional
+from loguru import logger
+
+from app.config import settings
+from app.models.timeline import (
+    EditableSegment,
+    ExportProfile,
+    SegmentState,
+    SegmentUpdate,
+    Timeline,
+    TimelineSummary,
+)
+from app.models.transcript import TranslatedTranscript
+
+
+class TimelineManager:
+    """Manager for timeline CRUD operations."""
+
+    def __init__(self, timelines_dir: Optional[Path] = None):
+        """Initialize timeline manager.
+
+        Args:
+            timelines_dir: Directory for timeline storage.
+                          Defaults to data_dir/timelines.
+        """
+        self.timelines_dir = timelines_dir or settings.data_dir / "timelines"
+        self.timelines_dir.mkdir(parents=True, exist_ok=True)
+        self._cache: dict[str, Timeline] = {}
+        self._load_all()
+
+    def _load_all(self) -> None:
+        """Load all timelines from disk."""
+        self._cache.clear()
+        for file_path in self.timelines_dir.glob("*.json"):
+            try:
+                timeline = self._load_timeline(file_path)
+                self._cache[timeline.timeline_id] = timeline
+            except Exception as e:
+                logger.warning(f"Failed to load timeline {file_path}: {e}")
+
+        logger.info(f"Loaded {len(self._cache)} timelines")
+
+    def _load_timeline(self, file_path: Path) -> Timeline:
+        """Load a timeline from a JSON file."""
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return Timeline.model_validate(data)
+
+    def _save_timeline(self, timeline: Timeline) -> None:
+        """Save a timeline to disk."""
+        file_path = self.timelines_dir / f"{timeline.timeline_id}.json"
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(timeline.model_dump(mode="json"), f, ensure_ascii=False, indent=2)
+
+    def create_from_transcript(
+        self,
+        job_id: str,
+        source_url: str,
+        source_title: str,
+        source_duration: float,
+        translated_transcript: TranslatedTranscript,
+    ) -> Timeline:
+        """Create a new timeline from a translated transcript.
+
+        Args:
+            job_id: Associated job ID
+            source_url: Original video URL
+            source_title: Original video title
+            source_duration: Video duration in seconds
+            translated_transcript: Translated transcript with segments
+
+        Returns:
+            Created Timeline object
+        """
+        segments = []
+        for i, seg in enumerate(translated_transcript.segments):
+            segments.append(
+                EditableSegment(
+                    id=i,
+                    start=seg.start,
+                    end=seg.end,
+                    en=seg.text,
+                    zh=seg.translation,
+                    speaker=seg.speaker if hasattr(seg, "speaker") else None,
+                    state=SegmentState.UNDECIDED,
+                )
+            )
+
+        timeline = Timeline(
+            job_id=job_id,
+            source_url=source_url,
+            source_title=source_title,
+            source_duration=source_duration,
+            segments=segments,
+        )
+
+        self._cache[timeline.timeline_id] = timeline
+        self._save_timeline(timeline)
+        logger.info(
+            f"Created timeline {timeline.timeline_id} for job {job_id} "
+            f"with {len(segments)} segments"
+        )
+
+        return timeline
+
+    def get_timeline(self, timeline_id: str) -> Optional[Timeline]:
+        """Get a timeline by ID."""
+        return self._cache.get(timeline_id)
+
+    def get_timeline_by_job(self, job_id: str) -> Optional[Timeline]:
+        """Get a timeline by job ID."""
+        for timeline in self._cache.values():
+            if timeline.job_id == job_id:
+                return timeline
+        return None
+
+    def list_timelines(
+        self,
+        reviewed_only: bool = False,
+        unreviewed_only: bool = False,
+        limit: int = 100,
+    ) -> List[TimelineSummary]:
+        """List timelines with optional filtering.
+
+        Args:
+            reviewed_only: Only return reviewed timelines
+            unreviewed_only: Only return unreviewed timelines
+            limit: Maximum number of results
+
+        Returns:
+            List of TimelineSummary objects
+        """
+        result = []
+        for timeline in sorted(
+            self._cache.values(),
+            key=lambda t: t.updated_at,
+            reverse=True,
+        ):
+            if reviewed_only and not timeline.is_reviewed:
+                continue
+            if unreviewed_only and timeline.is_reviewed:
+                continue
+
+            result.append(
+                TimelineSummary(
+                    timeline_id=timeline.timeline_id,
+                    job_id=timeline.job_id,
+                    source_title=timeline.source_title,
+                    source_duration=timeline.source_duration,
+                    total_segments=timeline.total_segments,
+                    keep_count=timeline.keep_count,
+                    drop_count=timeline.drop_count,
+                    undecided_count=timeline.undecided_count,
+                    review_progress=timeline.review_progress,
+                    is_reviewed=timeline.is_reviewed,
+                    created_at=timeline.created_at,
+                    updated_at=timeline.updated_at,
+                )
+            )
+
+            if len(result) >= limit:
+                break
+
+        return result
+
+    def update_segment(
+        self,
+        timeline_id: str,
+        segment_id: int,
+        update: SegmentUpdate,
+    ) -> Optional[EditableSegment]:
+        """Update a single segment.
+
+        Args:
+            timeline_id: Timeline ID
+            segment_id: Segment ID to update
+            update: Update data
+
+        Returns:
+            Updated segment or None if not found
+        """
+        timeline = self.get_timeline(timeline_id)
+        if not timeline:
+            return None
+
+        segment = timeline.update_segment(segment_id, update)
+        if segment:
+            self._save_timeline(timeline)
+            logger.debug(f"Updated segment {segment_id} in timeline {timeline_id}")
+
+        return segment
+
+    def batch_update_segments(
+        self,
+        timeline_id: str,
+        segment_ids: List[int],
+        state: SegmentState,
+    ) -> int:
+        """Batch update segment states.
+
+        Args:
+            timeline_id: Timeline ID
+            segment_ids: List of segment IDs to update
+            state: New state for all segments
+
+        Returns:
+            Number of segments updated
+        """
+        timeline = self.get_timeline(timeline_id)
+        if not timeline:
+            return 0
+
+        updated = timeline.batch_update_segments(segment_ids, state)
+        if updated > 0:
+            self._save_timeline(timeline)
+            logger.info(
+                f"Batch updated {updated} segments to {state.value} "
+                f"in timeline {timeline_id}"
+            )
+
+        return updated
+
+    def mark_reviewed(self, timeline_id: str) -> bool:
+        """Mark a timeline as reviewed.
+
+        Args:
+            timeline_id: Timeline ID
+
+        Returns:
+            True if successful, False if timeline not found
+        """
+        timeline = self.get_timeline(timeline_id)
+        if not timeline:
+            return False
+
+        timeline.mark_reviewed()
+        self._save_timeline(timeline)
+        logger.info(f"Marked timeline {timeline_id} as reviewed")
+
+        return True
+
+    def set_export_profile(
+        self,
+        timeline_id: str,
+        profile: ExportProfile,
+        use_traditional: bool = True,
+    ) -> bool:
+        """Set export profile for a timeline.
+
+        Args:
+            timeline_id: Timeline ID
+            profile: Export profile (full, essence, both)
+            use_traditional: Use Traditional Chinese
+
+        Returns:
+            True if successful, False if timeline not found
+        """
+        timeline = self.get_timeline(timeline_id)
+        if not timeline:
+            return False
+
+        timeline.export_profile = profile
+        timeline.use_traditional_chinese = use_traditional
+        self._save_timeline(timeline)
+
+        return True
+
+    def set_output_paths(
+        self,
+        timeline_id: str,
+        full_path: Optional[str] = None,
+        essence_path: Optional[str] = None,
+    ) -> bool:
+        """Set output paths after export.
+
+        Args:
+            timeline_id: Timeline ID
+            full_path: Path to full video
+            essence_path: Path to essence video
+
+        Returns:
+            True if successful, False if timeline not found
+        """
+        timeline = self.get_timeline(timeline_id)
+        if not timeline:
+            return False
+
+        if full_path:
+            timeline.output_full_path = full_path
+        if essence_path:
+            timeline.output_essence_path = essence_path
+        self._save_timeline(timeline)
+
+        return True
+
+    def set_youtube_info(
+        self,
+        timeline_id: str,
+        video_id: str,
+        url: str,
+    ) -> bool:
+        """Set YouTube upload info.
+
+        Args:
+            timeline_id: Timeline ID
+            video_id: YouTube video ID
+            url: YouTube video URL
+
+        Returns:
+            True if successful, False if timeline not found
+        """
+        timeline = self.get_timeline(timeline_id)
+        if not timeline:
+            return False
+
+        timeline.youtube_video_id = video_id
+        timeline.youtube_url = url
+        self._save_timeline(timeline)
+        logger.info(f"Set YouTube info for timeline {timeline_id}: {url}")
+
+        return True
+
+    def delete_timeline(self, timeline_id: str) -> bool:
+        """Delete a timeline.
+
+        Args:
+            timeline_id: Timeline ID
+
+        Returns:
+            True if deleted, False if not found
+        """
+        if timeline_id not in self._cache:
+            return False
+
+        file_path = self.timelines_dir / f"{timeline_id}.json"
+        if file_path.exists():
+            file_path.unlink()
+
+        del self._cache[timeline_id]
+        logger.info(f"Deleted timeline {timeline_id}")
+
+        return True
+
+    def get_stats(self) -> dict:
+        """Get timeline statistics.
+
+        Returns:
+            Statistics dict
+        """
+        total = len(self._cache)
+        reviewed = sum(1 for t in self._cache.values() if t.is_reviewed)
+        pending = total - reviewed
+
+        return {
+            "total": total,
+            "reviewed": reviewed,
+            "pending": pending,
+        }

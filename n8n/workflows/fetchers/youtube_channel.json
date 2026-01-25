@@ -21,7 +21,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $env.MIRRORFLOW_API_URL }}/sources",
+        "url": "={{ $env.HARDCORE_PLAYER_API_URL }}/sources",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -143,7 +143,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.MIRRORFLOW_API_URL }}/items",
+        "url": "={{ $env.HARDCORE_PLAYER_API_URL }}/items",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json) }}",
@@ -187,7 +187,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.MIRRORFLOW_API_URL }}/sources/{{ $json.item.source_id }}/fetch",
+        "url": "={{ $env.HARDCORE_PLAYER_API_URL }}/sources/{{ $json.item.source_id }}/fetch",
         "options": {}
       },
       "id": "update-last-fetched",
@@ -331,7 +331,7 @@
       "name": "youtube"
     },
     {
-      "name": "mirrorflow-v2"
+      "name": "hardcore-player-v2"
     }
   ],
   "triggerCount": 0,

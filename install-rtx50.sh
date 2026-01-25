@@ -1,5 +1,5 @@
 #!/bin/bash
-# MirrorFlow RTX 50 Series Installation Script
+# Hardcore Player RTX 50 Series Installation Script
 # Python 3.12 + CUDA 12.8 + PyTorch Nightly
 #
 # Usage:
@@ -9,7 +9,7 @@
 
 set -e
 
-echo "=== MirrorFlow RTX 50 Installation ==="
+echo "=== Hardcore Player RTX 50 Installation ==="
 echo ""
 
 # Accept Coqui TOS automatically

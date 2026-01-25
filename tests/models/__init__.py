@@ -1,1 +1,1 @@
-"""Model tests for MirrorFlow v2."""
+"""Model tests for Hardcore Player v2."""

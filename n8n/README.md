@@ -1,10 +1,10 @@
-# MirrorFlow n8n Workflows
+# Hardcore Player n8n Workflows
 
-This directory contains pre-configured n8n workflows for MirrorFlow automation.
+This directory contains pre-configured n8n workflows for Hardcore Player automation.
 
 ## Available Workflows
 
-### 1. mirrorflow_pipeline.json
+### 1. hardcore-player_pipeline.json
 Basic video processing pipeline with webhook trigger.
 
 **Webhook URL:** `POST /webhook/process-video`
@@ -17,7 +17,7 @@ Basic video processing pipeline with webhook trigger.
 }
 ```
 
-### 2. mirrorflow_batch.json
+### 2. hardcore-player_batch.json
 Batch processing workflow for multiple videos.
 
 **Webhook URL:** `POST /webhook/batch-process`
@@ -34,7 +34,7 @@ Batch processing workflow for multiple videos.
 }
 ```
 
-### 3. mirrorflow_monitor.json
+### 3. hardcore-player_monitor.json
 Scheduled monitoring workflow that runs every 5 minutes.
 
 - Checks system stats
@@ -73,7 +73,7 @@ No additional credentials needed - workflows use internal Docker network.
 
 ### Webhook Callbacks
 
-MirrorFlow sends callbacks to registered URLs:
+Hardcore Player sends callbacks to registered URLs:
 
 ```json
 {

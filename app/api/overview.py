@@ -1,4 +1,4 @@
-"""Overview and aggregation API endpoints for MirrorFlow v2.
+"""Overview and aggregation API endpoints for Hardcore Player.
 
 These endpoints provide high-level views for dashboards and monitoring.
 """

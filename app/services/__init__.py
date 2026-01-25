@@ -1,4 +1,4 @@
-"""Services for MirrorFlow."""
+"""Services for Hardcore Player."""
 
 from .job_manager import JobManager
 from .queue import JobQueue, BatchProcessor

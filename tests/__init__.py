@@ -1,1 +1,1 @@
-"""Tests for MirrorFlow."""
+"""Tests for Hardcore Player."""

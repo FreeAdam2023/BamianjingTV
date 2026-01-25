@@ -20,8 +20,15 @@ torchaudio>=2.1.0
 openai>=1.10.0
 httpx>=0.26.0
 
-# TTS (coqui-tts fork for Python 3.12+ compatibility)
-coqui-tts>=0.22.0
+# YouTube Upload
+google-api-python-client>=2.111.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
+
+# TTS (optional, for dubbing mode)
+TTS>=0.22.0  # Coqui XTTS v2
+# NOTE: Pin transformers for XTTS compatibility if needed
+# transformers>=4.33.0,<4.40.0
 
 # Audio/Video processing
 ffmpeg-python>=0.2.0
@@ -29,18 +36,6 @@ pydub>=0.25.1
 soundfile>=0.12.1
 # IMPORTANT: numpy pinned for numba compatibility (numba requires numpy<2.4)
 numpy>=1.24.0,<2.4
-
-# Image generation (for thumbnails)
-diffusers>=0.25.0
-# IMPORTANT: transformers/tokenizers pinned for XTTS v2 GPT2 compatibility
-transformers==4.39.3
-tokenizers==0.15.2
-accelerate>=0.26.0
-Pillow>=10.2.0
-
-# YouTube upload
-google-api-python-client>=2.115.0
-google-auth-oauthlib>=1.2.0
 
 # Utilities
 pydantic>=2.5.0

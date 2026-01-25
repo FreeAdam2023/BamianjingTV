@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Video player custom styles */
+video::-webkit-media-controls {
+  display: none !important;
+}
+
+/* Segment states */
+.segment-keep {
+  @apply border-l-4 border-green-500 bg-green-500/10;
+}
+
+.segment-drop {
+  @apply border-l-4 border-red-500 bg-red-500/10 opacity-50;
+}
+
+.segment-undecided {
+  @apply border-l-4 border-gray-500 bg-gray-500/10;
+}
+
+.segment-active {
+  @apply ring-2 ring-yellow-400;
+}
+
+/* Keyboard shortcut indicator */
+.kbd {
+  @apply inline-flex items-center justify-center px-2 py-1 text-xs font-mono
+         bg-gray-700 border border-gray-600 rounded;
+}

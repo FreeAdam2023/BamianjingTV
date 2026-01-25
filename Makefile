@@ -2,7 +2,7 @@
 
 # Default target
 help:
-	@echo "MirrorFlow - Automated Video Language Conversion"
+	@echo "Hardcore Player - Automated Video Language Conversion"
 	@echo ""
 	@echo "Usage:"
 	@echo "  make install      Install dependencies"
@@ -64,7 +64,7 @@ docker-dev:
 
 # Production with GPU
 docker-prod:
-	docker-compose up -d mirrorflow n8n
+	docker-compose up -d hardcore-player n8n
 
 # View API docs
 docs:

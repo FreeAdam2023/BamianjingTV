@@ -1,4 +1,4 @@
-"""Source manager service for MirrorFlow v2."""
+"""Source manager service for Hardcore Player."""
 
 import json
 from datetime import datetime

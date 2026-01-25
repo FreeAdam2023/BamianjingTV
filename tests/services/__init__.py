@@ -1,1 +1,1 @@
-"""Service tests for MirrorFlow v2."""
+"""Service tests for Hardcore Player v2."""

@@ -1,4 +1,4 @@
-"""Item manager service for MirrorFlow v2."""
+"""Item manager service for Hardcore Player."""
 
 import json
 from datetime import datetime, timedelta

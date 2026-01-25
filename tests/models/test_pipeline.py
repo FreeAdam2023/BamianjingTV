@@ -108,7 +108,7 @@ class TestPipelineConfig:
         assert pipeline.generate_content is True
         assert pipeline.enabled is True
         assert "download" in pipeline.steps
-        assert "mux" in pipeline.steps
+        assert "export" in pipeline.steps
 
     def test_create_pipeline_full(self):
         """Test creating a pipeline with all options."""
@@ -149,7 +149,7 @@ class TestPipelineConfig:
             target=target,
         )
 
-        expected_steps = ["download", "transcribe", "diarize", "translate", "tts", "mux"]
+        expected_steps = ["download", "transcribe", "diarize", "translate", "export"]
         assert pipeline.steps == expected_steps
 
 

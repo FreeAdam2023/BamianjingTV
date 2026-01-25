@@ -1,4 +1,4 @@
-"""Tests for the MirrorFlow v2 API endpoints."""
+"""Tests for the Hardcore Player v2 API endpoints."""
 
 import pytest
 import tempfile

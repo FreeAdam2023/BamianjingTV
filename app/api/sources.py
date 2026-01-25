@@ -1,4 +1,4 @@
-"""Source management API endpoints for MirrorFlow v2."""
+"""Source management API endpoints for Hardcore Player."""
 
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query

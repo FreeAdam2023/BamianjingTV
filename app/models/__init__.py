@@ -1,4 +1,4 @@
-"""Data models for MirrorFlow."""
+"""Data models for Hardcore Player."""
 
 from .job import Job, JobStatus, JobCreate
 from .source import Source, SourceType, SourceSubType, SourceCreate, SourceUpdate
@@ -19,6 +19,17 @@ from .transcript import (
     Transcript,
     DiarizedTranscript,
     TranslatedTranscript,
+)
+from .timeline import (
+    SegmentState,
+    ExportProfile,
+    EditableSegment,
+    SegmentUpdate,
+    SegmentBatchUpdate,
+    Timeline,
+    TimelineCreate,
+    TimelineExportRequest,
+    TimelineSummary,
 )
 
 __all__ = [
@@ -53,4 +64,14 @@ __all__ = [
     "Transcript",
     "DiarizedTranscript",
     "TranslatedTranscript",
+    # Timeline
+    "SegmentState",
+    "ExportProfile",
+    "EditableSegment",
+    "SegmentUpdate",
+    "SegmentBatchUpdate",
+    "Timeline",
+    "TimelineCreate",
+    "TimelineExportRequest",
+    "TimelineSummary",
 ]

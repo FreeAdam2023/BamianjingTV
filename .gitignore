@@ -38,7 +38,7 @@ ENV/
 .coverage
 htmlcov/
 
-# MirrorFlow specific
+# Hardcore Player specific
 jobs/
 .cache/
 credentials/
@@ -57,4 +57,4 @@ Thumbs.db
 .env
 credentials/
 credentials/client_secret_75175154082-64i7kd0a3i70lggqhb6ko00enq7b2a0f.apps.googleusercontent.com.json
-youtube_token.json
+youtube_token.jsonnode_modules/

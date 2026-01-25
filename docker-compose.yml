@@ -1,12 +1,12 @@
 version: '3.8'
 
 services:
-  # MirrorFlow API Service
-  mirrorflow:
+  # Hardcore Player API Service
+  hardcore-player:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: mirrorflow-api
+    container_name: hardcore-player-api
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -30,7 +30,7 @@ services:
               count: 1
               capabilities: [gpu]
     networks:
-      - mirrorflow-net
+      - hardcore-player-net
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -41,7 +41,7 @@ services:
   # n8n Workflow Automation
   n8n:
     image: n8nio/n8n:latest
-    container_name: mirrorflow-n8n
+    container_name: hardcore-player-n8n
     restart: unless-stopped
     ports:
       - "5678:5678"
@@ -51,26 +51,26 @@ services:
     environment:
       - N8N_BASIC_AUTH_ACTIVE=true
       - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
-      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-mirrorflow}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-hardcore-player}
       - N8N_HOST=0.0.0.0
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
       - WEBHOOK_URL=http://n8n:5678
       - GENERIC_TIMEZONE=Asia/Shanghai
     networks:
-      - mirrorflow-net
+      - hardcore-player-net
     depends_on:
-      - mirrorflow
+      - hardcore-player
 
   # Redis for job queue (optional, for scaling)
   redis:
     image: redis:7-alpine
-    container_name: mirrorflow-redis
+    container_name: hardcore-player-redis
     restart: unless-stopped
     volumes:
       - redis-data:/data
     networks:
-      - mirrorflow-net
+      - hardcore-player-net
     command: redis-server --appendonly yes
 
 volumes:
@@ -82,5 +82,5 @@ volumes:
     driver: local
 
 networks:
-  mirrorflow-net:
+  hardcore-player-net:
     driver: bridge

@@ -278,8 +278,7 @@ class JobManager:
             JobStatus.TRANSCRIBING,
             JobStatus.DIARIZING,
             JobStatus.TRANSLATING,
-            JobStatus.SYNTHESIZING,
-            JobStatus.MUXING,
+            JobStatus.EXPORTING,
         }
 
         recovered = 0
@@ -340,11 +339,7 @@ class JobManager:
             JobStatus.TRANSCRIBING,
             JobStatus.DIARIZING,
             JobStatus.TRANSLATING,
-            JobStatus.SYNTHESIZING,
-            JobStatus.MUXING,
-            JobStatus.GENERATING_CONTENT,
-            JobStatus.GENERATING_THUMBNAIL,
-            JobStatus.UPLOADING,
+            JobStatus.EXPORTING,
         }
         return sum(1 for j in self.jobs.values() if j.status in active_statuses)
 

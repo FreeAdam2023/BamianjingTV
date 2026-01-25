@@ -1,4 +1,4 @@
-"""Pipeline configuration API endpoints for MirrorFlow v2."""
+"""Pipeline configuration API endpoints for Hardcore Player."""
 
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query

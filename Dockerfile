@@ -1,4 +1,4 @@
-# MirrorFlow Dockerfile
+# Hardcore Player Dockerfile
 # GPU-enabled container for video language conversion
 
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app user
-RUN useradd -m -u 1000 mirrorflow
+RUN useradd -m -u 1000 hardcore-player
 WORKDIR /app
 
 # Install Python dependencies
@@ -30,10 +30,10 @@ COPY pyproject.toml .
 
 # Create directories
 RUN mkdir -p jobs .cache/models credentials \
-    && chown -R mirrorflow:mirrorflow /app
+    && chown -R hardcore-player:hardcore-player /app
 
 # Switch to non-root user
-USER mirrorflow
+USER hardcore-player
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1

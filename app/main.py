@@ -1,4 +1,7 @@
-"""MirrorFlow - FastAPI main application."""
+"""Hardcore Player - FastAPI main application.
+
+Learning video factory: transcription, translation, and bilingual subtitles.
+"""
 
 import json
 from pathlib import Path
@@ -6,6 +9,7 @@ from typing import List, Optional
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from loguru import logger
 
@@ -15,27 +19,28 @@ from app.models.job import Job, JobCreate, JobStatus
 from app.services.job_manager import JobManager
 from app.services.queue import JobQueue, BatchProcessor
 from app.services.webhook import WebhookService, job_status_callback
+from app.services.timeline_manager import TimelineManager
 from app.workers.download import DownloadWorker
 from app.workers.whisper import WhisperWorker
 from app.workers.diarization import DiarizationWorker
 from app.workers.translation import TranslationWorker
-from app.workers.tts import TTSWorker
-from app.workers.mux import MuxWorker
-from app.workers.thumbnail import ThumbnailWorker
-from app.workers.content import ContentWorker
+from app.workers.export import ExportWorker
 from app.workers.youtube import YouTubeWorker
 from app.api import (
-    content_router,
-    youtube_router,
     sources_router,
     items_router,
     pipelines_router,
     overview_router,
     websocket_router,
+    timelines_router,
     set_source_manager,
     set_item_manager,
     set_pipeline_manager,
     set_overview_managers,
+    set_timeline_manager,
+    set_export_worker,
+    set_youtube_worker,
+    set_jobs_dir,
     get_connection_manager,
 )
 from app.services.source_manager import SourceManager
@@ -54,33 +59,39 @@ source_manager: SourceManager = None
 item_manager: ItemManager = None
 pipeline_manager: PipelineManager = None
 
+# Hardcore Player Services
+timeline_manager: TimelineManager = None
+
 # Workers
 download_worker = DownloadWorker()
 whisper_worker = WhisperWorker()
 diarization_worker = DiarizationWorker()
 translation_worker = TranslationWorker()
-tts_worker = TTSWorker()
-mux_worker = MuxWorker()
-thumbnail_worker = ThumbnailWorker()
-content_worker = ContentWorker()
+export_worker = ExportWorker()
 youtube_worker = YouTubeWorker()
 
 
 async def process_job(job_id: str) -> None:
-    """Process a job through the full pipeline."""
+    """Process a job through the pipeline.
+
+    Simplified for Hardcore Player (learning video factory):
+    1. Download video
+    2. Transcribe with Whisper
+    3. Diarize speakers
+    4. Translate to Chinese
+    5. Create Timeline and pause for UI review
+
+    The export stage is triggered separately via /timelines/{id}/export.
+    """
     job = job_manager.get_job(job_id)
     if not job:
         return
 
     job_dir = job.get_job_dir(settings.jobs_dir)
-    diarization_segments = None
-    translated_transcript = None
 
     try:
-        # ============ Phase 1: Core Pipeline ============
-
-        # Stage 1: Download
-        await job_manager.update_status(job, JobStatus.DOWNLOADING, 0.05)
+        # ============ Stage 1: Download (10%) ============
+        await job_manager.update_status(job, JobStatus.DOWNLOADING, 0.10)
 
         download_result = await download_worker.download(
             url=job.url,
@@ -92,11 +103,10 @@ async def process_job(job_id: str) -> None:
         job.title = download_result["title"]
         job.duration = download_result["duration"]
         job.channel = download_result["channel"]
-        original_description = download_result.get("description", "")
         job_manager.save_job(job)
 
-        # Stage 2: Transcribe
-        await job_manager.update_status(job, JobStatus.TRANSCRIBING, 0.15)
+        # ============ Stage 2: Transcribe (30%) ============
+        await job_manager.update_status(job, JobStatus.TRANSCRIBING, 0.30)
 
         transcript = await whisper_worker.transcribe(
             audio_path=Path(job.source_audio),
@@ -108,8 +118,8 @@ async def process_job(job_id: str) -> None:
         job.transcript_raw = str(raw_path)
         job_manager.save_job(job)
 
-        # Stage 3: Diarize
-        await job_manager.update_status(job, JobStatus.DIARIZING, 0.25)
+        # ============ Stage 3: Diarize (50%) ============
+        await job_manager.update_status(job, JobStatus.DIARIZING, 0.50)
 
         diarization_segments = await diarization_worker.diarize(
             audio_path=Path(job.source_audio),
@@ -127,8 +137,8 @@ async def process_job(job_id: str) -> None:
         job.transcript_diarized = str(diarized_path)
         job_manager.save_job(job)
 
-        # Stage 4: Translate
-        await job_manager.update_status(job, JobStatus.TRANSLATING, 0.35)
+        # ============ Stage 4: Translate (70%) ============
+        await job_manager.update_status(job, JobStatus.TRANSLATING, 0.70)
 
         translated_transcript = await translation_worker.translate_transcript(
             transcript=diarized_transcript,
@@ -142,152 +152,27 @@ async def process_job(job_id: str) -> None:
         job.translation = str(translation_path)
         job_manager.save_job(job)
 
-        # Stage 5: TTS
-        await job_manager.update_status(job, JobStatus.SYNTHESIZING, 0.45)
-
-        # Extract speaker reference clips
-        await tts_worker.extract_speaker_clips(
-            audio_path=Path(job.source_audio),
-            diarization_segments=diarization_segments,
-            output_dir=job_dir / "tts" / "references",
+        # ============ Stage 5: Create Timeline (80%) ============
+        # Create timeline for UI review
+        timeline = timeline_manager.create_from_transcript(
+            job_id=job.id,
+            source_url=job.url,
+            source_title=job.title,
+            source_duration=job.duration,
+            translated_transcript=translated_transcript,
         )
 
-        # Synthesize all segments
-        tts_segments = await tts_worker.synthesize_transcript(
-            transcript=translated_transcript,
-            output_dir=job_dir,
-        )
-
-        # Stage 6: Mux
-        await job_manager.update_status(job, JobStatus.MUXING, 0.60)
-
-        # Create aligned audio
-        aligned_audio_path = job_dir / "tts" / "aligned.wav"
-        await mux_worker.create_aligned_audio(
-            tts_segments=tts_segments,
-            total_duration=job.duration,
-            output_path=aligned_audio_path,
-        )
-        job.tts_audio = str(aligned_audio_path)
-
-        # Mux final video
-        output_dir = job_dir / "output"
-        output_path = output_dir / "final_video.mp4"
-        await mux_worker.mux_video(
-            video_path=Path(job.source_video),
-            audio_path=aligned_audio_path,
-            output_path=output_path,
-        )
-        job.output_video = str(output_path)
+        job.timeline_id = timeline.timeline_id
         job_manager.save_job(job)
 
-        # ============ Phase 3: Content Generation ============
+        # ============ PAUSE: Awaiting Review ============
+        await job_manager.update_status(job, JobStatus.AWAITING_REVIEW, 0.80)
+        logger.info(
+            f"Job {job_id} ready for review. "
+            f"Timeline: {timeline.timeline_id} ({len(timeline.segments)} segments)"
+        )
 
-        # Stage 7: Generate Content (titles, description, tags)
-        if job.generate_content:
-            await job_manager.update_status(job, JobStatus.GENERATING_CONTENT, 0.70)
-
-            # Generate summary from translated transcript
-            segments_data = [
-                {"speaker": seg.speaker, "translation": seg.translation}
-                for seg in translated_transcript.segments
-            ]
-            transcript_summary = await content_worker.generate_transcript_summary(
-                segments=segments_data
-            )
-
-            # Generate content metadata
-            content = await content_worker.generate_content(
-                original_title=job.title,
-                original_description=original_description,
-                transcript_summary=transcript_summary,
-                channel_name=job.channel,
-                video_duration=job.duration,
-            )
-
-            job.title_clickbait = content.title_clickbait
-            job.title_safe = content.title_safe
-            job.description = content.description
-            job.tags = content.tags
-
-            # Generate chapters
-            chapters = await content_worker.generate_chapters(
-                segments=segments_data,
-            )
-            job.chapters = chapters
-
-            # Save content to file
-            content_path = job_dir / "content" / "metadata.json"
-            content_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(content_path, "w", encoding="utf-8") as f:
-                json.dump({
-                    "title_clickbait": content.title_clickbait,
-                    "title_safe": content.title_safe,
-                    "description": content.description,
-                    "tags": content.tags,
-                    "keywords": content.keywords,
-                    "summary": content.summary,
-                    "chapters": chapters,
-                }, f, ensure_ascii=False, indent=2)
-
-            job_manager.save_job(job)
-
-        # Stage 8: Generate Thumbnail
-        if job.generate_thumbnail:
-            await job_manager.update_status(job, JobStatus.GENERATING_THUMBNAIL, 0.80)
-
-            thumbnail_path = job_dir / "output" / "thumbnail.jpg"
-
-            try:
-                # Try AI generation
-                await thumbnail_worker.generate_from_summary(
-                    title=job.title_safe or job.title,
-                    summary=content.summary if job.generate_content else "",
-                    keywords=content.keywords if job.generate_content else [],
-                    output_path=thumbnail_path,
-                )
-            except Exception as thumb_err:
-                logger.warning(f"AI thumbnail failed, extracting from video: {thumb_err}")
-                # Fallback to video frame
-                await thumbnail_worker.extract_frame_thumbnail(
-                    video_path=Path(job.source_video),
-                    output_path=thumbnail_path,
-                )
-
-            job.thumbnail = str(thumbnail_path)
-            job_manager.save_job(job)
-
-        # Stage 9: YouTube Upload (optional)
-        if job.auto_upload:
-            await job_manager.update_status(job, JobStatus.UPLOADING, 0.90)
-
-            # Prepare description with chapters
-            final_description = job.description or ""
-            if job.chapters:
-                final_description = content_worker.format_description_with_chapters(
-                    description=final_description,
-                    chapters=job.chapters,
-                )
-
-            # Upload to YouTube
-            upload_result = await youtube_worker.upload(
-                video_path=Path(job.output_video),
-                title=job.title_safe or job.title,
-                description=final_description,
-                tags=job.tags or [],
-                privacy_status=job.upload_privacy,
-                thumbnail_path=Path(job.thumbnail) if job.thumbnail else None,
-            )
-
-            job.youtube_video_id = upload_result["video_id"]
-            job.youtube_url = upload_result["url"]
-            job_manager.save_job(job)
-
-            logger.info(f"Video uploaded to YouTube: {job.youtube_url}")
-
-        # Done!
-        await job_manager.update_status(job, JobStatus.COMPLETED, 1.0)
-        logger.info(f"Job {job_id} completed: {job.output_video}")
+        # Pipeline pauses here. Export is triggered via /timelines/{id}/export
 
     except Exception as e:
         logger.exception(f"Job {job_id} failed: {e}")
@@ -304,9 +189,9 @@ async def process_job(job_id: str) -> None:
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     global job_manager, job_queue, batch_processor, webhook_service
-    global source_manager, item_manager, pipeline_manager
+    global source_manager, item_manager, pipeline_manager, timeline_manager
 
-    logger.info(f"Starting MirrorFlow v{__version__}")
+    logger.info(f"Starting Hardcore Player v{__version__}")
     logger.info(f"Jobs directory: {settings.jobs_dir}")
     logger.info(f"Data directory: {settings.data_dir}")
 
@@ -326,6 +211,15 @@ async def lifespan(app: FastAPI):
     logger.info(f"Initialized v2 managers: {source_manager.get_stats()['total']} sources, "
                 f"{item_manager.get_stats()['total']} items, "
                 f"{pipeline_manager.get_stats()['total']} pipelines")
+
+    # ========== Hardcore Player: Initialize timeline manager ==========
+    timeline_manager = TimelineManager()
+    set_timeline_manager(timeline_manager)
+    set_export_worker(export_worker)
+    set_youtube_worker(youtube_worker)
+    set_jobs_dir(settings.jobs_dir)
+
+    logger.info(f"Initialized timeline manager: {timeline_manager.get_stats()['total']} timelines")
 
     # v2: Get WebSocket connection manager
     ws_manager = get_connection_manager()
@@ -366,19 +260,24 @@ async def lifespan(app: FastAPI):
     # Cleanup
     await job_queue.stop()
     await webhook_service.close()
-    logger.info("Shutting down MirrorFlow")
+    logger.info("Shutting down Hardcore Player")
 
 
 app = FastAPI(
-    title="MirrorFlow",
-    description="Automated video language conversion pipeline",
+    title="Hardcore Player",
+    description="Learning video factory: transcription, translation, and bilingual subtitles",
     version=__version__,
     lifespan=lifespan,
 )
 
-# Include API routers
-app.include_router(content_router)
-app.include_router(youtube_router)
+# CORS middleware for frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # v2 API routers
 app.include_router(sources_router)
@@ -386,6 +285,9 @@ app.include_router(items_router)
 app.include_router(pipelines_router)
 app.include_router(overview_router)
 app.include_router(websocket_router)
+
+# Hardcore Player routers
+app.include_router(timelines_router)
 
 
 # ============ Request/Response Models ============
@@ -396,10 +298,7 @@ class BatchJobCreate(BaseModel):
     target_language: str = "zh"
     priority: int = 0
     callback_url: Optional[str] = None
-    generate_thumbnail: bool = True
-    generate_content: bool = True
-    auto_upload: bool = False
-    upload_privacy: str = "private"
+    use_traditional_chinese: bool = True
 
 
 class BatchJobResponse(BaseModel):
@@ -431,15 +330,16 @@ class QueueStats(BaseModel):
 async def root():
     """Root endpoint."""
     return {
-        "name": "MirrorFlow",
+        "name": "Hardcore Player",
         "version": __version__,
         "status": "running",
-        "features": ["transcription", "diarization", "translation", "tts", "thumbnail", "youtube"],
+        "features": ["transcription", "diarization", "translation", "bilingual_subtitles"],
         "v2": {
             "sources": True,
             "items": True,
             "pipelines": True,
             "overview": True,
+            "timelines": True,
         },
     }
 
@@ -471,11 +371,8 @@ async def create_job(
         pipeline_id=job_create.pipeline_id,
     )
 
-    # Set Phase 3 options
-    job.generate_thumbnail = job_create.generate_thumbnail
-    job.generate_content = job_create.generate_content
-    job.auto_upload = job_create.auto_upload
-    job.upload_privacy = job_create.upload_privacy
+    # Hardcore Player options
+    job.use_traditional_chinese = job_create.use_traditional_chinese
     job_manager.save_job(job)
 
     # Register webhook if provided
@@ -499,10 +396,7 @@ async def create_batch_jobs(batch: BatchJobCreate):
             url=url,
             target_language=batch.target_language,
         )
-        job.generate_thumbnail = batch.generate_thumbnail
-        job.generate_content = batch.generate_content
-        job.auto_upload = batch.auto_upload
-        job.upload_privacy = batch.upload_privacy
+        job.use_traditional_chinese = batch.use_traditional_chinese
         job_manager.save_job(job)
         job_ids.append(job.id)
 
@@ -544,6 +438,29 @@ async def delete_job(job_id: str, delete_files: bool = True):
     if not job_manager.delete_job(job_id, delete_files=delete_files):
         raise HTTPException(status_code=404, detail="Job not found")
     return {"message": f"Job {job_id} deleted"}
+
+
+@app.get("/jobs/{job_id}/video")
+async def get_job_video(job_id: str):
+    """Stream the source video for a job."""
+    from fastapi.responses import FileResponse
+
+    job = job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if not job.source_video:
+        raise HTTPException(status_code=404, detail="Video not yet downloaded")
+
+    video_path = Path(job.source_video)
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="Video file not found")
+
+    return FileResponse(
+        video_path,
+        media_type="video/mp4",
+        filename=f"{job_id}.mp4",
+    )
 
 
 @app.post("/jobs/{job_id}/retry")
@@ -616,4 +533,5 @@ async def get_stats():
     return {
         "jobs": job_manager.get_stats(),
         "queue": job_queue.get_stats(),
+        "timelines": timeline_manager.get_stats() if timeline_manager else None,
     }

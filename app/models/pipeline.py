@@ -1,4 +1,4 @@
-"""Pipeline and Target configuration models for MirrorFlow v2."""
+"""Pipeline and Target configuration models for Hardcore Player."""
 
 from datetime import datetime
 from enum import Enum
@@ -55,12 +55,12 @@ class PipelineConfig(BaseModel):
     # Processing configuration
     target_language: str = Field(default="zh", description="Target language code")
     steps: List[str] = Field(
-        default_factory=lambda: ["download", "transcribe", "diarize", "translate", "tts", "mux"],
+        default_factory=lambda: ["download", "transcribe", "diarize", "translate", "export"],
         description="Processing steps to execute"
     )
 
-    # Audio/Video processing options
-    enable_dubbing: bool = Field(default=True, description="Enable TTS dubbing")
+    # Audio/Video processing options (TTS dubbing is optional)
+    enable_dubbing: bool = Field(default=False, description="Enable TTS dubbing (optional, requires tts step)")
     keep_original_audio: bool = Field(default=False, description="Mix original audio as background")
     original_audio_volume: float = Field(default=0.1, description="Original audio volume when mixing")
 
@@ -87,10 +87,10 @@ class PipelineCreate(BaseModel):
     display_name: str
     target_language: str = "zh"
     steps: List[str] = Field(
-        default_factory=lambda: ["download", "transcribe", "diarize", "translate", "tts", "mux"]
+        default_factory=lambda: ["download", "transcribe", "diarize", "translate", "export"]
     )
     # Audio/Video options
-    enable_dubbing: bool = True
+    enable_dubbing: bool = False
     keep_original_audio: bool = False
     original_audio_volume: float = 0.1
     # Subtitle options
@@ -123,12 +123,13 @@ class PipelineUpdate(BaseModel):
 
 # Default pipeline templates
 DEFAULT_PIPELINES = {
-    # Full dubbing with bilingual subtitles (Traditional Chinese)
+    # Full dubbing with bilingual subtitles (Traditional Chinese) - TTS enabled
     "default_zh": PipelineConfig(
         pipeline_id="default_zh",
         pipeline_type=PipelineType.FULL_DUB,
         display_name="中文配音+双语字幕",
         target_language="zh",
+        steps=["download", "transcribe", "diarize", "translate", "tts", "export"],
         enable_dubbing=True,
         keep_original_audio=False,
         subtitle_style=SubtitleStyle.BILINGUAL,
@@ -152,19 +153,20 @@ DEFAULT_PIPELINES = {
         subtitle_style=SubtitleStyle.BILINGUAL,
         use_traditional_chinese=True,
         burn_subtitles=True,
-        steps=["download", "transcribe", "diarize", "translate", "mux"],  # No TTS
+        steps=["download", "transcribe", "diarize", "translate", "export"],
         target=TargetConfig(
             target_type=TargetType.LOCAL,
             target_id="output",
             display_name="Local Output",
         ),
     ),
-    # Dubbing + mixed original audio (for background music/effects)
+    # Dubbing + mixed original audio (for background music/effects) - TTS enabled
     "dub_with_bg": PipelineConfig(
         pipeline_id="dub_with_bg",
         pipeline_type=PipelineType.FULL_DUB,
         display_name="配音+原声背景",
         target_language="zh",
+        steps=["download", "transcribe", "diarize", "translate", "tts", "export"],
         enable_dubbing=True,
         keep_original_audio=True,
         original_audio_volume=0.15,

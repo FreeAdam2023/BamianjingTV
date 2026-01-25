@@ -1,4 +1,4 @@
-"""Source data models for MirrorFlow v2."""
+"""Source data models for Hardcore Player."""
 
 from datetime import datetime
 from enum import Enum

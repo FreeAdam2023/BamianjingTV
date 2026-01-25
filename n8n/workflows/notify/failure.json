@@ -30,7 +30,7 @@
         "url": "={{ $env.NOTIFICATION_WEBHOOK }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"text\": \"Job Failed\",\n  \"blocks\": [\n    {\n      \"type\": \"header\",\n      \"text\": {\n        \"type\": \"plain_text\",\n        \"text\": \"Job Failed\",\n        \"emoji\": true\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"fields\": [\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Job ID:*\\n{{ $json.job_id }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Pipeline:*\\n{{ $json.pipeline_id }}\"\n        }\n      ]\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*Error:*\\n```{{ $json.error }}```\"\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"fields\": [\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Source:*\\n{{ $json.source_type }}/{{ $json.source_id }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Item:*\\n{{ $json.item_id }}\"\n        }\n      ]\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*URL:* {{ $json.url }}\"\n      }\n    },\n    {\n      \"type\": \"actions\",\n      \"elements\": [\n        {\n          \"type\": \"button\",\n          \"text\": {\n            \"type\": \"plain_text\",\n            \"text\": \"Retry Job\"\n          },\n          \"url\": \"{{ $env.MIRRORFLOW_API_URL }}/jobs/{{ $json.job_id }}/retry\",\n          \"style\": \"primary\"\n        }\n      ]\n    }\n  ]\n}",
+        "jsonBody": "={\n  \"text\": \"Job Failed\",\n  \"blocks\": [\n    {\n      \"type\": \"header\",\n      \"text\": {\n        \"type\": \"plain_text\",\n        \"text\": \"Job Failed\",\n        \"emoji\": true\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"fields\": [\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Job ID:*\\n{{ $json.job_id }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Pipeline:*\\n{{ $json.pipeline_id }}\"\n        }\n      ]\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*Error:*\\n```{{ $json.error }}```\"\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"fields\": [\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Source:*\\n{{ $json.source_type }}/{{ $json.source_id }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Item:*\\n{{ $json.item_id }}\"\n        }\n      ]\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*URL:* {{ $json.url }}\"\n      }\n    },\n    {\n      \"type\": \"actions\",\n      \"elements\": [\n        {\n          \"type\": \"button\",\n          \"text\": {\n            \"type\": \"plain_text\",\n            \"text\": \"Retry Job\"\n          },\n          \"url\": \"{{ $env.HARDCORE_PLAYER_API_URL }}/jobs/{{ $json.job_id }}/retry\",\n          \"style\": \"primary\"\n        }\n      ]\n    }\n  ]\n}",
         "options": {}
       },
       "id": "send-slack-alert",
@@ -77,7 +77,7 @@
       "name": "alert"
     },
     {
-      "name": "mirrorflow-v2"
+      "name": "hardcore-player-v2"
     }
   ],
   "triggerCount": 0,

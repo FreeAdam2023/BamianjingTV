@@ -11,18 +11,21 @@ from app.models.source import SourceType
 
 
 class JobStatus(str, Enum):
-    """Job status enum."""
+    """Job status enum.
+
+    Simplified for Hardcore Player (learning video factory):
+    - Removed TTS, thumbnail, content generation, and upload stages
+    - Added AWAITING_REVIEW for human-in-the-loop editing
+    - Added EXPORTING for video export with subtitles
+    """
 
     PENDING = "pending"
     DOWNLOADING = "downloading"
     TRANSCRIBING = "transcribing"
     DIARIZING = "diarizing"
     TRANSLATING = "translating"
-    SYNTHESIZING = "synthesizing"
-    MUXING = "muxing"
-    GENERATING_CONTENT = "generating_content"
-    GENERATING_THUMBNAIL = "generating_thumbnail"
-    UPLOADING = "uploading"
+    AWAITING_REVIEW = "awaiting_review"  # Pause for UI review
+    EXPORTING = "exporting"  # Video export with subtitles
     COMPLETED = "completed"
     FAILED = "failed"
 
@@ -43,14 +46,16 @@ def infer_source_type_from_url(url: str) -> SourceType:
 
 
 class JobCreate(BaseModel):
-    """Request model for creating a new job."""
+    """Request model for creating a new job.
 
-    url: str = Field(..., description="YouTube video URL")
+    Simplified for Hardcore Player (learning video factory).
+    """
+
+    url: str = Field(..., description="Video URL")
     target_language: str = Field(default="zh", description="Target language code")
-    generate_thumbnail: bool = Field(default=True, description="Generate AI thumbnail")
-    generate_content: bool = Field(default=True, description="Generate title/description")
-    auto_upload: bool = Field(default=False, description="Auto upload to YouTube")
-    upload_privacy: str = Field(default="private", description="YouTube privacy status")
+    use_traditional_chinese: bool = Field(
+        default=True, description="Use Traditional Chinese for subtitles"
+    )
 
     # v2 fields - auto-populated if not provided
     source_type: Optional[SourceType] = Field(default=None, description="Source type")
@@ -80,7 +85,10 @@ class JobCreate(BaseModel):
 
 
 class Job(BaseModel):
-    """Job data model."""
+    """Job data model.
+
+    Simplified for Hardcore Player (learning video factory).
+    """
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
     url: str
@@ -127,26 +135,13 @@ class Job(BaseModel):
     transcript_raw: Optional[str] = None
     transcript_diarized: Optional[str] = None
     translation: Optional[str] = None
-    tts_audio: Optional[str] = None
     output_video: Optional[str] = None
-    thumbnail: Optional[str] = None
 
-    # Phase 3: Content generation
-    generate_thumbnail: bool = True
-    generate_content: bool = True
-    auto_upload: bool = False
-    upload_privacy: str = "private"
-
-    # Generated content
-    title_clickbait: Optional[str] = None
-    title_safe: Optional[str] = None
-    description: Optional[str] = None
-    tags: Optional[list] = None
-    chapters: Optional[list] = None
-
-    # YouTube upload result
-    youtube_video_id: Optional[str] = None
-    youtube_url: Optional[str] = None
+    # ========== Hardcore Player: Timeline ==========
+    timeline_id: Optional[str] = Field(default=None, description="Associated timeline ID")
+    use_traditional_chinese: bool = Field(
+        default=True, description="Use Traditional Chinese for subtitles"
+    )
 
     def get_job_dir(self, base_dir: Path) -> Path:
         """Get the job directory path."""

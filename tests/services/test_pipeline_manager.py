@@ -137,11 +137,11 @@ class TestPipelineManager:
             display_name="Local",
         )
 
-        # Create a subtitle-only pipeline
+        # Create a subtitle-only pipeline (use different ID to avoid conflict with default)
         pipeline_manager.create_pipeline(PipelineCreate(
-            pipeline_id="subtitle_only",
+            pipeline_id="subtitle_test_filter",
             pipeline_type=PipelineType.SUBTITLE_ONLY,
-            display_name="Subtitle Only",
+            display_name="Subtitle Test",
             target=target,
         ))
 
@@ -149,8 +149,9 @@ class TestPipelineManager:
             pipeline_type=PipelineType.SUBTITLE_ONLY
         )
 
-        assert len(subtitle_pipelines) == 1
-        assert subtitle_pipelines[0].pipeline_type == PipelineType.SUBTITLE_ONLY
+        # At least 2: the default "subtitle_only" + our new one
+        assert len(subtitle_pipelines) >= 2
+        assert all(p.pipeline_type == PipelineType.SUBTITLE_ONLY for p in subtitle_pipelines)
 
     def test_update_pipeline(self, pipeline_manager):
         """Test updating a pipeline."""

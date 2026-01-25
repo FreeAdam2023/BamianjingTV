@@ -17,7 +17,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $env.MIRRORFLOW_API_URL }}/items/{{ $json.body.item_id }}",
+        "url": "={{ $env.HARDCORE_PLAYER_API_URL }}/items/{{ $json.body.item_id }}",
         "options": {}
       },
       "id": "get-item",
@@ -29,7 +29,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $env.MIRRORFLOW_API_URL }}/sources/{{ $json.source_id }}",
+        "url": "={{ $env.HARDCORE_PLAYER_API_URL }}/sources/{{ $json.source_id }}",
         "options": {}
       },
       "id": "get-source",
@@ -80,7 +80,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $env.MIRRORFLOW_API_URL }}/pipelines/{{ $json.pipeline_id }}",
+        "url": "={{ $env.HARDCORE_PLAYER_API_URL }}/pipelines/{{ $json.pipeline_id }}",
         "options": {}
       },
       "id": "get-pipeline-config",
@@ -131,7 +131,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.MIRRORFLOW_API_URL }}/jobs",
+        "url": "={{ $env.HARDCORE_PLAYER_API_URL }}/jobs",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json) }}",
@@ -264,7 +264,7 @@
       "name": "fanout"
     },
     {
-      "name": "mirrorflow-v2"
+      "name": "hardcore-player-v2"
     }
   ],
   "triggerCount": 0,

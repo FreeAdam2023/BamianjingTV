@@ -1,13 +1,11 @@
-"""Worker modules for MirrorFlow pipeline."""
+"""Worker modules for Hardcore Player pipeline."""
 
 from .download import DownloadWorker
 from .whisper import WhisperWorker
 from .diarization import DiarizationWorker
 from .translation import TranslationWorker
-from .tts import TTSWorker
-from .mux import MuxWorker
-from .thumbnail import ThumbnailWorker
-from .content import ContentWorker, VideoContent
+from .tts import TTSWorker  # Optional: TTS dubbing
+from .export import ExportWorker
 from .youtube import YouTubeWorker
 
 __all__ = [
@@ -16,9 +14,6 @@ __all__ = [
     "DiarizationWorker",
     "TranslationWorker",
     "TTSWorker",
-    "MuxWorker",
-    "ThumbnailWorker",
-    "ContentWorker",
-    "VideoContent",
+    "ExportWorker",
     "YouTubeWorker",
 ]

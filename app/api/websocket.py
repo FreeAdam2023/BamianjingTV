@@ -263,7 +263,7 @@ async def websocket_endpoint(websocket: WebSocket):
     # Send welcome message
     await manager.send_personal(websocket, {
         "type": "connected",
-        "message": "WebSocket connected to MirrorFlow",
+        "message": "WebSocket connected to Hardcore Player",
         "timestamp": datetime.now(timezone.utc).isoformat(),
     })
 

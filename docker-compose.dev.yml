@@ -4,7 +4,7 @@ version: '3.8'
 # Use: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
 
 services:
-  mirrorflow:
+  hardcore-player:
     build:
       context: .
       dockerfile: Dockerfile.dev
