@@ -17,6 +17,7 @@ services:
       - HF_TOKEN=${HF_TOKEN}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - AZURE_DEPLOYMENT=${AZURE_DEPLOYMENT:-}
       - WHISPER_MODEL=${WHISPER_MODEL:-large-v3}
       - WHISPER_DEVICE=cuda
       - DIARIZATION_DEVICE=cuda

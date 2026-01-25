@@ -56,11 +56,26 @@ class Settings(BaseSettings):
     openai_base_url: str = "https://api.openai.com/v1"
     openai_api_version: str = "2024-12-01-preview"  # For Azure OpenAI
     translation_model: str = "gpt-4o-mini"
+    azure_deployment: str = ""  # Azure OpenAI deployment name (if different from model)
 
     @property
     def is_azure_openai(self) -> bool:
         """Check if using Azure OpenAI."""
         return "azure" in self.openai_base_url.lower()
+
+    @property
+    def azure_deployment_name(self) -> str:
+        """Get Azure deployment name from config or URL."""
+        # 1. Use explicit azure_deployment if set
+        if self.azure_deployment:
+            return self.azure_deployment
+        # 2. Try to extract from URL (e.g., .../deployments/gpt-4o-mini/...)
+        if "/deployments/" in self.openai_base_url:
+            parts = self.openai_base_url.split("/deployments/")
+            if len(parts) > 1:
+                return parts[1].split("/")[0]
+        # 3. Fall back to model name
+        return self.translation_model
 
     # Video settings
     ffmpeg_nvenc: bool = True

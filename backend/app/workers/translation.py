@@ -68,8 +68,13 @@ class TranslationWorker:
         """Translate a single text segment."""
         client = self._get_client()
 
+        # Use Azure deployment name for Azure, model name for OpenAI
+        model_or_deployment = (
+            settings.azure_deployment_name if settings.is_azure_openai else self.model
+        )
+
         response = await client.chat.completions.create(
-            model=self.model,
+            model=model_or_deployment,
             messages=[
                 {"role": "system", "content": TRANSLATION_SYSTEM_PROMPT},
                 {"role": "user", "content": text},
