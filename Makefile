@@ -72,47 +72,47 @@ dev-all:
 # ============ Docker (Production) ============
 
 docker-build:
-	docker-compose build
+	docker compose build
 
 docker-up:
-	docker-compose up -d api frontend
+	docker compose up -d api frontend
 
 docker-up-all:
-	docker-compose --profile automation up -d
+	docker compose --profile automation up -d
 
 docker-down:
-	docker-compose down
+	docker compose down
 
 docker-logs:
-	docker-compose logs -f
+	docker compose logs -f
 
 docker-logs-api:
-	docker-compose logs -f api
+	docker compose logs -f api
 
 docker-logs-frontend:
-	docker-compose logs -f frontend
+	docker compose logs -f frontend
 
 # ============ Docker (Production - CPU) ============
 
 docker-cpu-up:
-	docker-compose -f docker-compose.cpu.yml up -d api frontend
+	docker compose -f docker compose.cpu.yml up -d api frontend
 
 docker-cpu-up-all:
-	docker-compose -f docker-compose.cpu.yml --profile automation up -d
+	docker compose -f docker compose.cpu.yml --profile automation up -d
 
 docker-cpu-down:
-	docker-compose -f docker-compose.cpu.yml down
+	docker compose -f docker compose.cpu.yml down
 
 docker-cpu-logs:
-	docker-compose -f docker-compose.cpu.yml logs -f
+	docker compose -f docker compose.cpu.yml logs -f
 
 # ============ Docker (Development) ============
 
 docker-dev:
-	docker-compose -f docker-compose.dev.yml up --build
+	docker compose -f docker compose.dev.yml up --build
 
 docker-dev-down:
-	docker-compose -f docker-compose.dev.yml down
+	docker compose -f docker compose.dev.yml down
 
 # ============ Utilities ============
 
