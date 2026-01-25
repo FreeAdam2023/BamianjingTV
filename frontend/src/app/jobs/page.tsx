@@ -7,7 +7,8 @@ import type { Job, JobCreate } from "@/lib/types";
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
@@ -21,20 +22,30 @@ export default function JobsPage() {
     skip_diarization: false,
   });
 
-  const loadJobs = useCallback(async () => {
+  const loadJobs = useCallback(async (isInitial = false) => {
+    if (isInitial) {
+      setInitialLoading(true);
+    } else {
+      setRefreshing(true);
+    }
+
     try {
       const data = await listJobs(undefined, 50);
       setJobs(data);
     } catch (error) {
       console.error("Failed to load jobs:", error);
+      if (isInitial) {
+        setError("Failed to load jobs");
+      }
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
-    loadJobs();
-    const interval = setInterval(loadJobs, 5000);
+    loadJobs(true);
+    const interval = setInterval(() => loadJobs(false), 5000);
     return () => clearInterval(interval);
   }, [loadJobs]);
 
@@ -66,7 +77,7 @@ export default function JobsPage() {
         ...jobOptions,
       });
       closeModal();
-      loadJobs();
+      loadJobs(false);
     } catch (err) {
       console.error("Failed to create job:", err);
       const message = err instanceof Error ? err.message : "Failed to create job";
@@ -84,7 +95,7 @@ export default function JobsPage() {
     setDeletingId(jobId);
     try {
       await deleteJob(jobId);
-      loadJobs();
+      loadJobs(false);
     } catch (err) {
       console.error("Failed to delete job:", err);
       const message = err instanceof Error ? err.message : "Failed to delete job";
@@ -102,7 +113,7 @@ export default function JobsPage() {
     setCancellingId(jobId);
     try {
       await cancelJob(jobId);
-      loadJobs();
+      loadJobs(false);
     } catch (err) {
       console.error("Failed to cancel job:", err);
       const message = err instanceof Error ? err.message : "Failed to cancel job";
@@ -125,15 +136,15 @@ export default function JobsPage() {
       case "awaiting_review":
         return <span className="badge badge-warning">Awaiting Review</span>;
       case "downloading":
-        return <span className="badge badge-info">Downloading</span>;
+        return <span className="badge badge-info animate-pulse">Downloading...</span>;
       case "transcribing":
-        return <span className="badge badge-info">Transcribing</span>;
+        return <span className="badge badge-info animate-pulse">Transcribing...</span>;
       case "diarizing":
-        return <span className="badge badge-info">Diarizing</span>;
+        return <span className="badge badge-info animate-pulse">Diarizing...</span>;
       case "translating":
-        return <span className="badge badge-info">Translating</span>;
+        return <span className="badge badge-info animate-pulse">Translating...</span>;
       case "exporting":
-        return <span className="badge badge-info">Exporting</span>;
+        return <span className="badge badge-info animate-pulse">Exporting...</span>;
       case "pending":
         return <span className="badge badge-info">Pending</span>;
       case "cancelled":
@@ -143,12 +154,13 @@ export default function JobsPage() {
     }
   }
 
-  if (loading) {
+  // Only show full-page loading on initial load
+  if (initialLoading) {
     return (
       <main className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="spinner mx-auto mb-4" />
-          <p className="text-gray-400">Loading...</p>
+          <p className="text-gray-400">Loading jobs...</p>
         </div>
       </main>
     );
@@ -171,6 +183,12 @@ export default function JobsPage() {
             </Link>
           </div>
           <div className="flex items-center gap-3">
+            {refreshing && (
+              <span className="text-gray-500 text-sm flex items-center gap-2">
+                <span className="spinner w-4 h-4" />
+                Refreshing...
+              </span>
+            )}
             <button onClick={openModal} className="btn btn-primary">
               + Add Job
             </button>

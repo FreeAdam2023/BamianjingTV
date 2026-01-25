@@ -1,32 +1,62 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { listTimelines, getStats, formatDuration } from "@/lib/api";
-import type { TimelineSummary } from "@/lib/types";
+import { useEffect, useState, useCallback } from "react";
+import { listTimelines, listJobs, getStats, formatDuration } from "@/lib/api";
+import type { TimelineSummary, Job } from "@/lib/types";
 
 export default function Home() {
   const [timelines, setTimelines] = useState<TimelineSummary[]>([]);
+  const [processingJobs, setProcessingJobs] = useState<Job[]>([]);
   const [stats, setStats] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [timelinesData, statsData] = await Promise.all([
-          listTimelines(false, true, 10),
-          getStats(),
-        ]);
-        setTimelines(timelinesData);
-        setStats(statsData);
-      } catch (error) {
-        console.error("Failed to load data:", error);
-      } finally {
-        setLoading(false);
-      }
+  const loadData = useCallback(async () => {
+    try {
+      const [timelinesData, statsData, jobsData] = await Promise.all([
+        listTimelines(false, true, 10),
+        getStats(),
+        listJobs(undefined, 50),
+      ]);
+      setTimelines(timelinesData);
+      setStats(statsData);
+
+      // Filter jobs that are currently processing (not completed, failed, cancelled, or awaiting review)
+      const processingStatuses = ['pending', 'downloading', 'transcribing', 'diarizing', 'translating', 'exporting'];
+      const processing = jobsData.filter(job => processingStatuses.includes(job.status));
+      setProcessingJobs(processing);
+    } catch (error) {
+      console.error("Failed to load data:", error);
+    } finally {
+      setLoading(false);
     }
-    loadData();
   }, []);
+
+  useEffect(() => {
+    loadData();
+    // Auto-refresh every 5 seconds to show progress updates
+    const interval = setInterval(loadData, 5000);
+    return () => clearInterval(interval);
+  }, [loadData]);
+
+  function getStatusBadge(status: string) {
+    switch (status) {
+      case "downloading":
+        return <span className="badge badge-info animate-pulse">Downloading...</span>;
+      case "transcribing":
+        return <span className="badge badge-info animate-pulse">Transcribing...</span>;
+      case "diarizing":
+        return <span className="badge badge-info animate-pulse">Diarizing...</span>;
+      case "translating":
+        return <span className="badge badge-info animate-pulse">Translating...</span>;
+      case "exporting":
+        return <span className="badge badge-info animate-pulse">Exporting...</span>;
+      case "pending":
+        return <span className="badge badge-warning">Pending</span>;
+      default:
+        return <span className="badge badge-info">{status}</span>;
+    }
+  }
 
   if (loading) {
     return (
@@ -77,9 +107,70 @@ export default function Home() {
             </div>
             <div className="stat-card">
               <div className="stat-value text-blue-400 animate-pulse-soft">
-                {(stats.queue as Record<string, number>)?.active || 0}
+                {processingJobs.length}
               </div>
               <div className="stat-label">Processing</div>
+            </div>
+          </div>
+        )}
+
+        {/* Processing Jobs */}
+        {processingJobs.length > 0 && (
+          <div className="mb-8">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-2xl font-bold">Processing</h2>
+              <Link href="/jobs" className="text-blue-400 hover:text-blue-300 text-sm">
+                View all jobs →
+              </Link>
+            </div>
+            <div className="space-y-4 animate-fade-in">
+              {processingJobs.map((job, index) => (
+                <div
+                  key={job.id}
+                  className="card"
+                  style={{ animationDelay: `${index * 50}ms` }}
+                >
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-1">
+                        <h3 className="text-lg font-semibold truncate">
+                          {job.title || "Loading video info..."}
+                        </h3>
+                        {getStatusBadge(job.status)}
+                      </div>
+                      <p className="text-gray-400 text-sm">
+                        {job.channel && <span>{job.channel} · </span>}
+                        {job.duration ? formatDuration(job.duration) : ""}
+                      </p>
+                      <p className="text-gray-500 text-xs mt-1 truncate font-mono">
+                        {job.url}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      {job.progress > 0 && (
+                        <span className="text-2xl font-bold text-blue-400">
+                          {Math.round(job.progress * 100)}%
+                        </span>
+                      )}
+                      <Link
+                        href="/jobs"
+                        className="btn btn-secondary text-sm py-1.5"
+                      >
+                        View Details
+                      </Link>
+                    </div>
+                  </div>
+                  {/* Progress bar */}
+                  {job.progress > 0 && (
+                    <div className="progress-bar mt-4">
+                      <div
+                        className="progress-fill bg-gradient-to-r from-blue-500 to-cyan-400"
+                        style={{ width: `${job.progress * 100}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )}
