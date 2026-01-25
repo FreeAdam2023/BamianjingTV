@@ -15,9 +15,14 @@ services:
       - model-cache:/app/.cache/models
     environment:
       - HF_TOKEN=${HF_TOKEN}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      # LLM API for translation (supports OpenAI, Grok, Azure, or any OpenAI-compatible API)
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_BASE_URL=${LLM_BASE_URL:-https://api.x.ai/v1}
+      - LLM_MODEL=${LLM_MODEL:-grok-4-fast-non-reasoning}
+      # Azure-specific (only if using Azure OpenAI)
+      - AZURE_API_VERSION=${AZURE_API_VERSION:-2024-12-01-preview}
       - AZURE_DEPLOYMENT=${AZURE_DEPLOYMENT:-}
+      # Whisper & GPU settings
       - WHISPER_MODEL=${WHISPER_MODEL:-large-v3}
       - WHISPER_DEVICE=cuda
       - DIARIZATION_DEVICE=cuda

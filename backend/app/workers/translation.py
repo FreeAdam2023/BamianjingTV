@@ -27,23 +27,23 @@ TRANSLATION_SYSTEM_PROMPT = """你是一位专业的视频配音翻译专家。�
 
 
 class TranslationWorker:
-    """Worker for translating transcripts using OpenAI API."""
+    """Worker for translating transcripts using LLM API (OpenAI, Grok, Azure, etc.)."""
 
     def __init__(self):
-        self.api_key = settings.openai_api_key
-        self.base_url = settings.openai_base_url
-        self.model = settings.translation_model
+        self.api_key = settings.llm_api_key
+        self.base_url = settings.llm_base_url
+        self.model = settings.llm_model
         self.client = None
 
     def _get_client(self):
-        """Get or create OpenAI client."""
+        """Get or create LLM client."""
         if self.client is None:
             if not self.api_key:
                 raise ValueError(
-                    "OpenAI API key required. Set OPENAI_API_KEY environment variable."
+                    "LLM API key required. Set LLM_API_KEY environment variable."
                 )
 
-            if settings.is_azure_openai:
+            if settings.is_azure:
                 from openai import AsyncAzureOpenAI
 
                 # Extract resource URL from base_url
@@ -51,7 +51,7 @@ class TranslationWorker:
                 azure_endpoint = self.base_url.split("/openai/")[0]
                 self.client = AsyncAzureOpenAI(
                     api_key=self.api_key,
-                    api_version=settings.openai_api_version,
+                    api_version=settings.azure_api_version,
                     azure_endpoint=azure_endpoint,
                 )
             else:
@@ -70,9 +70,9 @@ class TranslationWorker:
 
         client = self._get_client()
 
-        # Use Azure deployment name for Azure, model name for OpenAI
+        # Use Azure deployment name for Azure, model name for others (OpenAI, Grok, etc.)
         model_or_deployment = (
-            settings.azure_deployment_name if settings.is_azure_openai else self.model
+            settings.azure_deployment_name if settings.is_azure else self.model
         )
 
         for attempt in range(max_retries):
