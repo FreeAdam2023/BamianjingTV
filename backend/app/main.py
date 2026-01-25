@@ -361,6 +361,14 @@ async def create_job(
     callback_url: Optional[str] = None,
 ):
     """Create a new video processing job."""
+    # Check for duplicate URL
+    existing_job = job_manager.get_job_by_url(job_create.url)
+    if existing_job:
+        raise HTTPException(
+            status_code=409,
+            detail=f"该视频链接已存在任务 (Job ID: {existing_job.id}, 状态: {existing_job.status.value})"
+        )
+
     job = job_manager.create_job(
         url=job_create.url,
         target_language=job_create.target_language,

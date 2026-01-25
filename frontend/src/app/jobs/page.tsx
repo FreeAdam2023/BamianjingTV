@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
-import { listJobs, createJob, formatDuration } from "@/lib/api";
+import { listJobs, createJob, deleteJob, formatDuration } from "@/lib/api";
 import type { Job } from "@/lib/types";
 
 export default function JobsPage() {
@@ -10,6 +10,8 @@ export default function JobsPage() {
   const [loading, setLoading] = useState(true);
   const [newUrl, setNewUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadJobs = useCallback(async () => {
     try {
@@ -34,15 +36,35 @@ export default function JobsPage() {
     if (!newUrl.trim()) return;
 
     setSubmitting(true);
+    setError(null);
     try {
       await createJob({ url: newUrl.trim() });
       setNewUrl("");
       loadJobs();
-    } catch (error) {
-      console.error("Failed to create job:", error);
-      alert("Failed to create job");
+    } catch (err) {
+      console.error("Failed to create job:", err);
+      const message = err instanceof Error ? err.message : "创建任务失败";
+      setError(message);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleDelete(jobId: string, title: string) {
+    if (!confirm(`确定要删除任务 "${title || jobId}" 吗？\n\n这将删除所有相关文件。`)) {
+      return;
+    }
+
+    setDeletingId(jobId);
+    try {
+      await deleteJob(jobId);
+      loadJobs();
+    } catch (err) {
+      console.error("Failed to delete job:", err);
+      const message = err instanceof Error ? err.message : "删除任务失败";
+      setError(message);
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -130,6 +152,17 @@ export default function JobsPage() {
               )}
             </button>
           </div>
+          {error && (
+            <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center justify-between">
+              <p className="text-red-400 text-sm">{error}</p>
+              <button
+                onClick={() => setError(null)}
+                className="text-red-400 hover:text-red-300 ml-4"
+              >
+                ✕
+              </button>
+            </div>
+          )}
         </form>
 
         {/* Jobs List */}
@@ -177,14 +210,28 @@ export default function JobsPage() {
                         {Math.round(job.progress * 100)}%
                       </span>
                     )}
-                    {job.timeline_id && (
-                      <Link
-                        href={`/review/${job.timeline_id}`}
-                        className="btn btn-success text-sm py-1.5"
+                    <div className="flex items-center gap-2">
+                      {job.timeline_id && (
+                        <Link
+                          href={`/review/${job.timeline_id}`}
+                          className="btn btn-success text-sm py-1.5"
+                        >
+                          Review →
+                        </Link>
+                      )}
+                      <button
+                        onClick={() => handleDelete(job.id, job.title || "")}
+                        disabled={deletingId === job.id}
+                        className="btn btn-danger text-sm py-1.5"
+                        title="删除任务"
                       >
-                        Review →
-                      </Link>
-                    )}
+                        {deletingId === job.id ? (
+                          <span className="spinner" />
+                        ) : (
+                          "🗑️"
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
 

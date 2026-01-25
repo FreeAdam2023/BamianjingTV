@@ -166,6 +166,12 @@ export async function retryJob(jobId: string): Promise<{ message: string }> {
   });
 }
 
+export async function deleteJob(jobId: string): Promise<{ message: string }> {
+  return fetchAPI(`/jobs/${jobId}`, {
+    method: "DELETE",
+  });
+}
+
 // ============ Stats API ============
 
 export async function getStats(): Promise<{

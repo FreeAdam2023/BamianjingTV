@@ -112,6 +112,13 @@ class JobManager:
         """Get a job by ID."""
         return self.jobs.get(job_id)
 
+    def get_job_by_url(self, url: str) -> Optional[Job]:
+        """Get a job by URL (for duplicate detection)."""
+        for job in self.jobs.values():
+            if job.url == url:
+                return job
+        return None
+
     def list_jobs(
         self,
         status: Optional[JobStatus] = None,
