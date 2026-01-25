@@ -82,20 +82,30 @@ async def process_job(job_id: str) -> None:
     5. Create Timeline and pause for UI review
 
     The export stage is triggered separately via /timelines/{id}/export.
+    Supports resuming from any stage if files already exist.
     """
+    import json
+    from app.models.transcript import Transcript, DiarizedTranscript, TranslatedTranscript
+
     job = job_manager.get_job(job_id)
     if not job:
         return
 
     job_dir = job.get_job_dir(settings.jobs_dir)
+    transcript_dir = job_dir / "transcript"
+    translation_dir = job_dir / "translation"
 
     def check_cancelled() -> bool:
         """Check if job was cancelled and update status if so."""
-        # Reload job to get latest cancel_requested flag
         fresh_job = job_manager.get_job(job_id)
         if fresh_job and fresh_job.cancel_requested:
             return True
         return False
+
+    def load_json_model(path: Path, model_class):
+        """Load a Pydantic model from JSON file."""
+        with open(path, "r", encoding="utf-8") as f:
+            return model_class(**json.load(f))
 
     try:
         # ============ Stage 1: Download (10%) ============
@@ -113,89 +123,97 @@ async def process_job(job_id: str) -> None:
         job.channel = download_result["channel"]
         job_manager.save_job(job)
 
-        # Check for cancellation after download
         if check_cancelled():
             await job_manager.update_status(job, JobStatus.CANCELLED)
             logger.info(f"Job {job_id} cancelled after download stage")
             return
 
         # ============ Stage 2: Transcribe (30%) ============
-        await job_manager.update_status(job, JobStatus.TRANSCRIBING, 0.30)
-
-        transcript = await whisper_worker.transcribe(
-            audio_path=Path(job.source_audio),
-        )
-
-        transcript_dir = job_dir / "transcript"
         raw_path = transcript_dir / "raw.json"
-        await whisper_worker.save_transcript(transcript, raw_path)
+
+        if raw_path.exists():
+            logger.info(f"转录文件已存在，跳过转录阶段: {job_id}")
+            transcript = load_json_model(raw_path, Transcript)
+        else:
+            await job_manager.update_status(job, JobStatus.TRANSCRIBING, 0.30)
+            transcript = await whisper_worker.transcribe(
+                audio_path=Path(job.source_audio),
+            )
+            await whisper_worker.save_transcript(transcript, raw_path)
+
         job.transcript_raw = str(raw_path)
         job_manager.save_job(job)
 
-        # Check for cancellation after transcription
         if check_cancelled():
             await job_manager.update_status(job, JobStatus.CANCELLED)
             logger.info(f"Job {job_id} cancelled after transcription stage")
             return
 
         # ============ Stage 3: Diarize (50%) ============
-        await job_manager.update_status(job, JobStatus.DIARIZING, 0.50)
-
-        diarization_segments = await diarization_worker.diarize(
-            audio_path=Path(job.source_audio),
-        )
-
-        diarized_transcript = await diarization_worker.merge_with_transcript(
-            transcript=transcript,
-            diarization_segments=diarization_segments,
-        )
-
         diarized_path = transcript_dir / "diarized.json"
-        await diarization_worker.save_diarized_transcript(
-            diarized_transcript, diarized_path
-        )
+
+        if diarized_path.exists():
+            logger.info(f"说话人识别文件已存在，跳过识别阶段: {job_id}")
+            diarized_transcript = load_json_model(diarized_path, DiarizedTranscript)
+        else:
+            await job_manager.update_status(job, JobStatus.DIARIZING, 0.50)
+            diarization_segments = await diarization_worker.diarize(
+                audio_path=Path(job.source_audio),
+            )
+            diarized_transcript = await diarization_worker.merge_with_transcript(
+                transcript=transcript,
+                diarization_segments=diarization_segments,
+            )
+            await diarization_worker.save_diarized_transcript(
+                diarized_transcript, diarized_path
+            )
+
         job.transcript_diarized = str(diarized_path)
         job_manager.save_job(job)
 
-        # Check for cancellation after diarization
         if check_cancelled():
             await job_manager.update_status(job, JobStatus.CANCELLED)
             logger.info(f"Job {job_id} cancelled after diarization stage")
             return
 
         # ============ Stage 4: Translate (70%) ============
-        await job_manager.update_status(job, JobStatus.TRANSLATING, 0.70)
-
-        translated_transcript = await translation_worker.translate_transcript(
-            transcript=diarized_transcript,
-        )
-
-        translation_dir = job_dir / "translation"
         translation_path = translation_dir / "zh.json"
-        await translation_worker.save_translation(
-            translated_transcript, translation_path
-        )
+
+        if translation_path.exists():
+            logger.info(f"翻译文件已存在，跳过翻译阶段: {job_id}")
+            translated_transcript = load_json_model(translation_path, TranslatedTranscript)
+        else:
+            await job_manager.update_status(job, JobStatus.TRANSLATING, 0.70)
+            translated_transcript = await translation_worker.translate_transcript(
+                transcript=diarized_transcript,
+            )
+            await translation_worker.save_translation(
+                translated_transcript, translation_path
+            )
+
         job.translation = str(translation_path)
         job_manager.save_job(job)
 
-        # Check for cancellation after translation
         if check_cancelled():
             await job_manager.update_status(job, JobStatus.CANCELLED)
             logger.info(f"Job {job_id} cancelled after translation stage")
             return
 
         # ============ Stage 5: Create Timeline (80%) ============
-        # Create timeline for UI review
-        timeline = timeline_manager.create_from_transcript(
-            job_id=job.id,
-            source_url=job.url,
-            source_title=job.title,
-            source_duration=job.duration,
-            translated_transcript=translated_transcript,
-        )
-
-        job.timeline_id = timeline.timeline_id
-        job_manager.save_job(job)
+        # Check if timeline already exists
+        if job.timeline_id and timeline_manager.get_timeline(job.timeline_id):
+            logger.info(f"Timeline已存在，跳过创建: {job.timeline_id}")
+            timeline = timeline_manager.get_timeline(job.timeline_id)
+        else:
+            timeline = timeline_manager.create_from_transcript(
+                job_id=job.id,
+                source_url=job.url,
+                source_title=job.title,
+                source_duration=job.duration,
+                translated_transcript=translated_transcript,
+            )
+            job.timeline_id = timeline.timeline_id
+            job_manager.save_job(job)
 
         # ============ PAUSE: Awaiting Review ============
         await job_manager.update_status(job, JobStatus.AWAITING_REVIEW, 0.80)

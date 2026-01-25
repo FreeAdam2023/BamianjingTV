@@ -48,14 +48,22 @@ class DownloadWorker:
                 f"Video duration ({duration}s) exceeds maximum ({self.max_duration}s)"
             )
 
-        # Download video
-        logger.info(f"Downloading video: {info.get('title', 'Unknown')}")
-        await self._download_video(url, video_path)
+        # Check if video already exists (cache)
+        if video_path.exists():
+            logger.info(f"视频已存在，跳过下载: {info.get('title', 'Unknown')}")
+        else:
+            # Download video
+            logger.info(f"Downloading video: {info.get('title', 'Unknown')}")
+            await self._download_video(url, video_path)
 
         # Extract audio if requested
         if extract_audio:
-            logger.info("Extracting audio...")
-            await self._extract_audio(video_path, audio_path)
+            # Check if audio already exists (cache)
+            if audio_path.exists():
+                logger.info("音频已存在，跳过提取")
+            else:
+                logger.info("Extracting audio...")
+                await self._extract_audio(video_path, audio_path)
 
         return {
             "video_path": str(video_path),
