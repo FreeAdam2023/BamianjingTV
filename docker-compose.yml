@@ -22,8 +22,8 @@ services:
       - DIARIZATION_DEVICE=cuda
       - TTS_DEVICE=cuda
       - FFMPEG_NVENC=true
-      - FRONTEND_URL=http://localhost:3001
-      - CORS_ORIGINS=["http://localhost:3001","http://frontend:3001"]
+      - FRONTEND_URL=http://192.168.2.64:3001
+      - CORS_ORIGINS=["http://localhost:3001","http://192.168.2.64:3001","http://frontend:3001"]
     deploy:
       resources:
         reservations:
@@ -45,12 +45,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://192.168.2.64:8000}
     container_name: hardcore-player-frontend
     restart: unless-stopped
     ports:
       - "3001:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://api:8000
     networks:
       - hardcore-player-net
     depends_on:

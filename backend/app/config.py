@@ -3,8 +3,10 @@
 Learning video factory: transcription, translation, and bilingual subtitles.
 """
 
+import json
 from pathlib import Path
-from typing import List
+from typing import List, Union
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -76,6 +78,18 @@ class Settings(BaseSettings):
     # Frontend settings
     frontend_url: str = "http://localhost:3000"
     cors_origins: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+        """Parse CORS origins from JSON string or list."""
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                # If not valid JSON, treat as comma-separated list
+                return [origin.strip() for origin in v.split(",")]
+        return v
 
     class Config:
         env_file = ".env"
