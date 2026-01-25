@@ -31,20 +31,20 @@ help:
 # ============ Backend ============
 
 install:
-	pip install -r requirements.txt
+	cd backend && pip install -r requirements.txt
 
 dev:
-	uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+	cd backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 test:
-	pytest tests/ -v
+	cd backend && pytest tests/ -v
 
 lint:
-	ruff check app/ tests/
-	ruff format --check app/ tests/
+	cd backend && ruff check app/ tests/
+	cd backend && ruff format --check app/ tests/
 
 format:
-	ruff format app/ tests/
+	cd backend && ruff format app/ tests/
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +
@@ -95,24 +95,24 @@ docker-logs-frontend:
 # ============ Docker (Production - CPU) ============
 
 docker-cpu-up:
-	docker compose -f docker compose.cpu.yml up -d api frontend
+	docker compose -f docker-compose.cpu.yml up -d api frontend
 
 docker-cpu-up-all:
-	docker compose -f docker compose.cpu.yml --profile automation up -d
+	docker compose -f docker-compose.cpu.yml --profile automation up -d
 
 docker-cpu-down:
-	docker compose -f docker compose.cpu.yml down
+	docker compose -f docker-compose.cpu.yml down
 
 docker-cpu-logs:
-	docker compose -f docker compose.cpu.yml logs -f
+	docker compose -f docker-compose.cpu.yml logs -f
 
 # ============ Docker (Development) ============
 
 docker-dev:
-	docker compose -f docker compose.dev.yml up --build
+	docker compose -f docker-compose.dev.yml up --build
 
 docker-dev-down:
-	docker compose -f docker compose.dev.yml down
+	docker compose -f docker-compose.dev.yml down
 
 # ============ Utilities ============
 
@@ -121,5 +121,5 @@ docs:
 	@open http://localhost:8000/docs 2>/dev/null || xdg-open http://localhost:8000/docs 2>/dev/null || echo "Open http://localhost:8000/docs"
 
 app:
-	@echo "Frontend: http://localhost:3000"
-	@open http://localhost:3000 2>/dev/null || xdg-open http://localhost:3000 2>/dev/null || echo "Open http://localhost:3000"
+	@echo "Frontend: http://localhost:3001"
+	@open http://localhost:3001 2>/dev/null || xdg-open http://localhost:3001 2>/dev/null || echo "Open http://localhost:3001"

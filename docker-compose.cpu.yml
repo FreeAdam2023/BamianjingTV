@@ -5,7 +5,7 @@ services:
   # Hardcore Player Backend API (CPU mode)
   api:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
     container_name: hardcore-player-api
     restart: unless-stopped
