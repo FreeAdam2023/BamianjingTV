@@ -9,12 +9,17 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     python3.11 \
-    python3-pip \
     python3.11-venv \
+    python3.11-dev \
     ffmpeg \
     git \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python3 \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python
+
+# Install pip for Python 3.11
+RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
 
 # Create app user
 RUN useradd -m -u 1000 app
@@ -22,7 +27,11 @@ WORKDIR /app
 
 # Install Python dependencies
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt
+COPY requirements-tts.txt .
+RUN python3 -m pip install --no-cache-dir -r requirements.txt
+
+# Optional: Install TTS dependencies (comment out if not needed)
+RUN python3 -m pip install --no-cache-dir -r requirements-tts.txt || echo "TTS installation skipped"
 
 # Copy application code
 COPY app/ ./app/

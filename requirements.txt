@@ -26,9 +26,7 @@ google-auth-oauthlib>=1.2.0
 google-auth-httplib2>=0.2.0
 
 # TTS (optional, for dubbing mode)
-TTS>=0.22.0  # Coqui XTTS v2
-# NOTE: Pin transformers for XTTS compatibility if needed
-# transformers>=4.33.0,<4.40.0
+# See requirements-tts.txt for TTS dependencies
 
 # Audio/Video processing
 ffmpeg-python>=0.2.0

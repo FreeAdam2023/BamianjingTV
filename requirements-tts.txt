@@ -1,0 +1,11 @@
+# TTS dependencies (optional, for dubbing mode)
+# Install with: pip install -r requirements-tts.txt
+
+# Coqui XTTS v2
+TTS>=0.22.0
+
+# Pin numpy for TTS compatibility
+numpy>=1.22.0,<2.0
+
+# Pin transformers for XTTS compatibility
+transformers>=4.33.0,<4.40.0
