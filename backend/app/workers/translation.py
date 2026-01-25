@@ -82,7 +82,18 @@ class TranslationWorker:
             temperature=0.3,
         )
 
-        return response.choices[0].message.content.strip()
+        # Handle content filtering (Azure returns content=None when filtered)
+        content = response.choices[0].message.content
+        if content is None:
+            finish_reason = response.choices[0].finish_reason
+            if finish_reason == "content_filter":
+                logger.warning(f"Content filtered by Azure, returning original text: {text[:50]}...")
+                return text  # Return original text if filtered
+            else:
+                logger.warning(f"Empty response from API (finish_reason={finish_reason})")
+                return text
+
+        return content.strip()
 
     async def translate_transcript(
         self,
