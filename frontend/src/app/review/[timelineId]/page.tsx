@@ -54,6 +54,7 @@ export default function ReviewPage() {
   const [showExportPanel, setShowExportPanel] = useState(false);
   const [showPreviewPanel, setShowPreviewPanel] = useState(false);
   const [exportStatusForPreview, setExportStatusForPreview] = useState<ExportStatusResponse | null>(null);
+  const [exportJustStarted, setExportJustStarted] = useState(false);
   const [currentVideoTime, setCurrentVideoTime] = useState(0);
   const [coverFrameTime, setCoverFrameTime] = useState<number | null>(null);
   const [coverFrameUrl, setCoverFrameUrl] = useState<string | null>(null);
@@ -268,6 +269,13 @@ export default function ReviewPage() {
           setExportStatusForPreview(status);
           setShowPreviewPanel(true);
         }}
+        forcePolling={exportJustStarted}
+        onExportStatusChange={(status) => {
+          // Reset forcePolling when export completes or fails
+          if (status.status === "completed" || status.status === "failed" || status.status === "idle") {
+            setExportJustStarted(false);
+          }
+        }}
       />
 
       {/* Main content */}
@@ -340,6 +348,7 @@ export default function ReviewPage() {
           onExport={startExport}
           onExportStarted={() => {
             setShowExportPanel(false);
+            setExportJustStarted(true); // Force polling to start
             refresh(); // Refresh to update export_status
           }}
         />

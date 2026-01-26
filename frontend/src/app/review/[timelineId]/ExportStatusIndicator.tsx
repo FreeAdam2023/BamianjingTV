@@ -15,6 +15,8 @@ interface ExportStatusIndicatorProps {
   initialStatus?: ExportStatus;
   onStatusChange?: (status: ExportStatusResponse) => void;
   onShowPreview?: (status: ExportStatusResponse) => void;
+  /** Force start polling (e.g., after starting a new export) */
+  forcePolling?: boolean;
 }
 
 export default function ExportStatusIndicator({
@@ -23,6 +25,7 @@ export default function ExportStatusIndicator({
   initialStatus = "idle",
   onStatusChange,
   onShowPreview,
+  forcePolling = false,
 }: ExportStatusIndicatorProps) {
   const [status, setStatus] = useState<ExportStatusResponse | null>(null);
   const [polling, setPolling] = useState(false);
@@ -44,17 +47,17 @@ export default function ExportStatusIndicator({
     }
   }, [timelineId, onStatusChange]);
 
-  // Start polling when status is active
+  // Start polling when status is active or forcePolling is true
   useEffect(() => {
-    // Start polling if we have an active export
-    const shouldPoll = initialStatus === "exporting" || initialStatus === "uploading";
+    // Start polling if we have an active export or force polling
+    const shouldPoll = forcePolling || initialStatus === "exporting" || initialStatus === "uploading";
 
     if (shouldPoll && !polling) {
-      console.log("[ExportStatusIndicator] Starting polling, initialStatus:", initialStatus);
+      console.log("[ExportStatusIndicator] Starting polling, initialStatus:", initialStatus, "forcePolling:", forcePolling);
       setPolling(true);
       fetchStatus();
     }
-  }, [initialStatus, polling, fetchStatus]);
+  }, [initialStatus, polling, fetchStatus, forcePolling]);
 
   // Polling loop
   useEffect(() => {
@@ -77,13 +80,14 @@ export default function ExportStatusIndicator({
     };
   }, [polling, fetchStatus]);
 
-  // Don't show anything if idle and no active status
-  if (!status && initialStatus === "idle") {
+  // Don't show anything if idle and no active status (unless force polling)
+  if (!status && initialStatus === "idle" && !forcePolling) {
     return null;
   }
 
   // Use initial status if no status fetched yet
-  const currentStatus = status?.status || initialStatus;
+  // When forcePolling is true and no status yet, show "exporting" to indicate we're starting
+  const currentStatus = status?.status || (forcePolling && !status ? "exporting" : initialStatus);
   const progress = status?.progress || 0;
   const message = status?.message || "";
 

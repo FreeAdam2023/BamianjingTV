@@ -26,6 +26,10 @@ interface ReviewHeaderProps {
   onExportClick: () => void;
   onDelete: () => void;
   onShowPreview?: (status: ExportStatusResponse) => void;
+  /** Force polling to start (e.g., after starting a new export) */
+  forcePolling?: boolean;
+  /** Called when export status changes */
+  onExportStatusChange?: (status: ExportStatusResponse) => void;
 }
 
 export default function ReviewHeader({
@@ -38,6 +42,8 @@ export default function ReviewHeader({
   onExportClick,
   onDelete,
   onShowPreview,
+  forcePolling = false,
+  onExportStatusChange,
 }: ReviewHeaderProps) {
   return (
     <header className="bg-gray-800 px-4 py-3 flex items-center justify-between">
@@ -51,12 +57,14 @@ export default function ReviewHeader({
 
       <div className="flex items-center gap-4">
         {/* Export Status Indicator */}
-        {exportStatus !== "idle" && (
+        {(exportStatus !== "idle" || forcePolling) && (
           <ExportStatusIndicator
             timelineId={timelineId}
             jobId={jobId}
             initialStatus={exportStatus}
             onShowPreview={onShowPreview}
+            forcePolling={forcePolling}
+            onStatusChange={onExportStatusChange}
           />
         )}
 
