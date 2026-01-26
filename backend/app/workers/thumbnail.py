@@ -271,13 +271,18 @@ Generate a dramatic image prompt (no text in image):"""
 
         # Try to load Chinese font, fallback to default
         font_paths = [
-            "/System/Library/Fonts/PingFang.ttc",  # macOS
-            "/System/Library/Fonts/STHeiti Light.ttc",  # macOS
-            "/usr/share/fonts/truetype/noto/NotoSansCJK-Bold.ttc",  # Linux
-            "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",  # Linux
-            "/usr/share/fonts/noto-cjk/NotoSansCJK-Bold.ttc",  # Linux
-            "C:\\Windows\\Fonts\\msyh.ttc",  # Windows
-            "C:\\Windows\\Fonts\\simhei.ttf",  # Windows
+            # Docker / Ubuntu (fonts-noto-cjk package)
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/truetype/noto/NotoSansCJK-Bold.ttc",
+            "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+            # macOS
+            "/System/Library/Fonts/PingFang.ttc",
+            "/System/Library/Fonts/STHeiti Light.ttc",
+            "/Library/Fonts/Arial Unicode.ttf",
+            # Windows
+            "C:\\Windows\\Fonts\\msyh.ttc",
+            "C:\\Windows\\Fonts\\simhei.ttf",
         ]
 
         def load_font(size: int) -> ImageFont.FreeTypeFont:

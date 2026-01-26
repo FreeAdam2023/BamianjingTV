@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     git \
     curl \
+    fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/bin/python3.11 /usr/bin/python3 \
     && ln -sf /usr/bin/python3.11 /usr/bin/python
