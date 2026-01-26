@@ -13,7 +13,7 @@ import type {
   JobCreate,
   SegmentState,
   WaveformData,
-  ThumbnailCandidatesResponse,
+  CoverFrameResponse,
   ThumbnailGenerateRequest,
   ThumbnailResponse,
 } from "./types";
@@ -140,11 +140,11 @@ export async function triggerExport(
   });
 }
 
-export async function generateThumbnailCandidates(
+export async function captureCoverFrame(
   timelineId: string,
-  numCandidates = 6
-): Promise<ThumbnailCandidatesResponse> {
-  return fetchAPI(`/timelines/${timelineId}/thumbnail/candidates?num_candidates=${numCandidates}`, {
+  timestamp: number
+): Promise<CoverFrameResponse> {
+  return fetchAPI(`/timelines/${timelineId}/cover/capture?timestamp=${timestamp}`, {
     method: "POST",
   });
 }
@@ -163,8 +163,8 @@ export function getThumbnailUrl(jobId: string, filename: string): string {
   return `${API_BASE || ""}/jobs/${jobId}/thumbnail/${filename}`;
 }
 
-export function getCandidateUrl(jobId: string, filename: string): string {
-  return `${API_BASE || ""}/jobs/${jobId}/thumbnail/candidates/${filename}`;
+export function getCoverFrameUrl(jobId: string): string {
+  return `${API_BASE || ""}/jobs/${jobId}/cover`;
 }
 
 // ============ Job API ============

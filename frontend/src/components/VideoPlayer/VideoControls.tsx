@@ -13,6 +13,7 @@ interface VideoControlsProps {
   isMuted: boolean;
   isLooping: boolean;
   watermarkUrl: string | null;
+  coverFrameTime: number | null;
   onTogglePlay: () => void;
   onSeek: (time: number) => void;
   onVolumeChange: (volume: number) => void;
@@ -20,6 +21,7 @@ interface VideoControlsProps {
   onToggleLoop: () => void;
   onWatermarkUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onWatermarkRemove: () => void;
+  onSetCover?: () => void;
 }
 
 export default function VideoControls({
@@ -30,6 +32,7 @@ export default function VideoControls({
   isMuted,
   isLooping,
   watermarkUrl,
+  coverFrameTime,
   onTogglePlay,
   onSeek,
   onVolumeChange,
@@ -37,6 +40,7 @@ export default function VideoControls({
   onToggleLoop,
   onWatermarkUpload,
   onWatermarkRemove,
+  onSetCover,
 }: VideoControlsProps) {
   const watermarkInputRef = useRef<HTMLInputElement>(null);
 
@@ -148,6 +152,24 @@ export default function VideoControls({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               Logo
+            </button>
+          )}
+
+          {/* Set as Cover */}
+          {onSetCover && (
+            <button
+              onClick={onSetCover}
+              className={`text-sm px-2 py-1 rounded flex items-center gap-1 ${
+                coverFrameTime !== null
+                  ? "bg-purple-600 text-white"
+                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+              }`}
+              title="Set current frame as thumbnail cover"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              {coverFrameTime !== null ? `Cover @${formatDuration(coverFrameTime)}` : "Set Cover"}
             </button>
           )}
 

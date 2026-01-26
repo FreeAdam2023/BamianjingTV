@@ -16,6 +16,8 @@ interface VideoPlayerProps {
   currentSegmentId: number | null;
   onTimeUpdate?: (time: number) => void;
   onSegmentChange?: (segmentId: number) => void;
+  coverFrameTime?: number | null;
+  onSetCover?: (timestamp: number) => void;
 }
 
 export interface VideoPlayerRef {
@@ -32,6 +34,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   currentSegmentId,
   onTimeUpdate,
   onSegmentChange,
+  coverFrameTime,
+  onSetCover,
 }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -316,6 +320,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         isMuted={isMuted}
         isLooping={isLooping}
         watermarkUrl={watermarkUrl}
+        coverFrameTime={coverFrameTime ?? null}
         onTogglePlay={toggle}
         onSeek={seekTo}
         onVolumeChange={handleVolumeChange}
@@ -323,6 +328,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         onToggleLoop={toggleLoop}
         onWatermarkUpload={handleWatermarkUpload}
         onWatermarkRemove={removeWatermark}
+        onSetCover={onSetCover ? () => onSetCover(currentTime) : undefined}
       />
     </div>
   );

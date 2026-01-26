@@ -74,23 +74,16 @@ export interface ExportRequest {
 }
 
 // Thumbnail Types
-export interface ThumbnailCandidate {
-  index: number;
-  timestamp: number;
-  filename: string;
-  url: string;
-}
-
-export interface ThumbnailCandidatesResponse {
+export interface CoverFrameResponse {
   timeline_id: string;
-  candidates: ThumbnailCandidate[];
-  duration: number;
+  timestamp: number;
+  url: string;
   message: string;
 }
 
 export interface ThumbnailGenerateRequest {
   timestamp?: number;  // Custom timestamp
-  candidate_index?: number;  // Use candidate frame
+  use_cover_frame?: boolean;  // Use previously captured cover frame
 }
 
 export interface ThumbnailResponse {

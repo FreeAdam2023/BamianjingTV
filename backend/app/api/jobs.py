@@ -253,6 +253,22 @@ async def get_thumbnail_candidate(job_id: str, filename: str):
     )
 
 
+@router.get("/jobs/{job_id}/cover")
+async def get_cover_frame(job_id: str):
+    """Get the captured cover frame image for a job."""
+    job_dir = settings.jobs_dir / job_id
+    cover_path = job_dir / "output" / "cover_frame.jpg"
+
+    if not cover_path.exists():
+        raise HTTPException(status_code=404, detail="Cover frame not found")
+
+    return FileResponse(
+        cover_path,
+        media_type="image/jpeg",
+        filename="cover_frame.jpg",
+    )
+
+
 @router.post("/jobs/{job_id}/retry")
 async def retry_job(job_id: str):
     """Retry a failed job."""

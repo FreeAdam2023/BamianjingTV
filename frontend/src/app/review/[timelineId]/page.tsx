@@ -14,6 +14,7 @@ import { useTimeline } from "@/hooks/useTimeline";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useTimelineKeyboard } from "@/hooks/useTimelineKeyboard";
 import { useMultiTrackWaveform, TrackType } from "@/hooks/useMultiTrackWaveform";
+import { captureCoverFrame, getCoverFrameUrl } from "@/lib/api";
 import ReviewHeader from "./ReviewHeader";
 import ExportPanel from "./ExportPanel";
 import KeyboardHelp from "./KeyboardHelp";
@@ -41,6 +42,8 @@ export default function ReviewPage() {
   const [isLooping, setIsLooping] = useState(false);
   const [showExportPanel, setShowExportPanel] = useState(false);
   const [currentVideoTime, setCurrentVideoTime] = useState(0);
+  const [coverFrameTime, setCoverFrameTime] = useState<number | null>(null);
+  const [coverFrameUrl, setCoverFrameUrl] = useState<string | null>(null);
 
   // Waveform data for timeline
   const { tracks: waveformTracks, generateTrack: generateWaveform } = useMultiTrackWaveform(timelineId);
@@ -98,6 +101,20 @@ export default function ReviewPage() {
   const handleVideoTimeUpdate = useCallback((time: number) => {
     setCurrentVideoTime(time);
   }, []);
+
+  // Handle set cover frame
+  const handleSetCover = useCallback(async (timestamp: number) => {
+    if (!timeline) return;
+    try {
+      const result = await captureCoverFrame(timeline.timeline_id, timestamp);
+      setCoverFrameTime(timestamp);
+      // Add cache buster to force reload
+      setCoverFrameUrl(`${getCoverFrameUrl(timeline.job_id)}?t=${Date.now()}`);
+    } catch (err) {
+      console.error("Failed to capture cover frame:", err);
+      alert("Failed to capture cover frame: " + (err instanceof Error ? err.message : "Unknown error"));
+    }
+  }, [timeline]);
 
   // Handle timeline seek
   const handleTimelineSeek = useCallback((time: number) => {
@@ -163,6 +180,8 @@ export default function ReviewPage() {
               currentSegmentId={currentSegmentId}
               onTimeUpdate={handleVideoTimeUpdate}
               onSegmentChange={setCurrentSegmentId}
+              coverFrameTime={coverFrameTime}
+              onSetCover={handleSetCover}
             />
           </div>
 
@@ -203,6 +222,8 @@ export default function ReviewPage() {
       {showExportPanel && (
         <ExportPanel
           timeline={timeline}
+          coverFrameUrl={coverFrameUrl}
+          coverFrameTime={coverFrameTime}
           onClose={() => setShowExportPanel(false)}
           onExport={startExport}
         />

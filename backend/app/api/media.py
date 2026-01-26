@@ -1,6 +1,8 @@
 """Media API endpoints - thumbnails and waveforms."""
 
+import subprocess
 import time
+from pathlib import Path
 from typing import List
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
@@ -16,26 +18,18 @@ from app.api.timelines import (
 router = APIRouter(prefix="/timelines", tags=["media"])
 
 
-class ThumbnailCandidate(BaseModel):
-    """A single thumbnail candidate screenshot."""
-    index: int
-    timestamp: float
-    filename: str
-    url: str
-
-
-class ThumbnailCandidatesResponse(BaseModel):
-    """Response for thumbnail candidates."""
+class CoverFrameResponse(BaseModel):
+    """Response for cover frame capture."""
     timeline_id: str
-    candidates: List[ThumbnailCandidate]
-    duration: float
+    timestamp: float
+    url: str
     message: str
 
 
 class ThumbnailGenerateRequest(BaseModel):
     """Request for thumbnail generation."""
     timestamp: float | None = None  # Custom timestamp (optional)
-    candidate_index: int | None = None  # Use candidate frame (optional)
+    use_cover_frame: bool = True  # Use previously captured cover frame
 
 
 class ThumbnailResponse(BaseModel):
@@ -62,15 +56,15 @@ class WaveformGenerateResponse(BaseModel):
     message: str
 
 
-@router.post("/{timeline_id}/thumbnail/candidates", response_model=ThumbnailCandidatesResponse)
-async def generate_thumbnail_candidates(
+@router.post("/{timeline_id}/cover/capture", response_model=CoverFrameResponse)
+async def capture_cover_frame(
     timeline_id: str,
-    num_candidates: int = Query(default=6, ge=2, le=12, description="Number of candidates"),
+    timestamp: float = Query(..., description="Timestamp in seconds to capture"),
 ):
-    """Generate candidate screenshot images for thumbnail selection.
+    """Capture a frame at the specified timestamp as cover material.
 
-    Extracts frames at evenly distributed timestamps throughout the video.
-    User can then select one to use as the base for final thumbnail generation.
+    This frame will be used as the base for thumbnail generation.
+    Overwrites any previously captured cover frame.
     """
     from loguru import logger
 
@@ -83,62 +77,61 @@ async def generate_thumbnail_candidates(
     if jobs_dir is None:
         raise HTTPException(status_code=500, detail="Jobs directory not configured")
 
-    thumbnail_worker = _get_thumbnail_worker()
     job_dir = jobs_dir / timeline.job_id
     video_path = job_dir / "source" / "video.mp4"
 
     if not video_path.exists():
         raise HTTPException(status_code=404, detail="Source video not found")
 
-    # Create candidates directory
-    candidates_dir = job_dir / "output" / "thumbnail_candidates"
-    candidates_dir.mkdir(parents=True, exist_ok=True)
+    # Validate timestamp
+    if timestamp < 0 or timestamp > timeline.source_duration:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Timestamp must be between 0 and {timeline.source_duration}"
+        )
 
-    # Clean up old candidates
-    for old_file in candidates_dir.glob("candidate_*.jpg"):
-        try:
-            old_file.unlink()
-        except Exception:
-            pass
+    # Create output directory
+    output_dir = job_dir / "output"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Extract frame using ffmpeg
+    cover_path = output_dir / "cover_frame.jpg"
 
     try:
-        candidates = thumbnail_worker.extract_candidate_frames(
-            video_path=video_path,
-            output_dir=candidates_dir,
-            num_candidates=num_candidates,
-            duration=timeline.source_duration,
-        )
+        cmd = [
+            "ffmpeg", "-y",
+            "-ss", str(timestamp),
+            "-i", str(video_path),
+            "-frames:v", "1",
+            "-q:v", "2",
+            str(cover_path),
+        ]
+        subprocess.run(cmd, capture_output=True, check=True)
 
-        if not candidates:
+        if not cover_path.exists():
             raise HTTPException(
                 status_code=500,
-                detail="Failed to extract candidate frames from video"
+                detail="Failed to extract frame from video"
             )
 
-        # Convert to response format with URLs
-        response_candidates = [
-            ThumbnailCandidate(
-                index=c["index"],
-                timestamp=c["timestamp"],
-                filename=c["filename"],
-                url=f"/jobs/{timeline.job_id}/thumbnail/candidates/{c['filename']}",
-            )
-            for c in candidates
-        ]
+        cover_url = f"/jobs/{timeline.job_id}/cover"
 
-        logger.info(f"Generated {len(candidates)} thumbnail candidates for timeline {timeline_id}")
+        logger.info(f"Captured cover frame for timeline {timeline_id} at {timestamp}s")
 
-        return ThumbnailCandidatesResponse(
+        return CoverFrameResponse(
             timeline_id=timeline_id,
-            candidates=response_candidates,
-            duration=timeline.source_duration,
-            message=f"Generated {len(candidates)} candidate screenshots",
+            timestamp=timestamp,
+            url=cover_url,
+            message=f"Cover frame captured at {timestamp:.1f}s",
         )
 
+    except subprocess.CalledProcessError as e:
+        logger.exception(f"FFmpeg failed for timeline {timeline_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to extract frame")
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Candidate generation failed for timeline {timeline_id}: {e}")
+        logger.exception(f"Cover frame capture failed for timeline {timeline_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -149,11 +142,10 @@ async def generate_thumbnail(
 ):
     """Generate a YouTube-style thumbnail for the timeline.
 
-    Two usage modes:
-    1. Auto mode (no request body): AI analyzes subtitles for best moment
-    2. Manual mode (with request body):
-       - timestamp: Use specific timestamp for frame extraction
-       - candidate_index: Use a previously generated candidate frame
+    Usage modes:
+    1. Default (use_cover_frame=True): Uses previously captured cover frame
+    2. Custom timestamp: Extract frame at specific timestamp
+    3. Auto mode: AI analyzes subtitles for best moment
 
     The thumbnail will have large Chinese clickbait text overlays.
     Call this endpoint multiple times to regenerate if not satisfied.
@@ -183,33 +175,28 @@ async def generate_thumbnail(
         for seg in timeline.segments if seg.en
     ]
 
-    # Determine timestamp or use candidate frame
+    # Determine frame source
     timestamp = None
     frame_path = None
+    use_cover = request.use_cover_frame if request else True
 
-    if request:
-        if request.candidate_index is not None:
-            # Use candidate frame
-            candidates_dir = job_dir / "output" / "thumbnail_candidates"
-            candidate_files = sorted(candidates_dir.glob(f"candidate_{request.candidate_index}_*.jpg"))
-            if candidate_files:
-                frame_path = candidate_files[0]
-                logger.info(f"Using candidate frame: {frame_path}")
-            else:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Candidate {request.candidate_index} not found. Generate candidates first."
-                )
-        elif request.timestamp is not None:
-            timestamp = request.timestamp
-            logger.info(f"Using custom timestamp: {timestamp}s")
+    if request and request.timestamp is not None:
+        # Explicit timestamp provided
+        timestamp = request.timestamp
+        logger.info(f"Using custom timestamp: {timestamp}s")
+    elif use_cover:
+        # Try to use cover frame
+        cover_path = output_dir / "cover_frame.jpg"
+        if cover_path.exists():
+            frame_path = cover_path
+            logger.info(f"Using cover frame: {frame_path}")
 
     # Generate thumbnail
     filename = f"thumbnail_{int(time.time())}.png"
 
     try:
         if frame_path:
-            # Generate from existing frame
+            # Generate from existing frame (cover frame)
             thumbnail_path = await thumbnail_worker.generate_from_frame(
                 title=timeline.source_title,
                 subtitles=subtitles,
