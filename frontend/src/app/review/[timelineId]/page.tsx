@@ -185,10 +185,7 @@ export default function ReviewPage() {
         title={timeline.source_title}
         saving={saving}
         stats={stats}
-        useTraditional={timeline.use_traditional_chinese}
-        converting={converting}
         onExportClick={() => setShowExportPanel(true)}
-        onConvertChinese={handleConvertChinese}
       />
 
       {/* Main content */}
@@ -205,6 +202,9 @@ export default function ReviewPage() {
               onSegmentChange={setCurrentSegmentId}
               coverFrameTime={coverFrameTime}
               onSetCover={handleSetCover}
+              useTraditional={timeline.use_traditional_chinese}
+              converting={converting}
+              onConvertChinese={handleConvertChinese}
             />
           </div>
 

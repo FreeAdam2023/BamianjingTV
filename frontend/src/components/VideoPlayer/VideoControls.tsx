@@ -14,6 +14,11 @@ interface VideoControlsProps {
   isLooping: boolean;
   watermarkUrl: string | null;
   coverFrameTime: number | null;
+  // Chinese conversion
+  useTraditional?: boolean;
+  converting?: boolean;
+  onConvertChinese?: (toTraditional: boolean) => void;
+  // Handlers
   onTogglePlay: () => void;
   onSeek: (time: number) => void;
   onVolumeChange: (volume: number) => void;
@@ -33,6 +38,9 @@ export default function VideoControls({
   isLooping,
   watermarkUrl,
   coverFrameTime,
+  useTraditional,
+  converting,
+  onConvertChinese,
   onTogglePlay,
   onSeek,
   onVolumeChange,
@@ -209,6 +217,48 @@ export default function VideoControls({
           >
             Loop
           </button>
+
+          {/* Chinese 简/繁 Toggle */}
+          {onConvertChinese && (
+            <div className="flex items-center bg-gray-700 rounded overflow-hidden">
+              <button
+                onClick={() => onConvertChinese(false)}
+                disabled={converting || !useTraditional}
+                className={`px-2 py-1 text-sm transition-colors flex items-center gap-1 ${
+                  !useTraditional
+                    ? "bg-orange-500 text-white"
+                    : "text-gray-400 hover:text-white hover:bg-gray-600"
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                title="Simplified Chinese"
+              >
+                {converting && !useTraditional && (
+                  <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                )}
+                简
+              </button>
+              <button
+                onClick={() => onConvertChinese(true)}
+                disabled={converting || useTraditional}
+                className={`px-2 py-1 text-sm transition-colors flex items-center gap-1 ${
+                  useTraditional
+                    ? "bg-orange-500 text-white"
+                    : "text-gray-400 hover:text-white hover:bg-gray-600"
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                title="Traditional Chinese"
+              >
+                {converting && useTraditional && (
+                  <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                )}
+                繁
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

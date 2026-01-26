@@ -18,6 +18,10 @@ interface VideoPlayerProps {
   onSegmentChange?: (segmentId: number) => void;
   coverFrameTime?: number | null;
   onSetCover?: (timestamp: number) => void;
+  // Chinese conversion
+  useTraditional?: boolean;
+  converting?: boolean;
+  onConvertChinese?: (toTraditional: boolean) => void;
 }
 
 export interface VideoPlayerRef {
@@ -36,6 +40,9 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   onSegmentChange,
   coverFrameTime,
   onSetCover,
+  useTraditional,
+  converting,
+  onConvertChinese,
 }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -344,6 +351,9 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         isLooping={isLooping}
         watermarkUrl={watermarkUrl}
         coverFrameTime={coverFrameTime ?? null}
+        useTraditional={useTraditional}
+        converting={converting}
+        onConvertChinese={onConvertChinese}
         onTogglePlay={toggle}
         onSeek={seekTo}
         onVolumeChange={handleVolumeChange}
