@@ -174,12 +174,6 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     [segments]
   );
 
-  // Debug: Log video URL on mount
-  useEffect(() => {
-    console.log("[VideoPlayer] Mounted with jobId:", jobId);
-    console.log("[VideoPlayer] Video URL:", videoUrl);
-  }, [jobId, videoUrl]);
-
   // Debug: Log container and video element dimensions
   useEffect(() => {
     const logDimensions = () => {
@@ -495,6 +489,12 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     return `/api/jobs/${jobId}/video`;
   };
   const videoUrl = getVideoUrl();
+
+  // Debug: Log video URL on mount/change
+  useEffect(() => {
+    console.log("[VideoPlayer] Mounted with jobId:", jobId);
+    console.log("[VideoPlayer] Video URL:", videoUrl);
+  }, [jobId, videoUrl]);
 
   // Calculate font sizes based on subtitle height ratio and style settings
   const fontScale = subtitleHeightRatio / 0.5;
