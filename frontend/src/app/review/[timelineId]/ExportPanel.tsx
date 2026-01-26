@@ -4,7 +4,7 @@
  * ExportPanel - Modal for export settings and thumbnail generation
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { ExportProfile, ExportRequest, Timeline, TitleCandidate } from "@/lib/types";
 import { generateThumbnail, generateTitleCandidates, formatDuration } from "@/lib/api";
 
@@ -44,6 +44,15 @@ export default function ExportPanel({
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [generatingThumbnail, setGeneratingThumbnail] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
+
+  // ESC key to close
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   const handleExport = async () => {
     setExporting(true);
@@ -124,8 +133,24 @@ export default function ExportPanel({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg p-6 w-[520px] max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={(e) => {
+        // Close when clicking backdrop
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-gray-800 rounded-lg p-6 w-[520px] max-h-[90vh] overflow-y-auto relative">
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-white"
+          title="Close (Esc)"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
         <h2 className="text-xl font-bold mb-4">Export Video</h2>
 
         {/* Export profile */}
