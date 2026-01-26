@@ -493,8 +493,9 @@ async def start_youtube_oauth(channel_id: str):
     }
 
     # Create OAuth flow
-    # Callback URL should match what's registered in Google Cloud Console
-    redirect_uri = f"{settings.frontend_url.rstrip('/')}/channels/oauth/callback"
+    # Callback URL must use localhost (Google doesn't allow private IPs)
+    # Register http://localhost:3001/channels/oauth/callback in Google Cloud Console
+    redirect_uri = "http://localhost:3001/channels/oauth/callback"
 
     flow = Flow.from_client_secrets_file(
         str(credentials_file),
@@ -545,7 +546,8 @@ async def youtube_oauth_callback(code: str, state: str):
         raise HTTPException(status_code=404, detail="Channel not found")
 
     credentials_file = Path(settings.youtube_credentials_file)
-    redirect_uri = f"{settings.frontend_url.rstrip('/')}/channels/oauth/callback"
+    # Must match the redirect_uri used in start_youtube_oauth
+    redirect_uri = "http://localhost:3001/channels/oauth/callback"
 
     try:
         # Exchange code for tokens

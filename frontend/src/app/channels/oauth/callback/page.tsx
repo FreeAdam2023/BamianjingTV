@@ -36,12 +36,39 @@ function OAuthCallbackContent() {
     const exchangeCode = async () => {
       try {
         const { protocol, hostname } = window.location;
-        const apiBase = `${protocol}//${hostname}:8000`;
 
-        const response = await fetch(
-          `${apiBase}/channels/oauth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`,
-          { redirect: "manual" }
-        );
+        // If we're on localhost (OAuth redirect), try multiple backend URLs
+        // Google OAuth redirects to localhost, but backend may be on LAN IP
+        const backendUrls = hostname === "localhost" || hostname === "127.0.0.1"
+          ? [
+              `${protocol}//192.168.2.64:8000`,  // LAN backend
+              `${protocol}//${hostname}:8000`,   // Local backend
+            ]
+          : [`${protocol}//${hostname}:8000`];
+
+        let response: Response | null = null;
+        let lastError: Error | null = null;
+
+        for (const apiBase of backendUrls) {
+          try {
+            console.log(`[OAuth] Trying backend at ${apiBase}`);
+            response = await fetch(
+              `${apiBase}/channels/oauth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`,
+              { redirect: "manual" }
+            );
+            if (response.ok || response.status === 302) {
+              console.log(`[OAuth] Success with ${apiBase}`);
+              break;
+            }
+          } catch (e) {
+            console.warn(`[OAuth] Failed to reach ${apiBase}:`, e);
+            lastError = e instanceof Error ? e : new Error(String(e));
+          }
+        }
+
+        if (!response) {
+          throw lastError || new Error("Could not reach backend");
+        }
 
         // The backend will redirect, so we follow it manually
         if (response.type === "opaqueredirect" || response.status === 302) {
@@ -57,8 +84,13 @@ function OAuthCallbackContent() {
           setStatus("success");
           setMessage("Authorization successful!");
           // Redirect to channels page after a short delay
+          // If on localhost, redirect to actual frontend
           setTimeout(() => {
-            router.push("/channels?oauth=success");
+            if (hostname === "localhost" || hostname === "127.0.0.1") {
+              window.location.href = "http://192.168.2.64:3001/channels?oauth=success";
+            } else {
+              router.push("/channels?oauth=success");
+            }
           }, 1500);
         } else {
           const data = await response.json().catch(() => ({}));
@@ -100,9 +132,17 @@ function OAuthCallbackContent() {
             <div className="text-5xl mb-4">✕</div>
             <h1 className="text-xl font-bold text-red-400 mb-2">Authorization Failed</h1>
             <p className="text-gray-400 mb-4">{message}</p>
-            <Link href="/channels" className="btn btn-primary">
+            <a
+              href={
+                typeof window !== "undefined" &&
+                (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+                  ? "http://192.168.2.64:3001/channels"
+                  : "/channels"
+              }
+              className="btn btn-primary inline-block"
+            >
               Back to Channels
-            </Link>
+            </a>
           </>
         )}
       </div>
