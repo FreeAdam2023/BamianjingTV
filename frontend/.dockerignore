@@ -1,0 +1,37 @@
+# Dependencies (installed in container)
+node_modules/
+.pnpm-store/
+
+# Build output (generated in container)
+.next/
+out/
+dist/
+
+# Development
+.env*.local
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Tests
+__tests__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+coverage/
+.jest/
+
+# Docs
+*.md
+
+# Misc
+Makefile

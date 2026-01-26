@@ -1,6 +1,23 @@
 pipeline {
     agent { label 'GPU-Worker' }
 
+    // 参数化构建 - 支持快速部署和全新部署
+    parameters {
+        choice(
+            name: 'DEPLOY_MODE',
+            choices: ['quick', 'full'],
+            description: '''
+            quick (默认): 利用 Docker 缓存，只重建变更的层，快速部署
+            full: 清除缓存，从头构建所有镜像
+            '''
+        )
+        booleanParam(
+            name: 'SKIP_TESTS',
+            defaultValue: true,
+            description: '跳过测试阶段（快速部署时默认跳过）'
+        )
+    }
+
     environment {
         PROJECT_DIR = '/home/adamlyu/BamianjingTV'
         COMPOSE_FILE = 'docker-compose.yml'
@@ -24,10 +41,22 @@ pipeline {
         stage('Build Images') {
             steps {
                 dir("${PROJECT_DIR}") {
-                    sh '''
-                        echo "Building Docker images..."
-                        docker compose build --no-cache api frontend
-                    '''
+                    script {
+                        def buildArgs = ''
+                        if (params.DEPLOY_MODE == 'full') {
+                            echo "🔨 Full Build: Clearing cache, rebuilding all layers..."
+                            buildArgs = '--no-cache --pull'
+                        } else {
+                            echo "⚡ Quick Build: Using Docker cache for unchanged layers..."
+                            buildArgs = ''
+                        }
+
+                        sh """
+                            echo "Build mode: ${params.DEPLOY_MODE}"
+                            echo "Build args: ${buildArgs}"
+                            docker compose build ${buildArgs} api frontend
+                        """
+                    }
                 }
             }
         }
@@ -62,17 +91,25 @@ pipeline {
 
         stage('Cleanup') {
             steps {
-                sh '''
-                    echo "Cleaning up old images..."
-                    docker image prune -f || true
-                '''
+                script {
+                    if (params.DEPLOY_MODE == 'full') {
+                        echo "🧹 Full cleanup: Removing dangling images..."
+                        sh 'docker image prune -af || true'
+                    } else {
+                        echo "🧹 Quick cleanup: Removing only dangling images..."
+                        sh 'docker image prune -f || true'
+                    }
+                }
             }
         }
     }
 
     post {
         success {
-            echo '✅ Deployment successful!'
+            script {
+                def modeEmoji = params.DEPLOY_MODE == 'quick' ? '⚡' : '🔨'
+                echo "${modeEmoji} ✅ Deployment successful! (${params.DEPLOY_MODE} mode)"
+            }
         }
         failure {
             echo '❌ Deployment failed!'
