@@ -27,10 +27,12 @@ export default function ExportPanel({
   const [useTraditional, setUseTraditional] = useState(true);
   const [exporting, setExporting] = useState(false);
 
-  // YouTube metadata (for manual upload)
+  // YouTube upload options
+  const [uploadToYouTube, setUploadToYouTube] = useState(false);
   const [youtubeTitle, setYoutubeTitle] = useState("");
   const [youtubeDescription, setYoutubeDescription] = useState("");
   const [youtubeTags, setYoutubeTags] = useState("");
+  const [youtubePrivacy, setYoutubePrivacy] = useState<"private" | "unlisted" | "public">("private");
 
   // Title candidates (thumbnail)
   const [titleCandidates, setTitleCandidates] = useState<TitleCandidate[]>([]);
@@ -121,14 +123,22 @@ export default function ExportPanel({
   }, [onClose]);
 
   const handleExport = async () => {
-    console.log("[ExportPanel] Starting export...", { profile: exportProfile });
+    console.log("[ExportPanel] Starting export...", { profile: exportProfile, uploadToYouTube });
     setExporting(true);
     setExportStatus(null);
     try {
       const request: ExportRequest = {
         profile: exportProfile,
         use_traditional_chinese: useTraditional,
+        upload_to_youtube: uploadToYouTube,
       };
+
+      if (uploadToYouTube) {
+        if (youtubeTitle) request.youtube_title = youtubeTitle;
+        if (youtubeDescription) request.youtube_description = youtubeDescription;
+        if (youtubeTags) request.youtube_tags = youtubeTags.split(",").map(t => t.trim()).filter(Boolean);
+        request.youtube_privacy = youtubePrivacy;
+      }
 
       console.log("[ExportPanel] Export request:", request);
       await onExport(request);
@@ -352,14 +362,20 @@ export default function ExportPanel({
           </div>
         </div>
 
-        {/* YouTube Metadata Section - For Manual Upload */}
+        {/* YouTube Upload Section */}
         <div className="border-t border-gray-700 pt-4 mt-4">
-          <div className="flex items-center justify-between mb-3">
-            <span className="font-medium">YouTube 元数据</span>
+          <label className="flex items-center gap-2 mb-4 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={uploadToYouTube}
+              onChange={(e) => setUploadToYouTube(e.target.checked)}
+              className="w-4 h-4"
+            />
+            <span className="font-medium">自动上传到 YouTube</span>
             {youtubeTitle && (
-              <span className="text-xs text-green-400">已生成</span>
+              <span className="text-xs text-green-400 ml-auto">元数据已就绪</span>
             )}
-          </div>
+          </label>
 
           {/* Title with copy button */}
           <div className="mb-3">
@@ -436,33 +452,51 @@ export default function ExportPanel({
             />
           </div>
 
-          {/* Copy All + Open YouTube Studio */}
-          <div className="flex gap-2 mt-4">
-            <button
-              onClick={() => {
-                const text = `标题:\n${youtubeTitle || timeline?.source_title}\n\n描述:\n${youtubeDescription || ""}\n\n标签:\n${youtubeTags || ""}`;
-                navigator.clipboard.writeText(text);
-                alert("全部信息已复制到剪贴板!");
-              }}
-              className="flex-1 px-3 py-2 text-sm bg-gray-700 hover:bg-gray-600 rounded flex items-center justify-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-              复制全部
-            </button>
-            <button
-              onClick={() => {
-                window.open("https://studio.youtube.com/channel/UC/videos/upload?d=ud", "_blank");
-              }}
-              className="flex-1 px-3 py-2 text-sm bg-red-600 hover:bg-red-700 rounded flex items-center justify-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
-              </svg>
-              打开 YouTube Studio
-            </button>
-          </div>
+          {/* Privacy selector - only when auto-upload enabled */}
+          {uploadToYouTube && (
+            <div className="mb-3">
+              <label className="text-sm text-gray-400 mb-1 block">隐私设置</label>
+              <select
+                value={youtubePrivacy}
+                onChange={(e) => setYoutubePrivacy(e.target.value as "private" | "unlisted" | "public")}
+                className="w-full bg-gray-700 rounded px-3 py-2 text-sm"
+              >
+                <option value="private">私享 (Private)</option>
+                <option value="unlisted">不公开 (Unlisted)</option>
+                <option value="public">公开 (Public)</option>
+              </select>
+            </div>
+          )}
+
+          {/* Manual upload buttons - only when NOT auto-uploading */}
+          {!uploadToYouTube && (
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => {
+                  const text = `标题:\n${youtubeTitle || timeline?.source_title}\n\n描述:\n${youtubeDescription || ""}\n\n标签:\n${youtubeTags || ""}`;
+                  navigator.clipboard.writeText(text);
+                  alert("全部信息已复制到剪贴板!");
+                }}
+                className="flex-1 px-3 py-2 text-sm bg-gray-700 hover:bg-gray-600 rounded flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                复制全部
+              </button>
+              <button
+                onClick={() => {
+                  window.open("https://studio.youtube.com/channel/UC/videos/upload?d=ud", "_blank");
+                }}
+                className="flex-1 px-3 py-2 text-sm bg-red-600 hover:bg-red-700 rounded flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
+                </svg>
+                打开 YouTube Studio
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Thumbnail Generation Section */}
@@ -633,7 +667,7 @@ export default function ExportPanel({
         {exportStatus && (
           <div className="mt-4 p-4 rounded-lg bg-gray-900">
             <div className="flex items-center gap-3 mb-2">
-              {exportStatus.status === "exporting" && (
+              {(exportStatus.status === "exporting" || exportStatus.status === "uploading") && (
                 <svg className="animate-spin h-5 w-5 text-blue-400" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
@@ -655,16 +689,17 @@ export default function ExportPanel({
                 "text-blue-400"
               }`}>
                 {exportStatus.status === "exporting" ? "正在导出视频..." :
-                 exportStatus.status === "completed" ? "导出完成!" :
-                 exportStatus.status === "failed" ? "导出失败" : ""}
+                 exportStatus.status === "uploading" ? "正在上传到 YouTube..." :
+                 exportStatus.status === "completed" ? "完成!" :
+                 exportStatus.status === "failed" ? "失败" : ""}
               </span>
             </div>
 
             {/* Progress bar */}
-            {exportStatus.status === "exporting" && (
+            {(exportStatus.status === "exporting" || exportStatus.status === "uploading") && (
               <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden mb-2">
                 <div
-                  className="h-full transition-all duration-300 bg-blue-500"
+                  className={`h-full transition-all duration-300 ${exportStatus.status === "uploading" ? "bg-red-500" : "bg-blue-500"}`}
                   style={{ width: `${exportStatus.progress}%` }}
                 />
               </div>
@@ -680,30 +715,49 @@ export default function ExportPanel({
               <p className="text-sm text-red-400 mt-1">{exportStatus.error}</p>
             )}
 
-            {/* Download buttons when complete */}
+            {/* Action buttons when complete */}
             {exportStatus.status === "completed" && (
-              <div className="flex gap-2 mt-3">
-                {exportStatus.full_video_path && (
+              <div className="flex flex-col gap-2 mt-3">
+                {/* YouTube link if auto-uploaded */}
+                {exportStatus.youtube_url && (
                   <a
-                    href={`${getBaseUrl()}/jobs/${timeline.job_id}/video/export`}
-                    download
-                    className="flex-1 px-3 py-2 text-sm bg-green-600 hover:bg-green-700 rounded flex items-center justify-center gap-2"
+                    href={exportStatus.youtube_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full px-3 py-2 text-sm bg-red-600 hover:bg-red-700 rounded flex items-center justify-center gap-2"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
                     </svg>
-                    下载视频
+                    在 YouTube 上查看
                   </a>
                 )}
-                <button
-                  onClick={() => window.open("https://studio.youtube.com/channel/UC/videos/upload?d=ud", "_blank")}
-                  className="flex-1 px-3 py-2 text-sm bg-red-600 hover:bg-red-700 rounded flex items-center justify-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
-                  </svg>
-                  上传到 YouTube
-                </button>
+                <div className="flex gap-2">
+                  {exportStatus.full_video_path && (
+                    <a
+                      href={`${getBaseUrl()}/jobs/${timeline.job_id}/video/export`}
+                      download
+                      className="flex-1 px-3 py-2 text-sm bg-green-600 hover:bg-green-700 rounded flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      下载视频
+                    </a>
+                  )}
+                  {/* Manual upload button only if not auto-uploaded */}
+                  {!exportStatus.youtube_url && (
+                    <button
+                      onClick={() => window.open("https://studio.youtube.com/channel/UC/videos/upload?d=ud", "_blank")}
+                      className="flex-1 px-3 py-2 text-sm bg-red-600 hover:bg-red-700 rounded flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
+                      </svg>
+                      手动上传
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -732,9 +786,11 @@ export default function ExportPanel({
                   Starting...
                 </>
               ) : exportStatus?.status === "failed" ? (
-                "Retry Export"
+                "重试"
+              ) : uploadToYouTube ? (
+                "导出并上传到 YouTube"
               ) : (
-                "Start Export"
+                "开始导出"
               )}
             </button>
           )}
