@@ -83,9 +83,15 @@ export default function SubtitleTrack({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // Measure actual canvas container width
+    const container = canvas.parentElement;
+    const canvasWidth = container ? container.clientWidth : Math.max(100, width - 96);
+
+    // Guard against invalid dimensions
+    if (canvasWidth <= 0 || trackHeight <= 0) return;
+
     // Set up high DPI canvas
     const dpr = window.devicePixelRatio || 1;
-    const canvasWidth = width - 96; // Account for track label offset
     canvas.width = canvasWidth * dpr;
     canvas.height = trackHeight * dpr;
     ctx.scale(dpr, dpr);
@@ -364,14 +370,19 @@ export default function SubtitleTrack({
       </div>
 
       {/* Track content */}
-      <div className="ml-24 relative" style={{ width: width - 96 }}>
+      <div className="ml-24 relative bg-gray-900" style={{ height: trackHeight }}>
         <canvas
           ref={canvasRef}
-          className="cursor-pointer"
-          style={{ width: width - 96, height: trackHeight }}
+          className="cursor-pointer w-full h-full"
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
         />
+        {/* Fallback when no segments */}
+        {(!segments || segments.length === 0) && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <span className="text-xs text-gray-500">No segments</span>
+          </div>
+        )}
 
         {/* Trim handles for selected segment */}
         {selectedSegment && trimHandlePositions && onTrimChange && (

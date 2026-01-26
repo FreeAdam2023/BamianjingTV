@@ -90,9 +90,15 @@ export default function AudioTrack({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // Measure actual canvas container width
+    const container = canvas.parentElement;
+    const canvasWidth = container ? container.clientWidth : Math.max(100, width - 96);
+
+    // Guard against invalid dimensions
+    if (canvasWidth <= 0 || trackHeight <= 0) return;
+
     // Set up high DPI canvas
     const dpr = window.devicePixelRatio || 1;
-    const canvasWidth = width - 96; // Account for track label
     canvas.width = canvasWidth * dpr;
     canvas.height = trackHeight * dpr;
     ctx.scale(dpr, dpr);
@@ -182,17 +188,8 @@ export default function AudioTrack({
         }
       }
       ctx.stroke();
-    } else {
-      // No waveform data - draw placeholder
-      ctx.fillStyle = "rgba(107, 114, 128, 0.5)";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
-      const message = onGenerateWaveform
-        ? "Click to generate waveform"
-        : "No waveform data";
-      ctx.fillText(message, canvasWidth / 2, trackHeight / 2);
     }
+    // No else block needed - fallback div handles the "no data" message
 
     // Draw track border
     ctx.strokeStyle = "#374151"; // gray-700
@@ -255,13 +252,30 @@ export default function AudioTrack({
         </div>
       </div>
 
-      {/* Waveform canvas */}
-      <canvas
-        ref={canvasRef}
-        className="cursor-pointer"
-        style={{ width: width - 96, height: trackHeight }}
-        onClick={handleClick}
-      />
+      {/* Waveform area */}
+      <div
+        className="relative flex-1 bg-gray-900"
+        style={{ height: trackHeight }}
+      >
+        {/* Canvas for waveform */}
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 cursor-pointer"
+          style={{ width: "100%", height: "100%" }}
+          onClick={handleClick}
+        />
+        {/* Fallback when no waveform data */}
+        {!waveformData && (
+          <div
+            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            style={{ backgroundColor: trackColors.background }}
+          >
+            <span className="text-xs text-gray-500">
+              {onGenerateWaveform ? "Click to generate waveform" : "No waveform"}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

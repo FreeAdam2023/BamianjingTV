@@ -25,8 +25,11 @@ interface UseMultiTrackWaveformResult {
 /**
  * Hook to fetch and manage waveform data for multiple audio tracks.
  *
+ * Waveforms are NOT auto-loaded on mount to avoid 404 errors.
+ * Call generateTrack() to generate and load waveform data when needed.
+ *
  * @param timelineId - The timeline ID
- * @param enabledTracks - Which tracks to load (defaults to all)
+ * @param enabledTracks - Which tracks are enabled (defaults to all)
  */
 export function useMultiTrackWaveform(
   timelineId: string,
@@ -38,15 +41,9 @@ export function useMultiTrackWaveform(
     bgm: { trackType: "bgm", waveform: null, loading: false, error: null, exists: false },
   });
 
-  // Load waveform for a single track
-  const loadTrack = useCallback(async (trackType: TrackType): Promise<void> => {
-    setTracks((prev) => ({
-      ...prev,
-      [trackType]: { ...prev[trackType], loading: true, error: null },
-    }));
-
+  // Try to load from cache only (no API call)
+  const loadFromCache = useCallback(async (trackType: TrackType): Promise<boolean> => {
     try {
-      // Try IndexedDB cache first
       const cached = await getCachedWaveform(timelineId, trackType);
       if (cached) {
         setTracks((prev) => ({
@@ -58,45 +55,20 @@ export function useMultiTrackWaveform(
             exists: true,
           },
         }));
-        return;
+        return true;
       }
-
-      // Fall back to API
-      const data = await getWaveform(timelineId, trackType);
-      await setCachedWaveform(timelineId, trackType, data);
-
-      setTracks((prev) => ({
-        ...prev,
-        [trackType]: {
-          ...prev[trackType],
-          waveform: data,
-          loading: false,
-          exists: true,
-        },
-      }));
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to load waveform";
-      const notFound = errorMessage.includes("not found");
-
-      setTracks((prev) => ({
-        ...prev,
-        [trackType]: {
-          ...prev[trackType],
-          waveform: null,
-          loading: false,
-          error: notFound ? null : errorMessage,
-          exists: !notFound,
-        },
-      }));
+    } catch {
+      // Ignore cache errors
     }
+    return false;
   }, [timelineId]);
 
-  // Load all enabled tracks on mount
+  // Load cached waveforms on mount (no API calls)
   useEffect(() => {
     enabledTracks.forEach((trackType) => {
-      loadTrack(trackType);
+      loadFromCache(trackType);
     });
-  }, [timelineId, enabledTracks.join(","), loadTrack]);
+  }, [timelineId, enabledTracks.join(","), loadFromCache]);
 
   // Generate waveform for a single track
   const generateTrack = useCallback(async (trackType: TrackType): Promise<void> => {
