@@ -460,8 +460,8 @@ async def generate_thumbnail(timeline_id: str):
                 detail="Failed to generate thumbnail. Check if image API is configured."
             )
 
-        # Return URL that can be served
-        thumbnail_url = f"/api/jobs/{timeline.job_id}/thumbnail/{filename}"
+        # Return URL that can be served (without /api/ prefix for direct backend access)
+        thumbnail_url = f"/jobs/{timeline.job_id}/thumbnail/{filename}"
 
         logger.info(f"Generated thumbnail for timeline {timeline_id}: {thumbnail_url}")
 
