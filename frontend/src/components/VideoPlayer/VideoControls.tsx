@@ -140,6 +140,9 @@ export default function VideoControls({
   onSetCover,
 }: VideoControlsProps) {
   const watermarkInputRef = useRef<HTMLInputElement>(null);
+  const progressBarRef = useRef<HTMLDivElement>(null);
+  const [hoverTime, setHoverTime] = useState<number | null>(null);
+  const [hoverX, setHoverX] = useState<number>(0);
 
   const handleProgressClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -147,17 +150,48 @@ export default function VideoControls({
     onSeek(ratio * duration);
   }, [duration, onSeek]);
 
+  const handleProgressMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    setHoverTime(ratio * duration);
+    setHoverX(e.clientX - rect.left);
+  }, [duration]);
+
+  const handleProgressMouseLeave = useCallback(() => {
+    setHoverTime(null);
+  }, []);
+
   return (
     <div className="bg-gray-900 p-3 flex-shrink-0">
       {/* Progress bar */}
       <div
-        className="h-1 bg-gray-600 rounded-full mb-3 cursor-pointer"
+        ref={progressBarRef}
+        className="h-2 bg-gray-600 rounded-full mb-3 cursor-pointer relative group"
         onClick={handleProgressClick}
+        onMouseMove={handleProgressMouseMove}
+        onMouseLeave={handleProgressMouseLeave}
       >
+        {/* Progress fill */}
         <div
-          className="h-1 bg-blue-500 rounded-full"
+          className="h-full bg-blue-500 rounded-full pointer-events-none"
           style={{ width: `${(currentTime / duration) * 100}%` }}
         />
+        {/* Hover indicator line */}
+        {hoverTime !== null && (
+          <div
+            className="absolute top-0 h-full w-0.5 bg-white/50 pointer-events-none"
+            style={{ left: `${hoverX}px` }}
+          />
+        )}
+        {/* Time tooltip */}
+        {hoverTime !== null && (
+          <div
+            className="absolute -top-8 transform -translate-x-1/2 bg-black/90 text-white text-xs px-2 py-1 rounded whitespace-nowrap pointer-events-none z-10"
+            style={{ left: `${hoverX}px` }}
+          >
+            {formatDuration(hoverTime)}
+          </div>
+        )}
       </div>
 
       {/* Control buttons */}
