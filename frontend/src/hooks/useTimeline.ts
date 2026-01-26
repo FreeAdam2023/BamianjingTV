@@ -112,6 +112,43 @@ export function useTimeline(timelineId: string) {
     [timeline, timelineId]
   );
 
+  // Update segment trim values
+  const setSegmentTrim = useCallback(
+    async (segmentId: number, trimStart: number, trimEnd: number) => {
+      if (!timeline) return;
+
+      // Optimistic update
+      setTimeline((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          segments: prev.segments.map((seg) =>
+            seg.id === segmentId
+              ? { ...seg, trim_start: trimStart, trim_end: trimEnd }
+              : seg
+          ),
+        };
+      });
+
+      // Persist to backend
+      setSaving(true);
+      try {
+        await updateSegment(timelineId, segmentId, {
+          trim_start: trimStart,
+          trim_end: trimEnd,
+        });
+      } catch (err) {
+        // Revert on error
+        console.error("Failed to update segment trim:", err);
+        // Reload timeline to get correct state
+        getTimeline(timelineId).then(setTimeline);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [timeline, timelineId]
+  );
+
   // Trigger export
   const startExport = useCallback(
     async (request: ExportRequest) => {
@@ -151,6 +188,7 @@ export function useTimeline(timelineId: string) {
     stats,
     setSegmentState,
     setSegmentText,
+    setSegmentTrim,
     markReviewed,
     startExport,
   };

@@ -27,6 +27,7 @@ from app.workers.translation import TranslationWorker
 from app.workers.export import ExportWorker
 from app.workers.youtube import YouTubeWorker
 from app.workers.thumbnail import ThumbnailWorker
+from app.workers.waveform import WaveformWorker
 from app.api import (
     sources_router,
     items_router,
@@ -42,6 +43,7 @@ from app.api import (
     set_export_worker,
     set_youtube_worker,
     set_thumbnail_worker,
+    set_waveform_worker,
     set_jobs_dir,
     get_connection_manager,
 )
@@ -299,6 +301,8 @@ async def lifespan(app: FastAPI):
     set_youtube_worker(youtube_worker)
     thumbnail_worker = ThumbnailWorker()
     set_thumbnail_worker(thumbnail_worker)
+    waveform_worker = WaveformWorker()
+    set_waveform_worker(waveform_worker)
     set_jobs_dir(settings.jobs_dir)
 
     logger.info(f"Initialized timeline manager: {timeline_manager.get_stats()['total']} timelines")

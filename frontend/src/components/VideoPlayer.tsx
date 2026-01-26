@@ -1,8 +1,50 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from "react";
 import type { EditableSegment } from "@/lib/types";
 import { formatDuration } from "@/lib/api";
+
+interface SubtitleStyle {
+  fontFamily: string;
+  enFontSize: number;
+  zhFontSize: number;
+  enColor: string;
+  zhColor: string;
+  fontWeight: string;
+  textShadow: boolean;
+  backgroundColor: string;
+}
+
+const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
+  fontFamily: "system-ui",
+  enFontSize: 24,
+  zhFontSize: 28,
+  enColor: "#ffffff",
+  zhColor: "#facc15", // yellow-400
+  fontWeight: "500",
+  textShadow: true,
+  backgroundColor: "#1a2744",
+};
+
+const FONT_FAMILIES = [
+  { value: "system-ui", label: "System Default" },
+  { value: "'Noto Sans SC', sans-serif", label: "Noto Sans SC" },
+  { value: "'PingFang SC', sans-serif", label: "PingFang SC" },
+  { value: "'Microsoft YaHei', sans-serif", label: "Microsoft YaHei" },
+  { value: "serif", label: "Serif" },
+  { value: "monospace", label: "Monospace" },
+];
+
+const FONT_WEIGHTS = [
+  { value: "400", label: "Normal" },
+  { value: "500", label: "Medium" },
+  { value: "600", label: "Semi-Bold" },
+  { value: "700", label: "Bold" },
+];
+
+const PRESET_COLORS = [
+  "#ffffff", "#facc15", "#22c55e", "#3b82f6", "#a855f7", "#ef4444", "#f97316", "#14b8a6",
+];
 
 interface VideoPlayerProps {
   jobId: string;
@@ -12,13 +54,21 @@ interface VideoPlayerProps {
   onSegmentChange?: (segmentId: number) => void;
 }
 
-export default function VideoPlayer({
+export interface VideoPlayerRef {
+  getVideoElement: () => HTMLVideoElement | null;
+  play: () => void;
+  pause: () => void;
+  seekTo: (time: number) => void;
+  getCurrentTime: () => number;
+}
+
+const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoPlayer({
   jobId,
   segments,
   currentSegmentId,
   onTimeUpdate,
   onSegmentChange,
-}: VideoPlayerProps) {
+}, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const watermarkInputRef = useRef<HTMLInputElement>(null);
@@ -36,12 +86,57 @@ export default function VideoPlayer({
   // Watermark
   const [watermarkUrl, setWatermarkUrl] = useState<string | null>(null);
 
+  // Subtitle style settings
+  const [subtitleStyle, setSubtitleStyle] = useState<SubtitleStyle>(DEFAULT_SUBTITLE_STYLE);
+  const [showStyleSettings, setShowStyleSettings] = useState(false);
+
+  // Expose methods via ref
+  useImperativeHandle(ref, () => ({
+    getVideoElement: () => videoRef.current,
+    play: () => videoRef.current?.play(),
+    pause: () => videoRef.current?.pause(),
+    seekTo: (time: number) => {
+      if (videoRef.current) {
+        videoRef.current.currentTime = time;
+      }
+    },
+    getCurrentTime: () => videoRef.current?.currentTime || 0,
+  }), []);
+
   // Load watermark from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem("videoWatermark");
     if (saved) {
       setWatermarkUrl(saved);
     }
+  }, []);
+
+  // Load subtitle style from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("subtitleStyle");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setSubtitleStyle({ ...DEFAULT_SUBTITLE_STYLE, ...parsed });
+      } catch (e) {
+        console.error("Failed to parse subtitle style:", e);
+      }
+    }
+  }, []);
+
+  // Save subtitle style to localStorage when it changes
+  const updateSubtitleStyle = useCallback((updates: Partial<SubtitleStyle>) => {
+    setSubtitleStyle((prev) => {
+      const newStyle = { ...prev, ...updates };
+      localStorage.setItem("subtitleStyle", JSON.stringify(newStyle));
+      return newStyle;
+    });
+  }, []);
+
+  // Reset subtitle style to defaults
+  const resetSubtitleStyle = useCallback(() => {
+    setSubtitleStyle(DEFAULT_SUBTITLE_STYLE);
+    localStorage.setItem("subtitleStyle", JSON.stringify(DEFAULT_SUBTITLE_STYLE));
   }, []);
 
   // Handle watermark upload
@@ -262,11 +357,15 @@ export default function VideoPlayer({
   // Video source URL (proxied through Next.js rewrite)
   const videoUrl = `/api/jobs/${jobId}/video`;
 
-  // Calculate font sizes based on subtitle height ratio
-  // Base sizes at 50% ratio: English 24px, Chinese 28px
+  // Calculate font sizes based on subtitle height ratio and style settings
   const fontScale = subtitleHeightRatio / 0.5;
-  const englishFontSize = Math.max(16, Math.min(36, 24 * fontScale));
-  const chineseFontSize = Math.max(18, Math.min(42, 28 * fontScale));
+  const englishFontSize = Math.max(14, Math.min(48, subtitleStyle.enFontSize * fontScale));
+  const chineseFontSize = Math.max(16, Math.min(56, subtitleStyle.zhFontSize * fontScale));
+
+  // Text shadow style for better visibility
+  const textShadowStyle = subtitleStyle.textShadow
+    ? "2px 2px 4px rgba(0,0,0,0.8), -1px -1px 2px rgba(0,0,0,0.5)"
+    : "none";
 
   return (
     <div
@@ -309,21 +408,34 @@ export default function VideoPlayer({
 
       {/* Subtitle area */}
       <div
-        className="flex-1 bg-[#1a2744] flex flex-col items-center justify-center px-8 py-4 min-h-0"
+        className="flex-1 flex flex-col items-center justify-center px-8 py-4 min-h-0 relative"
+        style={{ backgroundColor: subtitleStyle.backgroundColor }}
       >
         {currentSegment ? (
           <>
             {/* English text */}
             <div
-              className="text-white text-center font-medium leading-relaxed mb-4"
-              style={{ fontSize: `${englishFontSize}px` }}
+              className="text-center leading-relaxed mb-4"
+              style={{
+                fontSize: `${englishFontSize}px`,
+                fontFamily: subtitleStyle.fontFamily,
+                fontWeight: subtitleStyle.fontWeight,
+                color: subtitleStyle.enColor,
+                textShadow: textShadowStyle,
+              }}
             >
               {currentSegment.en}
             </div>
             {/* Chinese text */}
             <div
-              className="text-yellow-400 text-center font-medium leading-relaxed"
-              style={{ fontSize: `${chineseFontSize}px` }}
+              className="text-center leading-relaxed"
+              style={{
+                fontSize: `${chineseFontSize}px`,
+                fontFamily: subtitleStyle.fontFamily,
+                fontWeight: subtitleStyle.fontWeight,
+                color: subtitleStyle.zhColor,
+                textShadow: textShadowStyle,
+              }}
             >
               {currentSegment.zh}
             </div>
@@ -331,6 +443,163 @@ export default function VideoPlayer({
         ) : (
           <div className="text-gray-500 text-center">
             No subtitle
+          </div>
+        )}
+
+        {/* Style settings button (floating) */}
+        <button
+          onClick={() => setShowStyleSettings(!showStyleSettings)}
+          className={`absolute top-2 right-2 p-1.5 rounded-full transition-colors ${
+            showStyleSettings ? "bg-blue-500 text-white" : "bg-black/30 text-white/70 hover:bg-black/50"
+          }`}
+          title="Subtitle style settings"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
+
+        {/* Style settings panel */}
+        {showStyleSettings && (
+          <div className="absolute top-10 right-2 w-72 bg-gray-800 rounded-lg shadow-xl p-4 z-20 text-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-white font-medium">Subtitle Style</h3>
+              <button
+                onClick={resetSubtitleStyle}
+                className="text-xs text-gray-400 hover:text-white"
+              >
+                Reset
+              </button>
+            </div>
+
+            {/* Font family */}
+            <div className="mb-3">
+              <label className="block text-gray-400 text-xs mb-1">Font Family</label>
+              <select
+                value={subtitleStyle.fontFamily}
+                onChange={(e) => updateSubtitleStyle({ fontFamily: e.target.value })}
+                className="w-full bg-gray-700 text-white rounded px-2 py-1.5 text-sm"
+              >
+                {FONT_FAMILIES.map((f) => (
+                  <option key={f.value} value={f.value}>{f.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Font sizes */}
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className="block text-gray-400 text-xs mb-1">EN Size: {subtitleStyle.enFontSize}px</label>
+                <input
+                  type="range"
+                  min="14"
+                  max="48"
+                  value={subtitleStyle.enFontSize}
+                  onChange={(e) => updateSubtitleStyle({ enFontSize: parseInt(e.target.value) })}
+                  className="w-full h-1 bg-gray-600 rounded-full appearance-none cursor-pointer"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-400 text-xs mb-1">ZH Size: {subtitleStyle.zhFontSize}px</label>
+                <input
+                  type="range"
+                  min="16"
+                  max="56"
+                  value={subtitleStyle.zhFontSize}
+                  onChange={(e) => updateSubtitleStyle({ zhFontSize: parseInt(e.target.value) })}
+                  className="w-full h-1 bg-gray-600 rounded-full appearance-none cursor-pointer"
+                />
+              </div>
+            </div>
+
+            {/* Font weight */}
+            <div className="mb-3">
+              <label className="block text-gray-400 text-xs mb-1">Font Weight</label>
+              <div className="flex gap-1">
+                {FONT_WEIGHTS.map((w) => (
+                  <button
+                    key={w.value}
+                    onClick={() => updateSubtitleStyle({ fontWeight: w.value })}
+                    className={`flex-1 py-1 text-xs rounded ${
+                      subtitleStyle.fontWeight === w.value
+                        ? "bg-blue-500 text-white"
+                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    }`}
+                  >
+                    {w.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Colors */}
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className="block text-gray-400 text-xs mb-1">EN Color</label>
+                <div className="flex flex-wrap gap-1">
+                  {PRESET_COLORS.map((color) => (
+                    <button
+                      key={color}
+                      onClick={() => updateSubtitleStyle({ enColor: color })}
+                      className={`w-5 h-5 rounded border-2 ${
+                        subtitleStyle.enColor === color ? "border-white" : "border-transparent"
+                      }`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-gray-400 text-xs mb-1">ZH Color</label>
+                <div className="flex flex-wrap gap-1">
+                  {PRESET_COLORS.map((color) => (
+                    <button
+                      key={color}
+                      onClick={() => updateSubtitleStyle({ zhColor: color })}
+                      className={`w-5 h-5 rounded border-2 ${
+                        subtitleStyle.zhColor === color ? "border-white" : "border-transparent"
+                      }`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Text shadow toggle */}
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-gray-400 text-xs">Text Shadow</label>
+              <button
+                onClick={() => updateSubtitleStyle({ textShadow: !subtitleStyle.textShadow })}
+                className={`w-10 h-5 rounded-full transition-colors ${
+                  subtitleStyle.textShadow ? "bg-blue-500" : "bg-gray-600"
+                }`}
+              >
+                <div
+                  className={`w-4 h-4 bg-white rounded-full transition-transform ${
+                    subtitleStyle.textShadow ? "translate-x-5" : "translate-x-0.5"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Background color */}
+            <div>
+              <label className="block text-gray-400 text-xs mb-1">Background</label>
+              <div className="flex gap-1">
+                {["#1a2744", "#000000", "#111827", "#1e3a5f", "#2d1f47"].map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => updateSubtitleStyle({ backgroundColor: color })}
+                    className={`w-8 h-5 rounded border-2 ${
+                      subtitleStyle.backgroundColor === color ? "border-white" : "border-gray-500"
+                    }`}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -461,4 +730,6 @@ export default function VideoPlayer({
       </div>
     </div>
   );
-}
+});
+
+export default VideoPlayer;

@@ -7,6 +7,7 @@ from .translation import TranslationWorker
 from .tts import TTSWorker  # Optional: TTS dubbing
 from .export import ExportWorker
 from .youtube import YouTubeWorker
+from .waveform import WaveformWorker
 
 __all__ = [
     "DownloadWorker",
@@ -16,4 +17,5 @@ __all__ = [
     "TTSWorker",
     "ExportWorker",
     "YouTubeWorker",
+    "WaveformWorker",
 ]

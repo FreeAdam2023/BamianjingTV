@@ -20,6 +20,7 @@ from app.services.timeline_manager import TimelineManager
 from app.workers.export import ExportWorker
 from app.workers.youtube import YouTubeWorker
 from app.workers.thumbnail import ThumbnailWorker
+from app.workers.waveform import WaveformWorker
 
 router = APIRouter(prefix="/timelines", tags=["timelines"])
 
@@ -28,6 +29,7 @@ _timeline_manager: Optional[TimelineManager] = None
 _export_worker: Optional[ExportWorker] = None
 _youtube_worker: Optional[YouTubeWorker] = None
 _thumbnail_worker: Optional[ThumbnailWorker] = None
+_waveform_worker: Optional[WaveformWorker] = None
 _jobs_dir: Optional[Path] = None
 
 
@@ -61,6 +63,12 @@ def set_thumbnail_worker(worker: ThumbnailWorker) -> None:
     _thumbnail_worker = worker
 
 
+def set_waveform_worker(worker: WaveformWorker) -> None:
+    """Set the waveform worker instance."""
+    global _waveform_worker
+    _waveform_worker = worker
+
+
 def _get_manager() -> TimelineManager:
     """Get the timeline manager instance."""
     if _timeline_manager is None:
@@ -89,6 +97,13 @@ def _get_thumbnail_worker() -> ThumbnailWorker:
     return _thumbnail_worker
 
 
+def _get_waveform_worker() -> WaveformWorker:
+    """Get the waveform worker instance."""
+    if _waveform_worker is None:
+        raise RuntimeError("WaveformWorker not initialized")
+    return _waveform_worker
+
+
 # ============ Response Models ============
 
 
@@ -113,6 +128,25 @@ class ThumbnailResponse(BaseModel):
 
     timeline_id: str
     thumbnail_url: str
+    message: str
+
+
+class WaveformResponse(BaseModel):
+    """Response for waveform data."""
+
+    peaks: List[float]
+    sample_rate: int
+    duration: float
+    cached: bool = False
+    track_type: str = "original"
+
+
+class WaveformGenerateResponse(BaseModel):
+    """Response for waveform generation request."""
+
+    timeline_id: str
+    track_type: str
+    status: str
     message: str
 
 
@@ -441,4 +475,111 @@ async def generate_thumbnail(timeline_id: str):
         raise
     except Exception as e:
         logger.exception(f"Thumbnail generation failed for timeline {timeline_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{timeline_id}/waveform/{track_type}", response_model=WaveformResponse)
+async def get_waveform(
+    timeline_id: str,
+    track_type: str = "original",
+):
+    """Get waveform peak data for a timeline's audio track.
+
+    Args:
+        timeline_id: Timeline ID
+        track_type: Audio track type (original, dubbing, bgm)
+
+    Returns cached waveform data if available, otherwise 404.
+    Use POST /timelines/{id}/waveform/generate to generate if not available.
+    """
+    from loguru import logger
+
+    if track_type not in ("original", "dubbing", "bgm"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid track type: {track_type}. Must be one of: original, dubbing, bgm"
+        )
+
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    if _jobs_dir is None:
+        raise HTTPException(status_code=500, detail="Jobs directory not configured")
+
+    waveform_worker = _get_waveform_worker()
+    job_dir = _jobs_dir / timeline.job_id
+    peaks_path = job_dir / "waveforms" / f"{track_type}.json"
+
+    # Try to load cached waveform
+    waveform_data = await waveform_worker.load_peaks(peaks_path)
+
+    if not waveform_data:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Waveform not found for track: {track_type}. Use POST to generate."
+        )
+
+    return WaveformResponse(
+        peaks=waveform_data["peaks"],
+        sample_rate=waveform_data["sample_rate"],
+        duration=waveform_data["duration"],
+        cached=True,
+        track_type=track_type,
+    )
+
+
+@router.post("/{timeline_id}/waveform/generate", response_model=WaveformGenerateResponse)
+async def generate_waveform(
+    timeline_id: str,
+    track_type: str = Query(default="original", description="Audio track type"),
+    background_tasks: BackgroundTasks = None,
+):
+    """Generate waveform peak data for a timeline's audio track.
+
+    Args:
+        timeline_id: Timeline ID
+        track_type: Audio track type (original, dubbing, bgm)
+
+    Generates waveform peaks from the audio file and caches them.
+    For large files, this runs as a background task.
+    """
+    from loguru import logger
+
+    if track_type not in ("original", "dubbing", "bgm"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid track type: {track_type}. Must be one of: original, dubbing, bgm"
+        )
+
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    if _jobs_dir is None:
+        raise HTTPException(status_code=500, detail="Jobs directory not configured")
+
+    waveform_worker = _get_waveform_worker()
+    job_dir = _jobs_dir / timeline.job_id
+
+    try:
+        # Generate waveform (this is relatively fast, so we do it synchronously)
+        result = await waveform_worker.generate_for_job(job_dir, track_type)
+
+        logger.info(f"Generated waveform for timeline {timeline_id}, track: {track_type}")
+
+        return WaveformGenerateResponse(
+            timeline_id=timeline_id,
+            track_type=track_type,
+            status="completed",
+            message=f"Waveform generated: {result.get('total_samples', 0)} samples, "
+                    f"{result.get('file_size_kb', 0):.1f} KB",
+        )
+
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.exception(f"Waveform generation failed for timeline {timeline_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))

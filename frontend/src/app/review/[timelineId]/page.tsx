@@ -3,10 +3,13 @@
 import { useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import VideoPlayer from "@/components/VideoPlayer";
+import VideoPlayer, { VideoPlayerRef } from "@/components/VideoPlayer";
 import SegmentList from "@/components/SegmentList";
+import { TimelineEditor } from "@/components/timeline";
 import { useTimeline } from "@/hooks/useTimeline";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
+import { useTimelineKeyboard } from "@/hooks/useTimelineKeyboard";
+import { useMultiTrackWaveform, TrackType } from "@/hooks/useMultiTrackWaveform";
 import { formatDuration, keepAllSegments, dropAllSegments, resetAllSegments, generateThumbnail } from "@/lib/api";
 import type { SegmentState, ExportProfile, ExportRequest } from "@/lib/types";
 
@@ -22,6 +25,7 @@ export default function ReviewPage() {
     stats,
     setSegmentState,
     setSegmentText,
+    setSegmentTrim,
     markReviewed,
     startExport,
   } = useTimeline(timelineId);
@@ -45,7 +49,20 @@ export default function ReviewPage() {
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [generatingThumbnail, setGeneratingThumbnail] = useState(false);
 
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  // Video time tracking for timeline sync
+  const [currentVideoTime, setCurrentVideoTime] = useState(0);
+
+  // Waveform data for timeline (multi-track support)
+  const { tracks: waveformTracks, generateTrack: generateWaveform } = useMultiTrackWaveform(timelineId);
+
+  // Convert track waveforms to the format expected by TimelineEditor
+  const waveformData = {
+    original: waveformTracks.original.waveform,
+    dubbing: waveformTracks.dubbing.waveform,
+    bgm: waveformTracks.bgm.waveform,
+  };
+
+  const videoPlayerRef = useRef<VideoPlayerRef>(null);
 
   // Video control handlers
   const handlePlayToggle = useCallback(() => {
@@ -59,9 +76,9 @@ export default function ReviewPage() {
   const handlePlaySegment = useCallback((segmentId: number) => {
     if (timeline) {
       const segment = timeline.segments.find((s) => s.id === segmentId);
-      if (segment && videoRef.current) {
-        videoRef.current.currentTime = segment.start;
-        videoRef.current.play();
+      if (segment && videoPlayerRef.current) {
+        videoPlayerRef.current.seekTo(segment.start);
+        videoPlayerRef.current.play();
       }
     }
   }, [timeline]);
@@ -82,11 +99,35 @@ export default function ReviewPage() {
     setCurrentSegmentId(segmentId);
     if (timeline) {
       const segment = timeline.segments.find((s) => s.id === segmentId);
-      if (segment && videoRef.current) {
-        videoRef.current.currentTime = segment.start;
+      if (segment && videoPlayerRef.current) {
+        videoPlayerRef.current.seekTo(segment.start);
       }
     }
   }, [timeline]);
+
+  // Handle video time update (for timeline sync)
+  const handleVideoTimeUpdate = useCallback((time: number) => {
+    setCurrentVideoTime(time);
+  }, []);
+
+  // Handle timeline seek (when user clicks on timeline)
+  const handleTimelineSeek = useCallback((time: number) => {
+    if (videoPlayerRef.current) {
+      videoPlayerRef.current.seekTo(time);
+    }
+    setCurrentVideoTime(time);
+  }, []);
+
+  // Timeline keyboard shortcuts (frame stepping, boundary jumping)
+  useTimelineKeyboard({
+    fps: 30,
+    duration: timeline?.source_duration || 0,
+    currentTime: currentVideoTime,
+    isPlaying,
+    onSeek: handleTimelineSeek,
+    onPlayToggle: handlePlayToggle,
+    segments: timeline?.segments.map((s) => ({ start: s.start, end: s.end })),
+  });
 
   // Handle export
   const handleExport = async () => {
@@ -224,10 +265,29 @@ export default function ReviewPage() {
         <div className="flex-1 flex flex-col p-4 min-h-0">
           <div className="flex-1 min-h-0">
             <VideoPlayer
+              ref={videoPlayerRef}
               jobId={timeline.job_id}
               segments={timeline.segments}
               currentSegmentId={currentSegmentId}
+              onTimeUpdate={handleVideoTimeUpdate}
               onSegmentChange={setCurrentSegmentId}
+            />
+          </div>
+
+          {/* Timeline Editor */}
+          <div className="mt-4 flex-shrink-0">
+            <TimelineEditor
+              segments={timeline.segments}
+              duration={timeline.source_duration}
+              jobId={timeline.job_id}
+              currentTime={currentVideoTime}
+              onTimeChange={handleTimelineSeek}
+              onSegmentClick={handleSegmentClick}
+              onSegmentSelect={setCurrentSegmentId}
+              onStateChange={setSegmentState}
+              onTrimChange={setSegmentTrim}
+              waveformData={waveformData}
+              onGenerateWaveform={(trackType: TrackType) => generateWaveform(trackType)}
             />
           </div>
 
@@ -239,7 +299,8 @@ export default function ReviewPage() {
             <span><kbd className="kbd">D</kbd> Drop</span>
             <span><kbd className="kbd">U</kbd> Undecided</span>
             <span><kbd className="kbd">L</kbd> Loop</span>
-            <span><kbd className="kbd">Enter</kbd> Play segment</span>
+            <span><kbd className="kbd">,</kbd>/<kbd className="kbd">.</kbd> Frame ±1</span>
+            <span><kbd className="kbd">[</kbd>/<kbd className="kbd">]</kbd> Prev/Next boundary</span>
           </div>
         </div>
 

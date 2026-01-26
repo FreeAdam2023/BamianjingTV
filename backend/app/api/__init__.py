@@ -11,6 +11,7 @@ from .timelines import (
     set_export_worker,
     set_youtube_worker,
     set_thumbnail_worker,
+    set_waveform_worker,
     set_jobs_dir,
 )
 
@@ -34,5 +35,6 @@ __all__ = [
     "set_export_worker",
     "set_youtube_worker",
     "set_thumbnail_worker",
+    "set_waveform_worker",
     "set_jobs_dir",
 ]

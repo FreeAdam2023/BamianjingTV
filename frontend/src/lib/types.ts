@@ -96,3 +96,44 @@ export interface JobCreate {
   use_traditional_chinese?: boolean;
   skip_diarization?: boolean;
 }
+
+// Timeline Editor Types
+export type TrackType = 'video' | 'audio_original' | 'audio_dubbing' | 'audio_bgm' | 'subtitle';
+
+export interface TimelineTrack {
+  id: string;
+  type: TrackType;
+  name: string;
+  muted: boolean;
+  solo: boolean;
+  locked: boolean;
+  height: number;
+  visible: boolean;
+}
+
+export interface TimelineClip {
+  id: string;
+  trackId: string;
+  segmentId?: number;      // Link to EditableSegment
+  startTime: number;       // Position on timeline (seconds)
+  endTime: number;         // End position on timeline (seconds)
+  sourceStart: number;     // Trim within source (seconds)
+  sourceEnd: number;       // Trim end within source (seconds)
+  label?: string;          // Display text (e.g., subtitle text)
+  color?: string;          // Override color
+}
+
+export interface WaveformData {
+  peaks: number[];         // Normalized values (0 to 1)
+  sampleRate: number;      // Samples per second (e.g., 1000 = 1ms resolution)
+  duration: number;        // Total duration in seconds
+}
+
+export interface TimelineState {
+  playheadTime: number;    // Current playhead position (seconds)
+  zoom: number;            // Pixels per second
+  scrollX: number;         // Horizontal scroll offset (pixels)
+  selectedClipId: string | null;
+  isPlaying: boolean;
+  duration: number;        // Total timeline duration (seconds)
+}

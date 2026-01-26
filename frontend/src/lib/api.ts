@@ -12,6 +12,7 @@ import type {
   Job,
   JobCreate,
   SegmentState,
+  WaveformData,
 } from "./types";
 
 // Get API URL: use env var or derive from current host with port 8000
@@ -186,6 +187,24 @@ export async function deleteJob(jobId: string): Promise<{ message: string }> {
 
 export async function cancelJob(jobId: string): Promise<{ message: string }> {
   return fetchAPI(`/jobs/${jobId}/cancel`, {
+    method: "POST",
+  });
+}
+
+// ============ Waveform API ============
+
+export async function getWaveform(
+  timelineId: string,
+  trackType: "original" | "dubbing" | "bgm" = "original"
+): Promise<WaveformData> {
+  return fetchAPI<WaveformData>(`/timelines/${timelineId}/waveform/${trackType}`);
+}
+
+export async function generateWaveform(
+  timelineId: string,
+  trackType: "original" | "dubbing" | "bgm" = "original"
+): Promise<{ timeline_id: string; track_type: string; status: string; message: string }> {
+  return fetchAPI(`/timelines/${timelineId}/waveform/generate?track_type=${trackType}`, {
     method: "POST",
   });
 }
