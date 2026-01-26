@@ -47,6 +47,11 @@ def set_jobs_dir(jobs_dir: Path) -> None:
     _jobs_dir = jobs_dir
 
 
+def _get_jobs_dir() -> Optional[Path]:
+    """Get the jobs directory."""
+    return _jobs_dir
+
+
 def set_thumbnail_worker(worker: ThumbnailWorker) -> None:
     """Set the thumbnail worker instance."""
     global _thumbnail_worker

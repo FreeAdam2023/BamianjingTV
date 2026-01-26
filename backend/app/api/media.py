@@ -10,7 +10,7 @@ from app.api.timelines import (
     _get_manager,
     _get_thumbnail_worker,
     _get_waveform_worker,
-    _jobs_dir,
+    _get_jobs_dir,
 )
 
 router = APIRouter(prefix="/timelines", tags=["media"])
@@ -79,11 +79,12 @@ async def generate_thumbnail_candidates(
     if not timeline:
         raise HTTPException(status_code=404, detail="Timeline not found")
 
-    if _jobs_dir is None:
+    jobs_dir = _get_jobs_dir()
+    if jobs_dir is None:
         raise HTTPException(status_code=500, detail="Jobs directory not configured")
 
     thumbnail_worker = _get_thumbnail_worker()
-    job_dir = _jobs_dir / timeline.job_id
+    job_dir = jobs_dir / timeline.job_id
     video_path = job_dir / "source" / "video.mp4"
 
     if not video_path.exists():
@@ -164,11 +165,12 @@ async def generate_thumbnail(
     if not timeline:
         raise HTTPException(status_code=404, detail="Timeline not found")
 
-    if _jobs_dir is None:
+    jobs_dir = _get_jobs_dir()
+    if jobs_dir is None:
         raise HTTPException(status_code=500, detail="Jobs directory not configured")
 
     thumbnail_worker = _get_thumbnail_worker()
-    job_dir = _jobs_dir / timeline.job_id
+    job_dir = jobs_dir / timeline.job_id
     video_path = job_dir / "source" / "video.mp4"
     output_dir = job_dir / "output"
 
@@ -276,11 +278,12 @@ async def get_waveform(
     if not timeline:
         raise HTTPException(status_code=404, detail="Timeline not found")
 
-    if _jobs_dir is None:
+    jobs_dir = _get_jobs_dir()
+    if jobs_dir is None:
         raise HTTPException(status_code=500, detail="Jobs directory not configured")
 
     waveform_worker = _get_waveform_worker()
-    job_dir = _jobs_dir / timeline.job_id
+    job_dir = jobs_dir / timeline.job_id
     peaks_path = job_dir / "waveforms" / f"{track_type}.json"
 
     # Try to load cached waveform
@@ -329,11 +332,12 @@ async def generate_waveform(
     if not timeline:
         raise HTTPException(status_code=404, detail="Timeline not found")
 
-    if _jobs_dir is None:
+    jobs_dir = _get_jobs_dir()
+    if jobs_dir is None:
         raise HTTPException(status_code=500, detail="Jobs directory not configured")
 
     waveform_worker = _get_waveform_worker()
-    job_dir = _jobs_dir / timeline.job_id
+    job_dir = jobs_dir / timeline.job_id
 
     try:
         # Generate waveform (this is relatively fast, so we do it synchronously)
