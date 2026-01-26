@@ -2,8 +2,84 @@
  * VideoControls - Playback controls bar
  */
 
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useState } from "react";
 import { formatDuration } from "@/lib/api";
+
+/**
+ * Chinese Language Selector - Dropdown with confirm button
+ */
+function ChineseLanguageSelector({
+  useTraditional,
+  converting,
+  segmentCount,
+  onConvert,
+}: {
+  useTraditional: boolean;
+  converting: boolean;
+  segmentCount: number;
+  onConvert: (toTraditional: boolean) => void;
+}) {
+  const [selectedValue, setSelectedValue] = useState<string>(
+    useTraditional ? "traditional" : "simplified"
+  );
+
+  // Check if selection differs from current state
+  const needsConversion =
+    (selectedValue === "traditional" && !useTraditional) ||
+    (selectedValue === "simplified" && useTraditional);
+
+  const handleConfirm = () => {
+    if (needsConversion && !converting) {
+      onConvert(selectedValue === "traditional");
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-1">
+      {/* Current status indicator */}
+      <span className="text-xs text-gray-400">
+        字幕:
+      </span>
+
+      {/* Dropdown */}
+      <select
+        value={selectedValue}
+        onChange={(e) => setSelectedValue(e.target.value)}
+        disabled={converting}
+        className="bg-gray-700 text-white text-sm px-2 py-1 rounded border-none outline-none cursor-pointer disabled:opacity-50"
+      >
+        <option value="simplified">简体中文</option>
+        <option value="traditional">繁體中文</option>
+      </select>
+
+      {/* Confirm button - only show when selection differs */}
+      {needsConversion && (
+        <button
+          onClick={handleConfirm}
+          disabled={converting}
+          className="px-2 py-1 text-sm bg-orange-500 hover:bg-orange-600 text-white rounded disabled:opacity-50 flex items-center gap-1"
+        >
+          {converting ? (
+            <>
+              <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              {segmentCount}条
+            </>
+          ) : (
+            "确定"
+          )}
+        </button>
+      )}
+
+      {/* Current state indicator when no change needed */}
+      {!needsConversion && !converting && (
+        <span className="text-xs text-green-400">✓</span>
+      )}
+    </div>
+  );
+}
 
 interface VideoControlsProps {
   isPlaying: boolean;
@@ -220,54 +296,14 @@ export default function VideoControls({
             Loop
           </button>
 
-          {/* Chinese 简/繁 Toggle */}
+          {/* Chinese Subtitle Language Selector */}
           {onConvertChinese && (
-            <div className="flex items-center gap-1">
-              {/* Converting status */}
-              {converting && segmentCount && (
-                <span className="text-xs text-orange-400 animate-pulse">
-                  {segmentCount}条...
-                </span>
-              )}
-              <div className="flex items-center bg-gray-700 rounded overflow-hidden">
-                <button
-                  onClick={() => onConvertChinese(false)}
-                  disabled={converting || !useTraditional}
-                  className={`px-2 py-1 text-sm transition-colors flex items-center gap-1 ${
-                    !useTraditional
-                      ? "bg-orange-500 text-white"
-                      : "text-gray-400 hover:text-white hover:bg-gray-600"
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                  title="Simplified Chinese"
-                >
-                  {converting && !useTraditional && (
-                    <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                  )}
-                  简
-                </button>
-                <button
-                  onClick={() => onConvertChinese(true)}
-                  disabled={converting || useTraditional}
-                  className={`px-2 py-1 text-sm transition-colors flex items-center gap-1 ${
-                    useTraditional
-                      ? "bg-orange-500 text-white"
-                      : "text-gray-400 hover:text-white hover:bg-gray-600"
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                  title="Traditional Chinese"
-                >
-                  {converting && useTraditional && (
-                    <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                  )}
-                  繁
-                </button>
-              </div>
-            </div>
+            <ChineseLanguageSelector
+              useTraditional={useTraditional ?? true}
+              converting={converting ?? false}
+              segmentCount={segmentCount ?? 0}
+              onConvert={onConvertChinese}
+            />
           )}
         </div>
       </div>
