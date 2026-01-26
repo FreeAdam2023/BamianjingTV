@@ -5,11 +5,11 @@
  * Handles redirect from Google OAuth and passes data back to backend
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
-export default function OAuthCallbackPage() {
+function OAuthCallbackContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [status, setStatus] = useState<"processing" | "success" | "error">("processing");
@@ -107,5 +107,22 @@ export default function OAuthCallbackPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function OAuthCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen flex items-center justify-center">
+          <div className="card max-w-md text-center">
+            <div className="spinner mx-auto mb-4" />
+            <h1 className="text-xl font-bold mb-2">Loading...</h1>
+          </div>
+        </main>
+      }
+    >
+      <OAuthCallbackContent />
+    </Suspense>
   );
 }

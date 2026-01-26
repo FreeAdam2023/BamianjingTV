@@ -25,7 +25,7 @@ import type {
   Channel,
 } from "@/lib/types";
 
-export default function ChannelsPage() {
+function ChannelsPageContent() {
   const searchParams = useSearchParams();
   const [channels, setChannels] = useState<ChannelSummary[]>([]);
   const [channelDetails, setChannelDetails] = useState<Record<string, Channel>>({});
@@ -744,5 +744,22 @@ export default function ChannelsPage() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function ChannelsPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="spinner mx-auto mb-4" />
+            <p className="text-gray-400">Loading channels...</p>
+          </div>
+        </main>
+      }
+    >
+      <ChannelsPageContent />
+    </Suspense>
   );
 }
