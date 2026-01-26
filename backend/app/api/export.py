@@ -11,7 +11,7 @@ from app.api.timelines import (
     _get_manager,
     _get_export_worker,
     _get_youtube_worker,
-    _jobs_dir,
+    _get_jobs_dir,
 )
 
 router = APIRouter(prefix="/timelines", tags=["export"])
@@ -53,10 +53,11 @@ async def trigger_export(
     )
 
     # Get video path from job
-    if _jobs_dir is None:
+    jobs_dir = _get_jobs_dir()
+    if jobs_dir is None:
         raise HTTPException(status_code=500, detail="Jobs directory not configured")
 
-    job_dir = _jobs_dir / timeline.job_id
+    job_dir = jobs_dir / timeline.job_id
     video_path = job_dir / "source" / "video.mp4"
 
     if not video_path.exists():
