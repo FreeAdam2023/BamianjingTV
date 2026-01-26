@@ -539,9 +539,8 @@ async def delete_job(job_id: str, delete_files: bool = True):
 
 @app.get("/jobs/{job_id}/video")
 async def get_job_video(job_id: str):
-    """Download the source video for a job."""
+    """Stream the source video for a job (for playback in video element)."""
     from fastapi.responses import FileResponse
-    from urllib.parse import quote
 
     job = job_manager.get_job(job_id)
     if not job:
@@ -554,17 +553,10 @@ async def get_job_video(job_id: str):
     if not video_path.exists():
         raise HTTPException(status_code=404, detail="Video file not found")
 
-    # Use title for filename, fallback to job_id
-    safe_title = (job.title or job_id).replace("/", "_").replace("\\", "_")[:100]
-    filename = f"{safe_title}_original.mp4"
-    # URL-encode for Content-Disposition header (RFC 5987)
-    filename_encoded = quote(filename)
-
+    # Return video for inline playback (no Content-Disposition: attachment)
     return FileResponse(
         video_path,
         media_type="video/mp4",
-        filename=filename,
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"}
     )
 
 
