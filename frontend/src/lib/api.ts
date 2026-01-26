@@ -13,6 +13,9 @@ import type {
   JobCreate,
   SegmentState,
   WaveformData,
+  ThumbnailCandidatesResponse,
+  ThumbnailGenerateRequest,
+  ThumbnailResponse,
 } from "./types";
 
 // Get API URL: use env var or derive from current host with port 8000
@@ -137,16 +140,31 @@ export async function triggerExport(
   });
 }
 
+export async function generateThumbnailCandidates(
+  timelineId: string,
+  numCandidates = 6
+): Promise<ThumbnailCandidatesResponse> {
+  return fetchAPI(`/timelines/${timelineId}/thumbnail/candidates?num_candidates=${numCandidates}`, {
+    method: "POST",
+  });
+}
+
 export async function generateThumbnail(
-  timelineId: string
-): Promise<{ timeline_id: string; thumbnail_url: string; message: string }> {
+  timelineId: string,
+  request?: ThumbnailGenerateRequest
+): Promise<ThumbnailResponse> {
   return fetchAPI(`/timelines/${timelineId}/thumbnail`, {
     method: "POST",
+    body: request ? JSON.stringify(request) : undefined,
   });
 }
 
 export function getThumbnailUrl(jobId: string, filename: string): string {
   return `${API_BASE || ""}/jobs/${jobId}/thumbnail/${filename}`;
+}
+
+export function getCandidateUrl(jobId: string, filename: string): string {
+  return `${API_BASE || ""}/jobs/${jobId}/thumbnail/candidates/${filename}`;
 }
 
 // ============ Job API ============

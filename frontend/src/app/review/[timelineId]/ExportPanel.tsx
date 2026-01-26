@@ -5,8 +5,8 @@
  */
 
 import { useState } from "react";
-import type { ExportProfile, ExportRequest, Timeline } from "@/lib/types";
-import { generateThumbnail } from "@/lib/api";
+import type { ExportProfile, ExportRequest, Timeline, ThumbnailCandidate } from "@/lib/types";
+import { generateThumbnail, generateThumbnailCandidates } from "@/lib/api";
 
 interface ExportPanelProps {
   timeline: Timeline;
@@ -29,6 +29,12 @@ export default function ExportPanel({ timeline, onClose, onExport }: ExportPanel
   // Thumbnail generation
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [generatingThumbnail, setGeneratingThumbnail] = useState(false);
+
+  // Candidate screenshots
+  const [candidates, setCandidates] = useState<ThumbnailCandidate[]>([]);
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
+  const [selectedCandidateIndex, setSelectedCandidateIndex] = useState<number | null>(null);
+  const [customTimestamp, setCustomTimestamp] = useState<string>("");
 
   const handleExport = async () => {
     setExporting(true);
@@ -59,18 +65,54 @@ export default function ExportPanel({ timeline, onClose, onExport }: ExportPanel
     }
   };
 
+  const getBaseUrl = () => {
+    const { protocol, hostname } = window.location;
+    return `${protocol}//${hostname}:8000`;
+  };
+
+  const handleLoadCandidates = async () => {
+    setLoadingCandidates(true);
+    try {
+      const result = await generateThumbnailCandidates(timeline.timeline_id);
+      setCandidates(result.candidates);
+      setSelectedCandidateIndex(null);
+      setCustomTimestamp("");
+    } catch (err) {
+      alert("Failed to load candidates: " + (err instanceof Error ? err.message : "Unknown error"));
+    } finally {
+      setLoadingCandidates(false);
+    }
+  };
+
   const handleGenerateThumbnail = async () => {
     setGeneratingThumbnail(true);
     try {
-      const result = await generateThumbnail(timeline.timeline_id);
-      const { protocol, hostname } = window.location;
-      const baseUrl = `${protocol}//${hostname}:8000`;
-      setThumbnailUrl(`${baseUrl}${result.thumbnail_url}`);
+      // Determine request parameters
+      const request: { timestamp?: number; candidate_index?: number } = {};
+
+      if (selectedCandidateIndex !== null) {
+        request.candidate_index = selectedCandidateIndex;
+      } else if (customTimestamp) {
+        const ts = parseFloat(customTimestamp);
+        if (!isNaN(ts) && ts >= 0 && ts <= timeline.source_duration) {
+          request.timestamp = ts;
+        }
+      }
+      // If nothing selected, backend will auto-analyze
+
+      const result = await generateThumbnail(timeline.timeline_id, Object.keys(request).length > 0 ? request : undefined);
+      setThumbnailUrl(`${getBaseUrl()}${result.thumbnail_url}`);
     } catch (err) {
       alert("Thumbnail generation failed: " + (err instanceof Error ? err.message : "Unknown error"));
     } finally {
       setGeneratingThumbnail(false);
     }
+  };
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
   return (
@@ -196,9 +238,96 @@ export default function ExportPanel({ timeline, onClose, onExport }: ExportPanel
           <div className="flex items-center justify-between mb-3">
             <span className="font-medium">Video Thumbnail</span>
             <button
+              onClick={handleLoadCandidates}
+              disabled={loadingCandidates}
+              className="px-3 py-1 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 rounded flex items-center gap-2"
+            >
+              {loadingCandidates ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Loading...
+                </>
+              ) : candidates.length > 0 ? (
+                "Refresh Candidates"
+              ) : (
+                "Load Screenshot Candidates"
+              )}
+            </button>
+          </div>
+
+          {/* Candidate Grid */}
+          {candidates.length > 0 && (
+            <div className="mb-4">
+              <p className="text-xs text-gray-400 mb-2">Select a screenshot as base:</p>
+              <div className="grid grid-cols-3 gap-2">
+                {candidates.map((c) => (
+                  <button
+                    key={c.index}
+                    onClick={() => {
+                      setSelectedCandidateIndex(c.index);
+                      setCustomTimestamp("");
+                    }}
+                    className={`relative rounded overflow-hidden border-2 transition-colors ${
+                      selectedCandidateIndex === c.index
+                        ? "border-purple-500"
+                        : "border-transparent hover:border-gray-500"
+                    }`}
+                  >
+                    <img
+                      src={`${getBaseUrl()}${c.url}`}
+                      alt={`Candidate ${c.index}`}
+                      className="w-full aspect-video object-cover"
+                    />
+                    <span className="absolute bottom-0 left-0 right-0 bg-black/70 text-xs text-center py-0.5">
+                      {formatTime(c.timestamp)}
+                    </span>
+                    {selectedCandidateIndex === c.index && (
+                      <div className="absolute inset-0 bg-purple-500/20 flex items-center justify-center">
+                        <svg className="w-8 h-8 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Custom Timestamp Input */}
+          <div className="mb-4">
+            <label className="block text-xs text-gray-400 mb-1">
+              Or enter custom timestamp (seconds):
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                value={customTimestamp}
+                onChange={(e) => {
+                  setCustomTimestamp(e.target.value);
+                  setSelectedCandidateIndex(null);
+                }}
+                placeholder={`0 - ${Math.floor(timeline.source_duration)}`}
+                min={0}
+                max={timeline.source_duration}
+                step={0.1}
+                className="flex-1 bg-gray-700 rounded px-3 py-2 text-sm"
+              />
+              <span className="text-xs text-gray-500 self-center">
+                / {formatTime(timeline.source_duration)}
+              </span>
+            </div>
+          </div>
+
+          {/* Generate Button */}
+          <div className="flex items-center gap-2 mb-3">
+            <button
               onClick={handleGenerateThumbnail}
               disabled={generatingThumbnail}
-              className="px-3 py-1 text-sm bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 rounded flex items-center gap-2"
+              className="flex-1 px-3 py-2 text-sm bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 rounded flex items-center justify-center gap-2"
             >
               {generatingThumbnail ? (
                 <>
@@ -209,25 +338,27 @@ export default function ExportPanel({ timeline, onClose, onExport }: ExportPanel
                   Generating...
                 </>
               ) : thumbnailUrl ? (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  Regenerate
-                </>
+                "Regenerate with Selection"
               ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  Generate Thumbnail
-                </>
+                "Generate Thumbnail"
               )}
             </button>
+            {selectedCandidateIndex !== null && (
+              <span className="text-xs text-purple-400">Using candidate #{selectedCandidateIndex}</span>
+            )}
+            {customTimestamp && !selectedCandidateIndex && (
+              <span className="text-xs text-purple-400">Using {customTimestamp}s</span>
+            )}
+            {!selectedCandidateIndex && !customTimestamp && (
+              <span className="text-xs text-gray-500">AI auto-select</span>
+            )}
           </div>
+
           <p className="text-xs text-gray-500 mb-3">
-            AI-generated YouTube-style thumbnail based on video content
+            Large Chinese text overlay added automatically
           </p>
+
+          {/* Generated Thumbnail Preview */}
           {thumbnailUrl && (
             <div className="relative rounded-lg overflow-hidden bg-gray-900">
               <img
@@ -247,8 +378,10 @@ export default function ExportPanel({ timeline, onClose, onExport }: ExportPanel
             </div>
           )}
           {!thumbnailUrl && !generatingThumbnail && (
-            <div className="border-2 border-dashed border-gray-600 rounded-lg aspect-video flex items-center justify-center text-gray-500">
-              <span>Click "Generate Thumbnail" to create</span>
+            <div className="border-2 border-dashed border-gray-600 rounded-lg aspect-video flex items-center justify-center text-gray-500 text-sm">
+              {candidates.length > 0
+                ? "Select a candidate or enter timestamp, then click Generate"
+                : "Load candidates or click Generate for AI auto-selection"}
             </div>
           )}
         </div>

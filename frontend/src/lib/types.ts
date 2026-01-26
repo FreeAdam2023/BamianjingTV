@@ -73,6 +73,32 @@ export interface ExportRequest {
   youtube_privacy?: "private" | "unlisted" | "public";
 }
 
+// Thumbnail Types
+export interface ThumbnailCandidate {
+  index: number;
+  timestamp: number;
+  filename: string;
+  url: string;
+}
+
+export interface ThumbnailCandidatesResponse {
+  timeline_id: string;
+  candidates: ThumbnailCandidate[];
+  duration: number;
+  message: string;
+}
+
+export interface ThumbnailGenerateRequest {
+  timestamp?: number;  // Custom timestamp
+  candidate_index?: number;  // Use candidate frame
+}
+
+export interface ThumbnailResponse {
+  timeline_id: string;
+  thumbnail_url: string;
+  message: string;
+}
+
 export interface Job {
   id: string;
   url: string;

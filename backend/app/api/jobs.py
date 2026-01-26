@@ -237,6 +237,22 @@ async def get_thumbnail(job_id: str, filename: str):
     )
 
 
+@router.get("/jobs/{job_id}/thumbnail/candidates/{filename}")
+async def get_thumbnail_candidate(job_id: str, filename: str):
+    """Get a thumbnail candidate screenshot image."""
+    job_dir = settings.jobs_dir / job_id
+    candidate_path = job_dir / "output" / "thumbnail_candidates" / filename
+
+    if not candidate_path.exists():
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    return FileResponse(
+        candidate_path,
+        media_type="image/jpeg",
+        filename=filename,
+    )
+
+
 @router.post("/jobs/{job_id}/retry")
 async def retry_job(job_id: str):
     """Retry a failed job."""

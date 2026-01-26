@@ -184,6 +184,81 @@ class ThumbnailWorker:
             logger.error(f"Failed to generate clickbait title: {e}")
             return "精彩內容", "不容錯過"
 
+    def get_video_duration(self, video_path: Path) -> Optional[float]:
+        """Get video duration in seconds using ffprobe.
+
+        Args:
+            video_path: Path to video file
+
+        Returns:
+            Duration in seconds or None if failed
+        """
+        cmd = [
+            "ffprobe",
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            str(video_path),
+        ]
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                return float(result.stdout.strip())
+        except Exception as e:
+            logger.error(f"Failed to get video duration: {e}")
+        return None
+
+    def extract_candidate_frames(
+        self,
+        video_path: Path,
+        output_dir: Path,
+        num_candidates: int = 6,
+        duration: Optional[float] = None,
+    ) -> List[dict]:
+        """Extract multiple candidate frames at different timestamps.
+
+        Args:
+            video_path: Path to video file
+            output_dir: Directory to save frames
+            num_candidates: Number of candidates to generate (default 6)
+            duration: Video duration (will be auto-detected if not provided)
+
+        Returns:
+            List of dicts with 'timestamp', 'path', 'filename', 'url' keys
+        """
+        video_path = Path(video_path)
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        if duration is None:
+            duration = self.get_video_duration(video_path)
+            if duration is None:
+                logger.error("Could not determine video duration")
+                return []
+
+        # Generate timestamps at evenly distributed points (avoiding very start/end)
+        # e.g., for 6 candidates: 10%, 25%, 40%, 55%, 70%, 85%
+        candidates = []
+        for i in range(num_candidates):
+            pct = 0.10 + (i * 0.75 / (num_candidates - 1))  # 10% to 85%
+            timestamp = duration * pct
+
+            filename = f"candidate_{i+1}_{int(timestamp)}s.jpg"
+            output_path = output_dir / filename
+
+            result = self.extract_frame(video_path, timestamp, output_path)
+            if result:
+                candidates.append({
+                    "index": i + 1,
+                    "timestamp": round(timestamp, 2),
+                    "path": str(output_path),
+                    "filename": filename,
+                })
+                logger.info(f"Extracted candidate {i+1} at {timestamp:.1f}s")
+
+        return candidates
+
     def extract_frame(
         self,
         video_path: Path,
@@ -289,10 +364,10 @@ class ThumbnailWorker:
                         continue
             return ImageFont.load_default()
 
-        # Fonts
-        main_font = load_font(72)
-        sub_font = load_font(64)
-        badge_font = load_font(36)
+        # Fonts - Large text for impact (half-screen coverage)
+        main_font = load_font(140)  # Much larger for visibility
+        sub_font = load_font(100)   # Larger sub text
+        badge_font = load_font(42)
 
         # Colors
         yellow = (255, 255, 0)
@@ -317,16 +392,17 @@ class ThumbnailWorker:
                         draw.text((x + dx, y + dy), text, font=font, fill=outline_color)
             draw.text(position, text, font=font, fill=fill_color)
 
-        # Draw main title (yellow, center-bottom area)
+        # Draw main title (yellow, center area - large and impactful)
         main_bbox = draw.textbbox((0, 0), main_title, font=main_font)
         main_width = main_bbox[2] - main_bbox[0]
+        main_height = main_bbox[3] - main_bbox[1]
         main_x = (YOUTUBE_WIDTH - main_width) // 2
-        main_y = YOUTUBE_HEIGHT - 220
+        main_y = YOUTUBE_HEIGHT - 300  # Higher position for larger text
 
-        draw_text_with_outline(draw, (main_x, main_y), main_title, main_font, yellow, outline_width=4)
+        draw_text_with_outline(draw, (main_x, main_y), main_title, main_font, yellow, outline_width=6)
 
-        # Draw blue bar at bottom
-        bar_height = 90
+        # Draw blue bar at bottom (taller for larger text)
+        bar_height = 130
         bar_y = YOUTUBE_HEIGHT - bar_height
         draw.rectangle([(0, bar_y), (YOUTUBE_WIDTH, YOUTUBE_HEIGHT)], fill=blue)
 
@@ -334,7 +410,7 @@ class ThumbnailWorker:
         sub_bbox = draw.textbbox((0, 0), sub_title, font=sub_font)
         sub_width = sub_bbox[2] - sub_bbox[0]
         sub_x = (YOUTUBE_WIDTH - sub_width) // 2
-        sub_y = bar_y + (bar_height - (sub_bbox[3] - sub_bbox[1])) // 2 - 5
+        sub_y = bar_y + (bar_height - (sub_bbox[3] - sub_bbox[1])) // 2 - 8
 
         draw.text((sub_x, sub_y), sub_title, font=sub_font, fill=white)
 
@@ -352,6 +428,65 @@ class ThumbnailWorker:
         img.save(output, format="PNG", quality=95)
         return output.getvalue()
 
+    async def generate_from_frame(
+        self,
+        title: str,
+        subtitles: List[dict],
+        frame_path: Path,
+        output_dir: Path,
+        filename: Optional[str] = None,
+        main_title: Optional[str] = None,
+        sub_title: Optional[str] = None,
+    ) -> Optional[Path]:
+        """Generate thumbnail from an existing frame image.
+
+        Args:
+            title: Video title (used for generating titles if not provided)
+            subtitles: List of subtitle dicts (used for generating titles if not provided)
+            frame_path: Path to source frame image
+            output_dir: Directory to save thumbnail
+            filename: Optional filename
+            main_title: Optional pre-generated main title
+            sub_title: Optional pre-generated sub title
+
+        Returns:
+            Path to generated thumbnail or None
+        """
+        frame_path = Path(frame_path)
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        if not frame_path.exists():
+            logger.error(f"Frame not found: {frame_path}")
+            return None
+
+        # Generate titles if not provided
+        if not main_title or not sub_title:
+            if self.enabled:
+                logger.info("Generating clickbait titles...")
+                main_title, sub_title = await self.generate_clickbait_title(title, subtitles)
+            else:
+                main_title = main_title or "精彩內容"
+                sub_title = sub_title or "不容錯過"
+
+        logger.info(f"Titles: {main_title} / {sub_title}")
+
+        # Add text overlays
+        logger.info("Adding text overlays...")
+        final_image = self.add_text_overlay(frame_path, main_title, sub_title)
+
+        # Save final image
+        if not filename:
+            content_hash = hashlib.md5(f"{title}{main_title}".encode()).hexdigest()[:8]
+            filename = f"thumbnail_{content_hash}.png"
+
+        output_path = output_dir / filename
+        with open(output_path, "wb") as f:
+            f.write(final_image)
+
+        logger.info(f"Generated thumbnail from frame: {output_path}")
+        return output_path
+
     async def generate_for_timeline(
         self,
         title: str,
@@ -359,6 +494,7 @@ class ThumbnailWorker:
         video_path: Path,
         output_dir: Path,
         filename: Optional[str] = None,
+        timestamp: Optional[float] = None,
     ) -> Optional[Path]:
         """Generate a YouTube-style thumbnail for a timeline.
 
@@ -368,6 +504,7 @@ class ThumbnailWorker:
             video_path: Path to source video
             output_dir: Directory to save thumbnail
             filename: Optional filename
+            timestamp: Optional specific timestamp for frame extraction
 
         Returns:
             Path to generated thumbnail or None
@@ -384,9 +521,12 @@ class ThumbnailWorker:
             logger.error(f"Video file not found: {video_path}")
             return None
 
-        # Step 1: Analyze subtitles to find best moment
-        logger.info("Analyzing emotional moments...")
-        timestamp, reason = await self.analyze_emotional_moments(subtitles)
+        # Step 1: Get timestamp (use provided or analyze for best moment)
+        if timestamp is not None:
+            logger.info(f"Using user-specified timestamp: {timestamp}s")
+        else:
+            logger.info("Analyzing emotional moments...")
+            timestamp, reason = await self.analyze_emotional_moments(subtitles)
 
         # Step 2: Generate clickbait titles
         logger.info("Generating clickbait titles...")
