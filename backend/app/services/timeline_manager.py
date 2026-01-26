@@ -1,6 +1,7 @@
 """Timeline manager service for review UI."""
 
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 from loguru import logger
@@ -323,6 +324,20 @@ class TimelineManager:
         logger.info(f"Set YouTube info for timeline {timeline_id}: {url}")
 
         return True
+
+    def save_timeline(self, timeline: Timeline) -> None:
+        """Save a timeline that has been modified externally.
+
+        Args:
+            timeline: Timeline object to save
+
+        Use this when you've modified a timeline object directly
+        (e.g., converting Chinese subtitles) and need to persist changes.
+        """
+        timeline.updated_at = datetime.utcnow()
+        self._cache[timeline.timeline_id] = timeline
+        self._save_timeline(timeline)
+        logger.info(f"Saved timeline {timeline.timeline_id}")
 
     def delete_timeline(self, timeline_id: str) -> bool:
         """Delete a timeline.
