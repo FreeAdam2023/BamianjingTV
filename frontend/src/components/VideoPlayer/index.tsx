@@ -10,6 +10,8 @@ import { useVideoState } from "./useVideoState";
 import SubtitleOverlay from "./SubtitleOverlay";
 import VideoControls from "./VideoControls";
 
+export type VideoMode = "source" | "export_full" | "export_essence";
+
 interface VideoPlayerProps {
   jobId: string;
   segments: EditableSegment[];
@@ -22,6 +24,11 @@ interface VideoPlayerProps {
   useTraditional?: boolean;
   converting?: boolean;
   onConvertChinese?: (toTraditional: boolean) => void;
+  // Video mode for preview
+  videoMode?: VideoMode;
+  onVideoModeChange?: (mode: VideoMode) => void;
+  hasExportFull?: boolean;
+  hasExportEssence?: boolean;
 }
 
 export interface VideoPlayerRef {
@@ -43,6 +50,10 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   useTraditional,
   converting,
   onConvertChinese,
+  videoMode = "source",
+  onVideoModeChange,
+  hasExportFull = false,
+  hasExportEssence = false,
 }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -280,15 +291,26 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     ? segments.find((s) => s.id === currentSegmentId)
     : findSegmentAtTime(currentTime);
 
-  // Video source URL
+  // Video source URL based on mode
   const getVideoUrl = () => {
     if (typeof window !== "undefined") {
       const { protocol, hostname } = window.location;
-      return `${protocol}//${hostname}:8000/jobs/${jobId}/video`;
+      const base = `${protocol}//${hostname}:8000`;
+      switch (videoMode) {
+        case "export_full":
+          return `${base}/jobs/${jobId}/video/preview/full`;
+        case "export_essence":
+          return `${base}/jobs/${jobId}/video/preview/essence`;
+        default:
+          return `${base}/jobs/${jobId}/video`;
+      }
     }
     return `/api/jobs/${jobId}/video`;
   };
   const videoUrl = getVideoUrl();
+
+  // Check if we're in preview mode (showing exported video)
+  const isPreviewMode = videoMode !== "source";
 
   return (
     <div
@@ -306,11 +328,22 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         <video
           ref={videoRef}
           src={videoUrl}
+          key={videoUrl} // Force remount when URL changes
           className="w-full h-full object-contain cursor-pointer bg-black"
           preload="auto"
           onClick={toggle}
           playsInline
         />
+        {/* Preview mode indicator */}
+        {isPreviewMode && (
+          <div className={`absolute top-3 right-3 px-2 py-1 rounded text-xs font-medium ${
+            videoMode === "export_full"
+              ? "bg-green-600 text-white"
+              : "bg-purple-600 text-white"
+          }`}>
+            {videoMode === "export_full" ? "Preview: Full Export" : "Preview: Essence"}
+          </div>
+        )}
         {/* Watermark overlay */}
         {watermarkUrl && (
           <div className="absolute top-3 left-3 pointer-events-none">
@@ -355,6 +388,10 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         converting={converting}
         segmentCount={segments.length}
         onConvertChinese={onConvertChinese}
+        videoMode={videoMode}
+        onVideoModeChange={onVideoModeChange}
+        hasExportFull={hasExportFull}
+        hasExportEssence={hasExportEssence}
         onTogglePlay={toggle}
         onSeek={seekTo}
         onVolumeChange={handleVolumeChange}

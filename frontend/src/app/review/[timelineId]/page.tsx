@@ -7,7 +7,7 @@
 import { useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import VideoPlayer, { VideoPlayerRef } from "@/components/VideoPlayer";
+import VideoPlayer, { VideoPlayerRef, VideoMode } from "@/components/VideoPlayer";
 import SegmentList from "@/components/SegmentList";
 import { TimelineEditor } from "@/components/timeline";
 import { useTimeline } from "@/hooks/useTimeline";
@@ -47,6 +47,7 @@ export default function ReviewPage() {
   const [currentVideoTime, setCurrentVideoTime] = useState(0);
   const [coverFrameTime, setCoverFrameTime] = useState<number | null>(null);
   const [coverFrameUrl, setCoverFrameUrl] = useState<string | null>(null);
+  const [videoMode, setVideoMode] = useState<VideoMode>("source");
 
   // Waveform data for timeline
   const { tracks: waveformTracks, generateTrack: generateWaveform } = useMultiTrackWaveform(timelineId);
@@ -185,6 +186,8 @@ export default function ReviewPage() {
         title={timeline.source_title}
         saving={saving}
         stats={stats}
+        timelineId={timeline.timeline_id}
+        exportStatus={timeline.export_status}
         onExportClick={() => setShowExportPanel(true)}
       />
 
@@ -205,6 +208,10 @@ export default function ReviewPage() {
               useTraditional={timeline.use_traditional_chinese}
               converting={converting}
               onConvertChinese={handleConvertChinese}
+              videoMode={videoMode}
+              onVideoModeChange={setVideoMode}
+              hasExportFull={!!timeline.output_full_path}
+              hasExportEssence={!!timeline.output_essence_path}
             />
           </div>
 

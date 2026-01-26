@@ -23,6 +23,16 @@ class ExportProfile(str, Enum):
     BOTH = "both"  # Export both versions
 
 
+class ExportStatus(str, Enum):
+    """Export task status."""
+
+    IDLE = "idle"  # No export running
+    EXPORTING = "exporting"  # Rendering video with subtitles
+    UPLOADING = "uploading"  # Uploading to YouTube
+    COMPLETED = "completed"  # Export finished successfully
+    FAILED = "failed"  # Export failed
+
+
 class EditableSegment(BaseModel):
     """An editable transcript segment for review."""
 
@@ -89,6 +99,20 @@ class Timeline(BaseModel):
     # YouTube upload results
     youtube_video_id: Optional[str] = None
     youtube_url: Optional[str] = None
+
+    # Export progress tracking
+    export_status: ExportStatus = ExportStatus.IDLE
+    export_progress: float = 0.0  # 0-100 percentage
+    export_message: Optional[str] = None  # Current step description
+    export_error: Optional[str] = None  # Error message if failed
+    export_started_at: Optional[datetime] = None
+
+    # AI-generated metadata drafts (saved to avoid re-generation)
+    draft_youtube_title: Optional[str] = None
+    draft_youtube_description: Optional[str] = None
+    draft_youtube_tags: Optional[List[str]] = None
+    draft_thumbnail_candidates: Optional[List[dict]] = None  # List of {main, sub, style}
+    draft_instruction: Optional[str] = None  # User's AI instruction
 
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.now)
@@ -213,5 +237,10 @@ class TimelineSummary(BaseModel):
     undecided_count: int
     review_progress: float
     is_reviewed: bool
+    # Export status
+    export_status: ExportStatus = ExportStatus.IDLE
+    export_progress: float = 0.0
+    export_message: Optional[str] = None
+    # Timestamps
     created_at: datetime
     updated_at: datetime

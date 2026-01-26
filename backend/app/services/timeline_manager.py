@@ -10,6 +10,7 @@ from app.config import settings
 from app.models.timeline import (
     EditableSegment,
     ExportProfile,
+    ExportStatus,
     SegmentState,
     SegmentUpdate,
     Timeline,
@@ -158,6 +159,9 @@ class TimelineManager:
                     undecided_count=timeline.undecided_count,
                     review_progress=timeline.review_progress,
                     is_reviewed=timeline.is_reviewed,
+                    export_status=timeline.export_status,
+                    export_progress=timeline.export_progress,
+                    export_message=timeline.export_message,
                     created_at=timeline.created_at,
                     updated_at=timeline.updated_at,
                 )
@@ -324,6 +328,68 @@ class TimelineManager:
         logger.info(f"Set YouTube info for timeline {timeline_id}: {url}")
 
         return True
+
+    def update_export_status(
+        self,
+        timeline_id: str,
+        status: ExportStatus,
+        progress: float = 0.0,
+        message: Optional[str] = None,
+        error: Optional[str] = None,
+    ) -> bool:
+        """Update export progress for a timeline.
+
+        Args:
+            timeline_id: Timeline ID
+            status: Export status (IDLE, EXPORTING, UPLOADING, COMPLETED, FAILED)
+            progress: Export progress percentage (0-100)
+            message: Current step description
+            error: Error message if failed
+
+        Returns:
+            True if successful, False if timeline not found
+        """
+        timeline = self.get_timeline(timeline_id)
+        if not timeline:
+            return False
+
+        timeline.export_status = status
+        timeline.export_progress = progress
+        timeline.export_message = message
+        timeline.export_error = error
+
+        # Set start time when export begins
+        if status == ExportStatus.EXPORTING and timeline.export_started_at is None:
+            timeline.export_started_at = datetime.utcnow()
+
+        # Clear start time when completed or failed
+        if status in (ExportStatus.COMPLETED, ExportStatus.FAILED):
+            timeline.export_started_at = None
+
+        self._save_timeline(timeline)
+        logger.info(
+            f"Export status for timeline {timeline_id}: "
+            f"{status.value} ({progress:.0f}%) - {message or 'N/A'}"
+        )
+
+        return True
+
+    def reset_export_status(self, timeline_id: str) -> bool:
+        """Reset export status to idle.
+
+        Args:
+            timeline_id: Timeline ID
+
+        Returns:
+            True if successful, False if timeline not found
+        """
+        return self.update_export_status(
+            timeline_id,
+            status=ExportStatus.IDLE,
+            progress=0.0,
+            message=None,
+            error=None,
+        )
 
     def save_timeline(self, timeline: Timeline) -> None:
         """Save a timeline that has been modified externally.

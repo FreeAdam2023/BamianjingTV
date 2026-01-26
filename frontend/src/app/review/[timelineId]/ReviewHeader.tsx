@@ -5,6 +5,8 @@
  */
 
 import Link from "next/link";
+import type { ExportStatus } from "@/lib/types";
+import ExportStatusIndicator from "./ExportStatusIndicator";
 
 interface ReviewStats {
   keep: number;
@@ -18,6 +20,8 @@ interface ReviewHeaderProps {
   title: string;
   saving: boolean;
   stats: ReviewStats | null;
+  timelineId: string;
+  exportStatus?: ExportStatus;
   onExportClick: () => void;
 }
 
@@ -25,6 +29,8 @@ export default function ReviewHeader({
   title,
   saving,
   stats,
+  timelineId,
+  exportStatus = "idle",
   onExportClick,
 }: ReviewHeaderProps) {
   return (
@@ -38,6 +44,14 @@ export default function ReviewHeader({
       </div>
 
       <div className="flex items-center gap-4">
+        {/* Export Status Indicator */}
+        {exportStatus !== "idle" && (
+          <ExportStatusIndicator
+            timelineId={timelineId}
+            initialStatus={exportStatus}
+          />
+        )}
+
         {/* Stats */}
         {stats && (
           <div className="text-sm">

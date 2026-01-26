@@ -43,6 +43,7 @@ from app.api import (
     jobs_router,
     queue_router,
     cleanup_router,
+    channels_router,
     # Setup functions
     set_source_manager,
     set_item_manager,
@@ -221,6 +222,7 @@ app.include_router(media_router)
 app.include_router(jobs_router)
 app.include_router(queue_router)
 app.include_router(cleanup_router)
+app.include_router(channels_router)
 
 
 # ============ Root Endpoints ============

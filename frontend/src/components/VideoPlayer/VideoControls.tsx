@@ -81,6 +81,8 @@ function ChineseLanguageSelector({
   );
 }
 
+type VideoMode = "source" | "export_full" | "export_essence";
+
 interface VideoControlsProps {
   isPlaying: boolean;
   currentTime: number;
@@ -95,6 +97,11 @@ interface VideoControlsProps {
   converting?: boolean;
   segmentCount?: number;
   onConvertChinese?: (toTraditional: boolean) => void;
+  // Video mode for preview
+  videoMode?: VideoMode;
+  onVideoModeChange?: (mode: VideoMode) => void;
+  hasExportFull?: boolean;
+  hasExportEssence?: boolean;
   // Handlers
   onTogglePlay: () => void;
   onSeek: (time: number) => void;
@@ -119,6 +126,10 @@ export default function VideoControls({
   converting,
   segmentCount,
   onConvertChinese,
+  videoMode = "source",
+  onVideoModeChange,
+  hasExportFull = false,
+  hasExportEssence = false,
   onTogglePlay,
   onSeek,
   onVolumeChange,
@@ -281,6 +292,49 @@ export default function VideoControls({
               </svg>
               {coverFrameTime !== null ? `Cover @${formatDuration(coverFrameTime)}` : "Set Cover"}
             </button>
+          )}
+
+          {/* Video Mode Selector - Preview exported videos */}
+          {(hasExportFull || hasExportEssence) && onVideoModeChange && (
+            <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-0.5">
+              <button
+                onClick={() => onVideoModeChange("source")}
+                className={`text-xs px-2 py-1 rounded transition-colors ${
+                  videoMode === "source"
+                    ? "bg-gray-600 text-white"
+                    : "text-gray-400 hover:text-white"
+                }`}
+                title="View source video"
+              >
+                Source
+              </button>
+              {hasExportFull && (
+                <button
+                  onClick={() => onVideoModeChange("export_full")}
+                  className={`text-xs px-2 py-1 rounded transition-colors ${
+                    videoMode === "export_full"
+                      ? "bg-green-600 text-white"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                  title="Preview full export with subtitles"
+                >
+                  Full
+                </button>
+              )}
+              {hasExportEssence && (
+                <button
+                  onClick={() => onVideoModeChange("export_essence")}
+                  className={`text-xs px-2 py-1 rounded transition-colors ${
+                    videoMode === "export_essence"
+                      ? "bg-purple-600 text-white"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                  title="Preview essence export (KEEP segments only)"
+                >
+                  Essence
+                </button>
+              )}
+            </div>
           )}
 
           {/* Loop toggle */}

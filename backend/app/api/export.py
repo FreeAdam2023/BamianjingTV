@@ -6,7 +6,7 @@ from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
-from app.models.timeline import TimelineExportRequest
+from app.models.timeline import ExportStatus, TimelineExportRequest
 from app.api.timelines import (
     _get_manager,
     _get_export_worker,
@@ -29,6 +29,41 @@ class ExportResultResponse(BaseModel):
     timeline_id: str
     full_video_path: Optional[str] = None
     essence_video_path: Optional[str] = None
+
+
+class ExportStatusResponse(BaseModel):
+    """Response for export status check."""
+    timeline_id: str
+    status: ExportStatus
+    progress: float
+    message: Optional[str] = None
+    error: Optional[str] = None
+    youtube_url: Optional[str] = None
+    full_video_path: Optional[str] = None
+    essence_video_path: Optional[str] = None
+
+
+@router.get("/{timeline_id}/export/status", response_model=ExportStatusResponse)
+async def get_export_status(timeline_id: str):
+    """Get current export status for a timeline.
+
+    Use this endpoint to poll for export progress.
+    """
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    return ExportStatusResponse(
+        timeline_id=timeline_id,
+        status=timeline.export_status,
+        progress=timeline.export_progress,
+        message=timeline.export_message,
+        error=timeline.export_error,
+        youtube_url=timeline.youtube_url,
+        full_video_path=timeline.output_full_path,
+        essence_video_path=timeline.output_essence_path,
+    )
 
 
 @router.post("/{timeline_id}/export", response_model=ExportResponse)
@@ -108,7 +143,22 @@ async def _run_export(
         return
 
     try:
+        # Initialize export status
+        manager.update_export_status(
+            timeline_id,
+            status=ExportStatus.EXPORTING,
+            progress=0.0,
+            message="Preparing export...",
+        )
+
         # Step 1: Export video with subtitles
+        manager.update_export_status(
+            timeline_id,
+            status=ExportStatus.EXPORTING,
+            progress=10.0,
+            message="Generating subtitles...",
+        )
+
         full_path, essence_path = await export_worker.export(
             timeline=timeline,
             video_path=video_path,
@@ -122,6 +172,13 @@ async def _run_export(
             essence_path=str(essence_path) if essence_path else None,
         )
 
+        manager.update_export_status(
+            timeline_id,
+            status=ExportStatus.EXPORTING,
+            progress=70.0,
+            message="Video rendering complete",
+        )
+
         logger.info(f"Export completed for timeline {timeline_id}")
 
         # Step 2: Upload to YouTube if requested
@@ -132,6 +189,13 @@ async def _run_export(
             title = youtube_title or timeline.source_title
             description = youtube_description or f"Original: {timeline.source_url}"
             tags = youtube_tags or []
+
+            manager.update_export_status(
+                timeline_id,
+                status=ExportStatus.UPLOADING,
+                progress=75.0,
+                message=f"Uploading to YouTube: {title[:50]}...",
+            )
 
             logger.info(f"Uploading to YouTube: {title}")
 
@@ -151,10 +215,39 @@ async def _run_export(
                     url=upload_result["url"],
                 )
 
+                manager.update_export_status(
+                    timeline_id,
+                    status=ExportStatus.COMPLETED,
+                    progress=100.0,
+                    message=f"YouTube upload complete: {upload_result['url']}",
+                )
+
                 logger.info(f"YouTube upload completed: {upload_result['url']}")
 
             except Exception as yt_err:
                 logger.exception(f"YouTube upload failed for timeline {timeline_id}: {yt_err}")
+                manager.update_export_status(
+                    timeline_id,
+                    status=ExportStatus.FAILED,
+                    progress=75.0,
+                    message="YouTube upload failed",
+                    error=str(yt_err),
+                )
+        else:
+            # No YouTube upload, mark as completed
+            manager.update_export_status(
+                timeline_id,
+                status=ExportStatus.COMPLETED,
+                progress=100.0,
+                message="Export complete",
+            )
 
     except Exception as e:
         logger.exception(f"Export failed for timeline {timeline_id}: {e}")
+        manager.update_export_status(
+            timeline_id,
+            status=ExportStatus.FAILED,
+            progress=0.0,
+            message="Export failed",
+            error=str(e),
+        )

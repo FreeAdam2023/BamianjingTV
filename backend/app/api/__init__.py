@@ -25,6 +25,7 @@ from .cleanup import router as cleanup_router
 from .segments import router as segments_router
 from .export import router as export_router
 from .media import router as media_router
+from .channels import router as channels_router
 
 __all__ = [
     # v2 Routers
@@ -41,6 +42,7 @@ __all__ = [
     "jobs_router",
     "queue_router",
     "cleanup_router",
+    "channels_router",
     # v2 Setup functions
     "set_source_manager",
     "set_item_manager",

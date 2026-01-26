@@ -102,6 +102,17 @@ function TimelineEditorInner({
   // Calculate timeline total width
   const timelineWidth = Math.max(containerWidth, timeToPixels(duration) + 100);
 
+  // Log timeline dimensions for debugging
+  useEffect(() => {
+    console.log("[TimelineEditor] Dimensions:", {
+      containerWidth,
+      duration,
+      zoom,
+      timelineWidth,
+      pixelsFromDuration: timeToPixels(duration),
+    });
+  }, [containerWidth, duration, zoom, timelineWidth, timeToPixels]);
+
   // Format playhead time for display
   const formatPlayheadTime = (time: number): string => {
     const mins = Math.floor(time / 60);

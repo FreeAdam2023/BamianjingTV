@@ -308,6 +308,185 @@ class ThumbnailWorker:
                 "tags": ["learning", "english", "chinese"],
             }
 
+    async def generate_unified_metadata(
+        self,
+        title: str,
+        subtitles: List[dict],
+        source_url: Optional[str] = None,
+        duration: Optional[float] = None,
+        num_title_candidates: int = 5,
+        user_instruction: Optional[str] = None,
+    ) -> dict:
+        """Generate coordinated YouTube metadata and thumbnail title candidates together.
+
+        This ensures the YouTube title and thumbnail titles are consistent and
+        follow the same user instruction.
+
+        Args:
+            title: Original video title
+            subtitles: List of subtitle dicts
+            source_url: Original video URL
+            duration: Video duration in seconds
+            num_title_candidates: Number of thumbnail title candidates
+            user_instruction: Optional user instruction to guide generation
+
+        Returns:
+            Dict with 'youtube' (title, description, tags) and 'thumbnail_candidates' (list)
+        """
+        content_sample = " ".join([
+            s.get('en', s.get('text', '')) for s in subtitles[:30]
+        ])[:1500]
+
+        # Format duration for description
+        duration_str = ""
+        if duration:
+            hours = int(duration // 3600)
+            minutes = int((duration % 3600) // 60)
+            if hours > 0:
+                duration_str = f"{hours}小时{minutes}分钟"
+            else:
+                duration_str = f"{minutes}分钟"
+
+        # Build instruction section
+        instruction_section = ""
+        if user_instruction:
+            instruction_section = f"""
+**【用户创作指导 - 必须遵循】**
+{user_instruction}
+---
+"""
+
+        system_prompt = f"""你是一个YouTube内容优化专家。根据视频内容生成**协调一致**的YouTube元数据和封面标题。
+{instruction_section}
+**重要：YouTube标题和封面标题必须主题一致、风格协调！**
+
+## 任务1：YouTube元数据
+
+### 标题规则：
+- 长度：40-70个字符（中文约20-35字）
+- 使用繁体中文
+- 包含核心关键词
+- 吸引点击但不虚假
+
+### 描述规则：
+- 第一行：核心内容摘要
+- 包含3-5个核心关键词
+- 添加行动号召
+- 使用繁体中文
+- 长度：200-500字
+
+### 标签规则：
+- 15-25个相关标签
+- 混合繁体中文和英文
+
+## 任务2：封面标题候选（{num_title_candidates}组）
+
+### 每组包含：
+- main: 主标题（6-10字，黄色大字）
+- sub: 副标题（6-12字，白色字）
+- style: 风格描述
+
+### 规则：
+- 使用繁体中文
+- 风格多样化：震撼型、悬念型、对抗型、情感型、揭秘型
+- **必须与YouTube标题主题一致**
+
+输出JSON格式：
+{{
+  "youtube": {{
+    "title": "YouTube标题",
+    "description": "完整描述",
+    "tags": ["标签1", "标签2", ...]
+  }},
+  "thumbnail_candidates": [
+    {{"main": "主标题1", "sub": "副标题1", "style": "震撼型"}},
+    {{"main": "主标题2", "sub": "副标题2", "style": "悬念型"}},
+    ...
+  ]
+}}
+
+只输出JSON，不要其他内容。"""
+
+        user_prompt = f"""原视频标题：{title}
+
+视频内容摘要：
+{content_sample}
+
+{f"视频时长：{duration_str}" if duration_str else ""}
+{f"原始链接：{source_url}" if source_url else ""}
+
+请生成协调一致的YouTube元数据和{num_title_candidates}组封面标题候选："""
+
+        # Lower temperature when user provides instruction
+        temperature = 0.7 if user_instruction else 0.85
+
+        try:
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                response = await client.post(
+                    f"{settings.llm_base_url}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": settings.llm_model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        "max_tokens": 2000,
+                        "temperature": temperature,
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
+                content = data["choices"][0]["message"]["content"].strip()
+
+                # Parse JSON response
+                import json
+                if "```" in content:
+                    content = content.split("```")[1]
+                    if content.startswith("json"):
+                        content = content[4:]
+
+                result = json.loads(content)
+
+                # Format thumbnail candidates
+                candidates = []
+                for i, c in enumerate(result.get("thumbnail_candidates", [])[:num_title_candidates]):
+                    candidates.append({
+                        "index": i,
+                        "main": c.get("main", "精彩內容"),
+                        "sub": c.get("sub", "不容錯過"),
+                        "style": c.get("style", ""),
+                    })
+
+                youtube = result.get("youtube", {})
+                logger.info(f"Generated unified metadata: YouTube title={youtube.get('title', '')[:30]}...")
+
+                return {
+                    "youtube": {
+                        "title": youtube.get("title", title),
+                        "description": youtube.get("description", f"Original: {source_url or 'N/A'}"),
+                        "tags": youtube.get("tags", ["learning", "english", "chinese"]),
+                    },
+                    "thumbnail_candidates": candidates,
+                }
+
+        except Exception as e:
+            logger.error(f"Failed to generate unified metadata: {e}")
+            # Return defaults
+            return {
+                "youtube": {
+                    "title": title,
+                    "description": f"Original: {source_url or 'N/A'}",
+                    "tags": ["learning", "english", "chinese"],
+                },
+                "thumbnail_candidates": [
+                    {"index": 0, "main": "精彩內容", "sub": "不容錯過", "style": "默认"},
+                ],
+            }
+
     async def generate_title_candidates(
         self,
         title: str,

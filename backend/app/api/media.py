@@ -100,6 +100,241 @@ class YouTubeMetadataResponse(BaseModel):
     message: str
 
 
+class UnifiedMetadataRequest(BaseModel):
+    """Request for unified metadata generation."""
+    instruction: str | None = None  # User instruction to guide AI
+    num_title_candidates: int = 5
+
+
+class UnifiedMetadataResponse(BaseModel):
+    """Response for unified metadata generation (YouTube + thumbnail titles together)."""
+    timeline_id: str
+    youtube_title: str
+    youtube_description: str
+    youtube_tags: List[str]
+    thumbnail_candidates: List[TitleCandidate]
+    message: str
+
+
+class MetadataDraft(BaseModel):
+    """Draft metadata for saving/loading."""
+    youtube_title: str | None = None
+    youtube_description: str | None = None
+    youtube_tags: List[str] | None = None
+    thumbnail_candidates: List[TitleCandidate] | None = None
+    instruction: str | None = None
+
+
+class MetadataDraftResponse(BaseModel):
+    """Response for draft metadata."""
+    timeline_id: str
+    draft: MetadataDraft
+    has_draft: bool
+    message: str
+
+
+@router.post("/{timeline_id}/metadata/generate", response_model=UnifiedMetadataResponse)
+async def generate_unified_metadata(
+    timeline_id: str,
+    request: UnifiedMetadataRequest | None = None,
+):
+    """Generate coordinated YouTube metadata and thumbnail titles together.
+
+    This ensures the YouTube title and thumbnail titles are consistent.
+    Both share the same user instruction for unified creative direction.
+
+    Args:
+        timeline_id: Timeline ID
+        request: Optional instruction and title count
+
+    Returns YouTube metadata (title, description, tags) and thumbnail candidates.
+    """
+    from loguru import logger
+
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    thumbnail_worker = _get_thumbnail_worker()
+
+    # Extract subtitles for analysis
+    subtitles = [
+        {"start": seg.start, "end": seg.end, "en": seg.en}
+        for seg in timeline.segments if seg.en
+    ]
+
+    instruction = request.instruction if request else None
+    num_candidates = request.num_title_candidates if request else 5
+
+    try:
+        result = await thumbnail_worker.generate_unified_metadata(
+            title=timeline.source_title,
+            subtitles=subtitles,
+            source_url=timeline.source_url,
+            duration=timeline.source_duration,
+            num_title_candidates=num_candidates,
+            user_instruction=instruction,
+        )
+
+        youtube = result.get("youtube", {})
+        candidates = result.get("thumbnail_candidates", [])
+
+        response_candidates = [
+            TitleCandidate(
+                index=c["index"],
+                main=c["main"],
+                sub=c["sub"],
+                style=c.get("style", ""),
+            )
+            for c in candidates
+        ]
+
+        # Auto-save draft to avoid re-generation
+        timeline.draft_youtube_title = youtube.get("title", "")
+        timeline.draft_youtube_description = youtube.get("description", "")
+        timeline.draft_youtube_tags = youtube.get("tags", [])
+        timeline.draft_thumbnail_candidates = candidates
+        timeline.draft_instruction = instruction
+        manager.save_timeline(timeline)
+
+        logger.info(
+            f"Generated unified metadata for timeline {timeline_id}: "
+            f"YouTube title={youtube.get('title', '')[:30]}..., {len(candidates)} thumbnail candidates (draft saved)"
+        )
+
+        return UnifiedMetadataResponse(
+            timeline_id=timeline_id,
+            youtube_title=youtube.get("title", timeline.source_title),
+            youtube_description=youtube.get("description", ""),
+            youtube_tags=youtube.get("tags", []),
+            thumbnail_candidates=response_candidates,
+            message=f"Generated YouTube metadata + {len(candidates)} thumbnail candidates (draft saved)",
+        )
+
+    except Exception as e:
+        logger.exception(f"Unified metadata generation failed for timeline {timeline_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{timeline_id}/metadata/draft", response_model=MetadataDraftResponse)
+async def get_metadata_draft(timeline_id: str):
+    """Get saved metadata draft for a timeline.
+
+    Returns any previously saved AI-generated metadata (YouTube title,
+    description, tags, thumbnail candidates) to avoid re-generation.
+    """
+    from loguru import logger
+
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    # Check if any draft fields have content
+    has_draft = any([
+        timeline.draft_youtube_title,
+        timeline.draft_youtube_description,
+        timeline.draft_youtube_tags,
+        timeline.draft_thumbnail_candidates,
+    ])
+
+    # Convert thumbnail candidates to TitleCandidate format
+    candidates = None
+    if timeline.draft_thumbnail_candidates:
+        candidates = [
+            TitleCandidate(
+                index=i,
+                main=c.get("main", ""),
+                sub=c.get("sub", ""),
+                style=c.get("style", ""),
+            )
+            for i, c in enumerate(timeline.draft_thumbnail_candidates)
+        ]
+
+    draft = MetadataDraft(
+        youtube_title=timeline.draft_youtube_title,
+        youtube_description=timeline.draft_youtube_description,
+        youtube_tags=timeline.draft_youtube_tags,
+        thumbnail_candidates=candidates,
+        instruction=timeline.draft_instruction,
+    )
+
+    logger.info(f"Retrieved metadata draft for timeline {timeline_id}: has_draft={has_draft}")
+
+    return MetadataDraftResponse(
+        timeline_id=timeline_id,
+        draft=draft,
+        has_draft=has_draft,
+        message="Draft retrieved" if has_draft else "No draft saved",
+    )
+
+
+@router.post("/{timeline_id}/metadata/draft", response_model=MetadataDraftResponse)
+async def save_metadata_draft(timeline_id: str, draft: MetadataDraft):
+    """Save metadata draft for a timeline.
+
+    Saves AI-generated metadata to avoid re-generation on next visit.
+    """
+    from loguru import logger
+
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    # Update timeline with draft data
+    if draft.youtube_title is not None:
+        timeline.draft_youtube_title = draft.youtube_title
+    if draft.youtube_description is not None:
+        timeline.draft_youtube_description = draft.youtube_description
+    if draft.youtube_tags is not None:
+        timeline.draft_youtube_tags = draft.youtube_tags
+    if draft.thumbnail_candidates is not None:
+        timeline.draft_thumbnail_candidates = [
+            {"index": c.index, "main": c.main, "sub": c.sub, "style": c.style}
+            for c in draft.thumbnail_candidates
+        ]
+    if draft.instruction is not None:
+        timeline.draft_instruction = draft.instruction
+
+    # Save to storage
+    manager.save_timeline(timeline)
+
+    logger.info(f"Saved metadata draft for timeline {timeline_id}")
+
+    return MetadataDraftResponse(
+        timeline_id=timeline_id,
+        draft=draft,
+        has_draft=True,
+        message="Draft saved successfully",
+    )
+
+
+@router.delete("/{timeline_id}/metadata/draft")
+async def delete_metadata_draft(timeline_id: str):
+    """Delete metadata draft for a timeline."""
+    from loguru import logger
+
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    # Clear all draft fields
+    timeline.draft_youtube_title = None
+    timeline.draft_youtube_description = None
+    timeline.draft_youtube_tags = None
+    timeline.draft_thumbnail_candidates = None
+    timeline.draft_instruction = None
+
+    manager.save_timeline(timeline)
+
+    logger.info(f"Deleted metadata draft for timeline {timeline_id}")
+
+    return {"timeline_id": timeline_id, "message": "Draft deleted"}
+
+
 @router.post("/{timeline_id}/youtube-metadata/generate", response_model=YouTubeMetadataResponse)
 async def generate_youtube_metadata(timeline_id: str):
     """Generate SEO-optimized YouTube metadata (title, description, tags).

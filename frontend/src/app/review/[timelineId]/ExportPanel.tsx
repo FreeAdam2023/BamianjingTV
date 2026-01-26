@@ -4,9 +4,10 @@
  * ExportPanel - Modal for export settings and thumbnail generation
  */
 
-import { useState, useEffect } from "react";
-import type { ExportProfile, ExportRequest, Timeline, TitleCandidate } from "@/lib/types";
-import { generateThumbnail, generateTitleCandidates, generateYouTubeMetadata, formatDuration } from "@/lib/api";
+import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
+import type { ExportProfile, ExportRequest, ExportStatus, ExportStatusResponse, Timeline, TitleCandidate, ChannelSummary } from "@/lib/types";
+import { generateThumbnail, generateUnifiedMetadata, getMetadataDraft, getExportStatus, formatDuration, listChannels, generateMetadataForChannel } from "@/lib/api";
 
 interface ExportPanelProps {
   timeline: Timeline;
@@ -34,19 +35,145 @@ export default function ExportPanel({
   const [youtubeTags, setYoutubeTags] = useState("");
   const [youtubePrivacy, setYoutubePrivacy] = useState<"private" | "unlisted" | "public">("private");
 
-  // Title candidates
+  // Channel selection
+  const [channels, setChannels] = useState<ChannelSummary[]>([]);
+  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
+  const [loadingChannels, setLoadingChannels] = useState(false);
+  const [generatingForChannel, setGeneratingForChannel] = useState(false);
+
+  // Title candidates (thumbnail)
   const [titleCandidates, setTitleCandidates] = useState<TitleCandidate[]>([]);
   const [selectedTitle, setSelectedTitle] = useState<TitleCandidate | null>(null);
-  const [loadingTitles, setLoadingTitles] = useState(false);
-  const [titleInstruction, setTitleInstruction] = useState("");
+
+  // Shared AI instruction for both YouTube metadata and thumbnail titles
+  const [aiInstruction, setAiInstruction] = useState("");
+  const [generatingAll, setGeneratingAll] = useState(false);
+  const [loadingDraft, setLoadingDraft] = useState(true);
 
   // Thumbnail generation
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [generatingThumbnail, setGeneratingThumbnail] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
 
-  // YouTube metadata generation
-  const [generatingMetadata, setGeneratingMetadata] = useState(false);
+  // Load saved draft on mount
+  useEffect(() => {
+    async function loadDraft() {
+      console.log("[ExportPanel] Loading metadata draft for timeline:", timeline.timeline_id);
+      try {
+        const result = await getMetadataDraft(timeline.timeline_id);
+        console.log("[ExportPanel] Draft response:", { has_draft: result.has_draft, message: result.message });
+        if (result.has_draft) {
+          const { draft } = result;
+          console.log("[ExportPanel] Restoring draft:", {
+            youtube_title: draft.youtube_title?.slice(0, 30),
+            candidates_count: draft.thumbnail_candidates?.length,
+            instruction: draft.instruction,
+          });
+          if (draft.youtube_title) setYoutubeTitle(draft.youtube_title);
+          if (draft.youtube_description) setYoutubeDescription(draft.youtube_description);
+          if (draft.youtube_tags) setYoutubeTags(draft.youtube_tags.join(", "));
+          if (draft.thumbnail_candidates) setTitleCandidates(draft.thumbnail_candidates);
+          if (draft.instruction) setAiInstruction(draft.instruction);
+        }
+      } catch (err) {
+        console.error("[ExportPanel] Failed to load metadata draft:", err);
+      } finally {
+        setLoadingDraft(false);
+      }
+    }
+    loadDraft();
+  }, [timeline.timeline_id]);
+
+  // Load channels when YouTube upload is enabled
+  useEffect(() => {
+    if (uploadToYouTube && channels.length === 0) {
+      setLoadingChannels(true);
+      console.log("[ExportPanel] Loading channels...");
+      listChannels("youtube")
+        .then((data) => {
+          console.log("[ExportPanel] Loaded channels:", data.length);
+          setChannels(data);
+          // Auto-select first channel
+          if (data.length > 0 && !selectedChannelId) {
+            setSelectedChannelId(data[0].channel_id);
+          }
+        })
+        .catch((err) => {
+          console.error("[ExportPanel] Failed to load channels:", err);
+        })
+        .finally(() => {
+          setLoadingChannels(false);
+        });
+    }
+  }, [uploadToYouTube, channels.length, selectedChannelId]);
+
+  // Generate channel-specific metadata
+  const handleGenerateForChannel = async () => {
+    if (!selectedChannelId) return;
+
+    console.log("[ExportPanel] Generating metadata for channel:", selectedChannelId);
+    setGeneratingForChannel(true);
+    try {
+      const result = await generateMetadataForChannel(timeline.timeline_id, {
+        channel_id: selectedChannelId,
+        instruction: aiInstruction || undefined,
+      });
+
+      console.log("[ExportPanel] Generated channel metadata:", {
+        channel_name: result.channel_name,
+        title: result.title?.slice(0, 50),
+        candidates_count: result.thumbnail_candidates?.length,
+      });
+
+      // Set generated values
+      setYoutubeTitle(result.title);
+      setYoutubeDescription(result.description);
+      setYoutubeTags(result.tags.join(", "));
+      setTitleCandidates(result.thumbnail_candidates);
+      setSelectedTitle(null);
+    } catch (err) {
+      console.error("[ExportPanel] Failed to generate channel metadata:", err);
+      alert("Failed to generate metadata: " + (err instanceof Error ? err.message : "Unknown error"));
+    } finally {
+      setGeneratingForChannel(false);
+    }
+  };
+
+  // Export status tracking
+  const [exportStatus, setExportStatus] = useState<ExportStatusResponse | null>(null);
+  const [pollingExport, setPollingExport] = useState(false);
+
+  // Fetch export status
+  const fetchExportStatus = useCallback(async () => {
+    try {
+      const status = await getExportStatus(timeline.timeline_id);
+      console.log("[ExportPanel] Export status:", {
+        status: status.status,
+        progress: status.progress,
+        message: status.message,
+      });
+      setExportStatus(status);
+      return status;
+    } catch (err) {
+      console.error("[ExportPanel] Failed to fetch export status:", err);
+      return null;
+    }
+  }, [timeline.timeline_id]);
+
+  // Poll export status when exporting
+  useEffect(() => {
+    if (!pollingExport) return;
+
+    const interval = setInterval(async () => {
+      const status = await fetchExportStatus();
+      if (status && (status.status === "completed" || status.status === "failed")) {
+        setPollingExport(false);
+        setExporting(false);
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [pollingExport, fetchExportStatus]);
 
   // ESC key to close
   useEffect(() => {
@@ -58,7 +185,13 @@ export default function ExportPanel({
   }, [onClose]);
 
   const handleExport = async () => {
+    console.log("[ExportPanel] Starting export...", {
+      profile: exportProfile,
+      upload_to_youtube: uploadToYouTube,
+      youtube_title: youtubeTitle?.slice(0, 30),
+    });
     setExporting(true);
+    setExportStatus(null);
     try {
       const request: ExportRequest = {
         profile: exportProfile,
@@ -73,15 +206,17 @@ export default function ExportPanel({
         request.youtube_privacy = youtubePrivacy;
       }
 
+      console.log("[ExportPanel] Export request:", request);
       await onExport(request);
-      const message = uploadToYouTube
-        ? "Export started with YouTube upload! Check back later."
-        : "Export started! Check back later for the output files.";
-      alert(message);
-      onClose();
+      console.log("[ExportPanel] Export started, beginning status polling...");
+
+      // Start polling for status
+      setPollingExport(true);
+      // Fetch initial status after a short delay
+      setTimeout(() => fetchExportStatus(), 500);
     } catch (err) {
+      console.error("[ExportPanel] Export failed:", err);
       alert("Export failed: " + (err instanceof Error ? err.message : "Unknown error"));
-    } finally {
       setExporting(false);
     }
   };
@@ -91,34 +226,41 @@ export default function ExportPanel({
     return `${protocol}//${hostname}:8000`;
   };
 
-  const handleGenerateTitles = async () => {
-    setLoadingTitles(true);
+  // Unified generation: YouTube metadata + thumbnail titles together
+  const handleGenerateAll = async () => {
+    console.log("[ExportPanel] Starting unified metadata generation...", {
+      timeline_id: timeline.timeline_id,
+      instruction: aiInstruction || "(none)",
+    });
+    setGeneratingAll(true);
     try {
-      const result = await generateTitleCandidates(
+      const result = await generateUnifiedMetadata(
         timeline.timeline_id,
-        titleInstruction || undefined,
-        5
+        {
+          instruction: aiInstruction || undefined,
+          num_title_candidates: 5,
+        }
       );
-      setTitleCandidates(result.candidates);
+
+      console.log("[ExportPanel] Generated unified metadata:", {
+        youtube_title: result.youtube_title?.slice(0, 50),
+        candidates_count: result.thumbnail_candidates?.length,
+        message: result.message,
+      });
+
+      // Set YouTube metadata
+      setYoutubeTitle(result.youtube_title);
+      setYoutubeDescription(result.youtube_description);
+      setYoutubeTags(result.youtube_tags.join(", "));
+
+      // Set thumbnail title candidates
+      setTitleCandidates(result.thumbnail_candidates);
       setSelectedTitle(null);
     } catch (err) {
-      alert("Failed to generate titles: " + (err instanceof Error ? err.message : "Unknown error"));
-    } finally {
-      setLoadingTitles(false);
-    }
-  };
-
-  const handleGenerateYouTubeMetadata = async () => {
-    setGeneratingMetadata(true);
-    try {
-      const result = await generateYouTubeMetadata(timeline.timeline_id);
-      setYoutubeTitle(result.title);
-      setYoutubeDescription(result.description);
-      setYoutubeTags(result.tags.join(", "));
-    } catch (err) {
+      console.error("[ExportPanel] Failed to generate metadata:", err);
       alert("Failed to generate metadata: " + (err instanceof Error ? err.message : "Unknown error"));
     } finally {
-      setGeneratingMetadata(false);
+      setGeneratingAll(false);
     }
   };
 
@@ -219,6 +361,73 @@ export default function ExportPanel({
           </label>
         </div>
 
+        {/* AI Generate Section - Unified for YouTube metadata + Thumbnail titles */}
+        <div className="border-t border-gray-700 pt-4 mt-4">
+          <div className="mb-4 p-4 bg-gradient-to-r from-purple-900/30 to-indigo-900/30 rounded-lg border border-purple-700/50">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <span className="font-medium text-purple-300">AI 一键生成</span>
+              </div>
+              {/* Draft status indicator */}
+              {loadingDraft ? (
+                <span className="text-xs text-gray-500 flex items-center gap-1">
+                  <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  加载草稿...
+                </span>
+              ) : (youtubeTitle || titleCandidates.length > 0) ? (
+                <span className="text-xs text-green-400 flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  草稿已保存
+                </span>
+              ) : null}
+            </div>
+
+            {/* Shared instruction input */}
+            <div className="mb-3">
+              <input
+                type="text"
+                value={aiInstruction}
+                onChange={(e) => setAiInstruction(e.target.value)}
+                placeholder="创作指导（如：'突出冲突'、'更戏剧化'、'专注经济话题'）..."
+                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm placeholder-gray-500"
+              />
+            </div>
+
+            <button
+              onClick={handleGenerateAll}
+              disabled={generatingAll || loadingDraft}
+              className="w-full px-3 py-2 text-sm bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:from-gray-600 disabled:to-gray-600 rounded flex items-center justify-center gap-2"
+            >
+              {generatingAll ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  AI 生成中...
+                </>
+              ) : (youtubeTitle || titleCandidates.length > 0) ? (
+                "重新生成 YouTube 元数据 + 封面标题"
+              ) : (
+                "一键生成 YouTube 元数据 + 封面标题"
+              )}
+            </button>
+            <p className="text-xs text-gray-500 text-center mt-2">
+              {(youtubeTitle || titleCandidates.length > 0)
+                ? "草稿已自动保存，下次打开无需重新生成"
+                : "YouTube 标题和封面标题将协调一致，共享相同的创作指导"}
+            </p>
+          </div>
+        </div>
+
         {/* YouTube Upload Section */}
         <div className="border-t border-gray-700 pt-4 mt-4">
           <label className="flex items-center gap-2 mb-4">
@@ -232,36 +441,82 @@ export default function ExportPanel({
 
           {uploadToYouTube && (
             <div className="space-y-4 ml-6">
-              {/* AI Generate Button */}
-              <button
-                onClick={handleGenerateYouTubeMetadata}
-                disabled={generatingMetadata}
-                className="w-full px-3 py-2 text-sm bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:from-gray-600 disabled:to-gray-600 rounded flex items-center justify-center gap-2"
-              >
-                {generatingMetadata ? (
-                  <>
+              {/* Channel Selector */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm text-gray-400">Publishing Channel</label>
+                  <Link
+                    href="/channels"
+                    className="text-xs text-blue-400 hover:text-blue-300"
+                  >
+                    Manage Channels
+                  </Link>
+                </div>
+                {loadingChannels ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
                     <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
-                    AI Generating...
-                  </>
+                    Loading channels...
+                  </div>
+                ) : channels.length === 0 ? (
+                  <div className="p-3 bg-gray-900 rounded-lg text-center">
+                    <p className="text-sm text-gray-400 mb-2">No YouTube channels configured</p>
+                    <Link
+                      href="/channels"
+                      className="text-sm text-blue-400 hover:text-blue-300"
+                    >
+                      + Add a channel
+                    </Link>
+                  </div>
                 ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                    AI Generate SEO Metadata
-                  </>
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedChannelId || ""}
+                      onChange={(e) => setSelectedChannelId(e.target.value || null)}
+                      className="flex-1 bg-gray-700 rounded px-3 py-2 text-sm"
+                    >
+                      <option value="">Select a channel...</option>
+                      {channels.map((ch) => (
+                        <option key={ch.channel_id} value={ch.channel_id}>
+                          {ch.name} {ch.youtube_channel_name ? `(${ch.youtube_channel_name})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={handleGenerateForChannel}
+                      disabled={!selectedChannelId || generatingForChannel}
+                      className="px-3 py-2 text-sm bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 rounded whitespace-nowrap flex items-center gap-1"
+                      title="Generate metadata optimized for this channel"
+                    >
+                      {generatingForChannel ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                          AI
+                        </>
+                      )}
+                    </button>
+                  </div>
                 )}
-              </button>
-              <p className="text-xs text-gray-500 text-center -mt-2">
-                Auto-generate optimized title, description & tags for maximum exposure
-              </p>
-
+                {selectedChannelId && channels.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Click AI button to generate metadata optimized for this channel
+                  </p>
+                )}
+              </div>
               <div>
                 <label className="block text-sm text-gray-400 mb-1">
-                  Title
+                  Title {youtubeTitle && <span className="text-green-400 text-xs ml-1">(AI Generated)</span>}
                 </label>
                 <input
                   type="text"
@@ -273,7 +528,9 @@ export default function ExportPanel({
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Description</label>
+                <label className="block text-sm text-gray-400 mb-1">
+                  Description {youtubeDescription && <span className="text-green-400 text-xs ml-1">(AI Generated)</span>}
+                </label>
                 <textarea
                   value={youtubeDescription}
                   onChange={(e) => setYoutubeDescription(e.target.value)}
@@ -284,7 +541,9 @@ export default function ExportPanel({
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Tags (comma-separated)</label>
+                <label className="block text-sm text-gray-400 mb-1">
+                  Tags {youtubeTags && <span className="text-green-400 text-xs ml-1">(AI Generated)</span>}
+                </label>
                 <input
                   type="text"
                   value={youtubeTags}
@@ -321,40 +580,12 @@ export default function ExportPanel({
             )}
           </div>
 
-          {/* Title Generation Section */}
+          {/* Thumbnail Title Candidates (generated by unified AI call above) */}
           <div className="mb-4 p-3 bg-gray-900 rounded-lg">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-300">Thumbnail Titles</span>
-              <button
-                onClick={handleGenerateTitles}
-                disabled={loadingTitles}
-                className="px-3 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 rounded flex items-center gap-1"
-              >
-                {loadingTitles ? (
-                  <>
-                    <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    Generating...
-                  </>
-                ) : titleCandidates.length > 0 ? (
-                  "Regenerate"
-                ) : (
-                  "Generate 5 Titles"
-                )}
-              </button>
-            </div>
-
-            {/* Instruction Input */}
-            <div className="mb-3">
-              <input
-                type="text"
-                value={titleInstruction}
-                onChange={(e) => setTitleInstruction(e.target.value)}
-                placeholder="Tell AI how to generate titles (e.g., 'focus on conflict', 'more dramatic')..."
-                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm placeholder-gray-500"
-              />
+              <span className="text-sm font-medium text-gray-300">
+                封面标题候选 {titleCandidates.length > 0 && <span className="text-green-400 text-xs ml-1">(AI Generated)</span>}
+              </span>
             </div>
 
             {/* Title Candidates */}
@@ -391,15 +622,15 @@ export default function ExportPanel({
               </div>
             )}
 
-            {titleCandidates.length === 0 && !loadingTitles && (
+            {titleCandidates.length === 0 && (
               <p className="text-xs text-gray-500 text-center py-2">
-                Click "Generate 5 Titles" to get AI suggestions
+                点击上方「一键生成」获取 AI 封面标题建议
               </p>
             )}
 
             {selectedTitle && (
               <div className="mt-2 p-2 bg-purple-900/30 rounded text-sm">
-                <span className="text-purple-400">Selected:</span>
+                <span className="text-purple-400">已选:</span>
                 <span className="text-yellow-400 ml-2">{selectedTitle.main}</span>
                 <span className="text-gray-400 mx-1">/</span>
                 <span className="text-white">{selectedTitle.sub}</span>
@@ -497,10 +728,81 @@ export default function ExportPanel({
 
           <p className="text-xs text-gray-500 mt-2 text-center">
             {selectedTitle
-              ? "Using selected title"
-              : "AI will generate title automatically"}
+              ? "使用已选标题生成封面"
+              : "将自动生成封面标题（或先点击上方「一键生成」选择标题）"}
           </p>
         </div>
+
+        {/* Export Status */}
+        {exportStatus && (
+          <div className="mt-4 p-4 rounded-lg bg-gray-900">
+            <div className="flex items-center gap-3 mb-2">
+              {(exportStatus.status === "exporting" || exportStatus.status === "uploading") && (
+                <svg className="animate-spin h-5 w-5 text-blue-400" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+              )}
+              {exportStatus.status === "completed" && (
+                <svg className="h-5 w-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+              {exportStatus.status === "failed" && (
+                <svg className="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              )}
+              <span className={`font-medium ${
+                exportStatus.status === "completed" ? "text-green-400" :
+                exportStatus.status === "failed" ? "text-red-400" :
+                "text-blue-400"
+              }`}>
+                {exportStatus.status === "exporting" ? "Exporting Video..." :
+                 exportStatus.status === "uploading" ? "Uploading to YouTube..." :
+                 exportStatus.status === "completed" ? "Export Complete!" :
+                 exportStatus.status === "failed" ? "Export Failed" : ""}
+              </span>
+            </div>
+
+            {/* Progress bar */}
+            {(exportStatus.status === "exporting" || exportStatus.status === "uploading") && (
+              <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden mb-2">
+                <div
+                  className={`h-full transition-all duration-300 ${
+                    exportStatus.status === "uploading" ? "bg-purple-500" : "bg-blue-500"
+                  }`}
+                  style={{ width: `${exportStatus.progress}%` }}
+                />
+              </div>
+            )}
+
+            {/* Status message */}
+            {exportStatus.message && (
+              <p className="text-sm text-gray-400">{exportStatus.message}</p>
+            )}
+
+            {/* Error message */}
+            {exportStatus.error && (
+              <p className="text-sm text-red-400 mt-1">{exportStatus.error}</p>
+            )}
+
+            {/* YouTube link */}
+            {exportStatus.youtube_url && (
+              <a
+                href={exportStatus.youtube_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 mt-2 text-sm text-blue-400 hover:text-blue-300"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
+                </svg>
+                View on YouTube
+              </a>
+            )}
+          </div>
+        )}
 
         {/* Buttons */}
         <div className="flex gap-4 mt-6">
@@ -508,15 +810,31 @@ export default function ExportPanel({
             onClick={onClose}
             className="flex-1 py-2 bg-gray-600 hover:bg-gray-700 rounded"
           >
-            Cancel
+            {exportStatus?.status === "completed" || exportStatus?.status === "failed" ? "Close" : "Cancel"}
           </button>
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 rounded"
-          >
-            {exporting ? "Exporting..." : uploadToYouTube ? "Export & Upload" : "Start Export"}
-          </button>
+          {(!exportStatus || exportStatus.status === "failed") && (
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 rounded flex items-center justify-center gap-2"
+            >
+              {exporting ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Starting...
+                </>
+              ) : exportStatus?.status === "failed" ? (
+                "Retry Export"
+              ) : uploadToYouTube ? (
+                "Export & Upload"
+              ) : (
+                "Start Export"
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>

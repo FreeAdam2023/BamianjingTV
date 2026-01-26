@@ -221,6 +221,52 @@ async def get_job_export_video(job_id: str):
     )
 
 
+@router.get("/jobs/{job_id}/video/preview/full")
+async def preview_export_full(job_id: str):
+    """Stream the full exported video (with subtitles) for preview.
+
+    Unlike /video/export, this streams inline for video player preview.
+    """
+    job = _job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if not job.output_video:
+        raise HTTPException(status_code=404, detail="Exported video not generated. Complete export first.")
+
+    video_path = Path(job.output_video)
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="Exported video file not found")
+
+    return FileResponse(
+        video_path,
+        media_type="video/mp4",
+    )
+
+
+@router.get("/jobs/{job_id}/video/preview/essence")
+async def preview_export_essence(job_id: str):
+    """Stream the essence exported video (KEEP segments only) for preview."""
+    job = _job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # Look for essence video in output directory
+    job_dir = settings.jobs_dir / job_id / "output"
+    essence_path = job_dir / "essence.mp4"
+
+    if not essence_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Essence video not generated. Export with 'essence' or 'both' profile."
+        )
+
+    return FileResponse(
+        essence_path,
+        media_type="video/mp4",
+    )
+
+
 @router.get("/jobs/{job_id}/thumbnail/{filename}")
 async def get_thumbnail(job_id: str, filename: str):
     """Get generated thumbnail image for a job."""

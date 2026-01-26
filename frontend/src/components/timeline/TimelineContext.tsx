@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, useRef, useEffect, useMemo, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useRef, useEffect, ReactNode } from "react";
 import type { TimelineState, EditableSegment, SegmentState } from "@/lib/types";
 
 type TrackType = "original" | "dubbing" | "bgm";
@@ -75,12 +75,53 @@ export function TimelineProvider({
   onSegmentSelect,
 }: TimelineProviderProps) {
   // Zoom: pixels per second. 100 means 100px = 1 second
-  const minZoom = 10;   // 10px per second (zoomed out)
+  const minZoom = 2;    // 2px per second (zoomed out, for long videos)
   const maxZoom = 500;  // 500px per second (zoomed in)
   const trackHeight = 48;
 
+  // Max timeline width to prevent performance issues
+  const maxTimelineWidth = 8000; // 8000px max
+
+  // Calculate a reasonable default zoom based on video duration
+  // Target: timeline width should fit comfortably, max 8000px
+  const getDefaultZoom = useCallback((dur: number): number => {
+    if (dur <= 0) return 50;
+    // Calculate zoom that fits within maxTimelineWidth
+    const maxZoomForDuration = maxTimelineWidth / dur;
+    // Also target a comfortable initial view
+    const targetWidth = 1500;
+    const targetZoom = targetWidth / dur;
+    // Use the smaller of target zoom or max allowed, clamped to our bounds
+    const ideal = Math.min(targetZoom, maxZoomForDuration);
+    const result = Math.max(minZoom, Math.min(100, ideal));
+    console.log("[TimelineContext] getDefaultZoom:", {
+      duration: dur,
+      targetZoom: targetZoom.toFixed(2),
+      maxZoomForDuration: maxZoomForDuration.toFixed(2),
+      result: result.toFixed(2),
+      timelineWidth: (dur * result).toFixed(0),
+    });
+    return result;
+  }, [minZoom]);
+
   const [playheadTime, setPlayheadTimeInternal] = useState(initialPlayheadTime);
-  const [zoom, setZoomInternal] = useState(50); // Default: 50px per second
+  const [zoom, setZoomInternal] = useState(() => getDefaultZoom(duration));
+
+  // Update zoom when duration changes significantly (e.g., new video loaded)
+  const prevDurationRef = useRef(duration);
+  useEffect(() => {
+    // Only reset zoom if duration changed by more than 10% (new video)
+    const changeRatio = Math.abs(duration - prevDurationRef.current) / Math.max(prevDurationRef.current, 1);
+    if (changeRatio > 0.1) {
+      console.log("[TimelineContext] Duration changed significantly, resetting zoom", {
+        prev: prevDurationRef.current,
+        new: duration,
+        changeRatio: (changeRatio * 100).toFixed(1) + "%",
+      });
+      setZoomInternal(getDefaultZoom(duration));
+    }
+    prevDurationRef.current = duration;
+  }, [duration, getDefaultZoom]);
   const [scrollX, setScrollX] = useState(0);
   const [selectedSegmentId, setSelectedSegmentIdInternal] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);

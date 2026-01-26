@@ -18,17 +18,33 @@ class YouTubeUploadError(Exception):
 class YouTubeWorker:
     """Worker for uploading videos to YouTube."""
 
-    SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+    SCOPES = [
+        "https://www.googleapis.com/auth/youtube.upload",
+        "https://www.googleapis.com/auth/youtube.readonly",
+    ]
 
     def __init__(self):
         self.credentials_file = Path(settings.youtube_credentials_file)
         self.token_file = Path(settings.youtube_token_file)
         self.service = None
+        self._service_cache = {}  # Cache services per token file
 
-    def _get_authenticated_service(self):
-        """Get authenticated YouTube API service."""
-        if self.service is not None:
-            return self.service
+    def _get_authenticated_service(self, token_file: Optional[Path] = None):
+        """Get authenticated YouTube API service.
+
+        Args:
+            token_file: Optional channel-specific token file. If None, uses default.
+
+        Returns:
+            Authenticated YouTube API service.
+        """
+        # Use provided token file or default
+        effective_token_file = Path(token_file) if token_file else self.token_file
+        cache_key = str(effective_token_file)
+
+        # Check cache
+        if cache_key in self._service_cache:
+            return self._service_cache[cache_key]
 
         from google.oauth2.credentials import Credentials
         from google_auth_oauthlib.flow import InstalledAppFlow
@@ -38,19 +54,29 @@ class YouTubeWorker:
         credentials = None
 
         # Load existing token
-        if self.token_file.exists():
-            with open(self.token_file, "rb") as f:
+        if effective_token_file.exists():
+            with open(effective_token_file, "rb") as f:
                 credentials = pickle.load(f)
 
         # Refresh or get new credentials
         if credentials and credentials.expired and credentials.refresh_token:
             try:
                 credentials.refresh(Request())
+                # Save refreshed token
+                with open(effective_token_file, "wb") as f:
+                    pickle.dump(credentials, f)
             except Exception as e:
                 logger.warning(f"Token refresh failed: {e}")
                 credentials = None
 
         if not credentials or not credentials.valid:
+            # If we have a specific token file that doesn't work, raise error
+            if token_file:
+                raise YouTubeUploadError(
+                    f"Channel token invalid or expired. Please re-authorize the channel."
+                )
+
+            # Fall back to interactive auth for default token
             if not self.credentials_file.exists():
                 raise YouTubeUploadError(
                     f"YouTube credentials file not found: {self.credentials_file}\n"
@@ -64,12 +90,35 @@ class YouTubeWorker:
             credentials = flow.run_local_server(port=0)
 
             # Save token
-            self.token_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.token_file, "wb") as f:
+            effective_token_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(effective_token_file, "wb") as f:
                 pickle.dump(credentials, f)
 
-        self.service = build("youtube", "v3", credentials=credentials)
-        return self.service
+        service = build("youtube", "v3", credentials=credentials)
+        self._service_cache[cache_key] = service
+        return service
+
+    def get_service_for_channel(self, channel) -> "Resource":
+        """Get authenticated service for a specific channel.
+
+        Args:
+            channel: Channel model with oauth_token_file
+
+        Returns:
+            Authenticated YouTube API service.
+        """
+        if not channel.is_authorized or not channel.oauth_token_file:
+            raise YouTubeUploadError(
+                f"Channel '{channel.name}' is not authorized. Please authorize via OAuth first."
+            )
+
+        token_file = Path(channel.oauth_token_file)
+        if not token_file.exists():
+            raise YouTubeUploadError(
+                f"Token file not found for channel '{channel.name}'. Please re-authorize."
+            )
+
+        return self._get_authenticated_service(token_file)
 
     async def upload(
         self,
