@@ -4,9 +4,9 @@
  * ExportPanel - Modal for export settings and thumbnail generation
  */
 
-import { useState, useEffect, useCallback } from "react";
-import type { ExportProfile, ExportRequest, ExportStatusResponse, Timeline, TitleCandidate } from "@/lib/types";
-import { generateThumbnail, generateUnifiedMetadata, getMetadataDraft, getExportStatus, formatDuration } from "@/lib/api";
+import { useState, useEffect, useCallback, useRef } from "react";
+import type { ExportProfile, ExportRequest, ExportStatusResponse, Timeline, TitleCandidate, MetadataDraft } from "@/lib/types";
+import { generateThumbnail, generateUnifiedMetadata, getMetadataDraft, saveMetadataDraft, getExportStatus, formatDuration } from "@/lib/api";
 import { useToast } from "@/components/ui";
 
 interface ExportPanelProps {
@@ -44,6 +44,65 @@ export default function ExportPanel({
   const [aiInstruction, setAiInstruction] = useState("");
   const [generatingAll, setGeneratingAll] = useState(false);
   const [loadingDraft, setLoadingDraft] = useState(true);
+
+  // Draft auto-save
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const initialLoadRef = useRef(true);
+
+  // Auto-save draft function
+  const saveDraft = useCallback(async () => {
+    // Don't save during initial load or if nothing to save
+    if (loadingDraft || initialLoadRef.current) return;
+    if (!youtubeTitle && !youtubeDescription && !youtubeTags && titleCandidates.length === 0) return;
+
+    setSavingDraft(true);
+    try {
+      const draft: MetadataDraft = {
+        youtube_title: youtubeTitle || null,
+        youtube_description: youtubeDescription || null,
+        youtube_tags: youtubeTags ? youtubeTags.split(",").map(t => t.trim()).filter(Boolean) : null,
+        thumbnail_candidates: titleCandidates.length > 0 ? titleCandidates : null,
+        instruction: aiInstruction || null,
+      };
+      await saveMetadataDraft(timeline.timeline_id, draft);
+      setDraftSavedAt(new Date());
+      console.log("[ExportPanel] Draft saved successfully");
+    } catch (err) {
+      console.error("[ExportPanel] Failed to save draft:", err);
+    } finally {
+      setSavingDraft(false);
+    }
+  }, [timeline.timeline_id, youtubeTitle, youtubeDescription, youtubeTags, titleCandidates, aiInstruction, loadingDraft]);
+
+  // Debounced auto-save when any metadata changes
+  useEffect(() => {
+    // Skip during initial load
+    if (loadingDraft) return;
+
+    // Mark initial load complete after first render
+    if (initialLoadRef.current) {
+      initialLoadRef.current = false;
+      return;
+    }
+
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Set new timeout for debounced save (1.5 seconds after last change)
+    saveTimeoutRef.current = setTimeout(() => {
+      saveDraft();
+    }, 1500);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [youtubeTitle, youtubeDescription, youtubeTags, titleCandidates, aiInstruction, loadingDraft, saveDraft]);
 
   // Thumbnail generation
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
@@ -316,6 +375,14 @@ export default function ExportPanel({
                   </svg>
                   加载草稿...
                 </span>
+              ) : savingDraft ? (
+                <span className="text-xs text-yellow-400 flex items-center gap-1">
+                  <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  保存中...
+                </span>
               ) : (youtubeTitle || titleCandidates.length > 0) ? (
                 <span className="text-xs text-green-400 flex items-center gap-1">
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -358,7 +425,7 @@ export default function ExportPanel({
             </button>
             <p className="text-xs text-gray-500 text-center mt-2">
               {(youtubeTitle || titleCandidates.length > 0)
-                ? "草稿已自动保存，下次打开无需重新生成"
+                ? "修改会自动保存，下次打开无需重新生成"
                 : "YouTube 标题和封面标题将协调一致，共享相同的创作指导"}
             </p>
           </div>

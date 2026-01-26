@@ -22,6 +22,7 @@ import type {
   YouTubeMetadataResponse,
   UnifiedMetadataRequest,
   UnifiedMetadataResponse,
+  MetadataDraft,
   MetadataDraftResponse,
   Channel,
   ChannelSummary,
@@ -245,6 +246,16 @@ export async function getMetadataDraft(
   timelineId: string
 ): Promise<MetadataDraftResponse> {
   return fetchAPI<MetadataDraftResponse>(`/timelines/${timelineId}/metadata/draft`);
+}
+
+export async function saveMetadataDraft(
+  timelineId: string,
+  draft: MetadataDraft
+): Promise<MetadataDraftResponse> {
+  return fetchAPI<MetadataDraftResponse>(`/timelines/${timelineId}/metadata/draft`, {
+    method: "POST",
+    body: JSON.stringify(draft),
+  });
 }
 
 export function getThumbnailUrl(jobId: string, filename: string): string {
