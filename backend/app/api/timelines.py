@@ -421,7 +421,8 @@ async def _run_export(
 async def generate_thumbnail(timeline_id: str):
     """Generate a YouTube-style thumbnail for the timeline.
 
-    Uses AI to analyze the video content and generate an eye-catching thumbnail.
+    Extracts a frame from the video at the most dramatic moment (analyzed via subtitles),
+    then adds Chinese clickbait text overlays.
     Call this endpoint multiple times to regenerate if not satisfied.
     """
     from loguru import logger
@@ -437,11 +438,21 @@ async def generate_thumbnail(timeline_id: str):
 
     thumbnail_worker = _get_thumbnail_worker()
 
-    # Extract English subtitles for content analysis
-    subtitles = [seg.en for seg in timeline.segments if seg.en]
+    # Get video path for frame extraction
+    job_dir = _jobs_dir / timeline.job_id
+    video_path = job_dir / "source" / "video.mp4"
+
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="Source video not found")
+
+    # Extract subtitles with timestamps for emotional moment analysis
+    subtitles = [
+        {"start": seg.start, "end": seg.end, "en": seg.en}
+        for seg in timeline.segments if seg.en
+    ]
 
     # Generate thumbnail
-    output_dir = _jobs_dir / timeline.job_id / "output"
+    output_dir = job_dir / "output"
 
     # Use timestamp for unique filename on regeneration
     filename = f"thumbnail_{int(time.time())}.png"
@@ -450,6 +461,7 @@ async def generate_thumbnail(timeline_id: str):
         thumbnail_path = await thumbnail_worker.generate_for_timeline(
             title=timeline.source_title,
             subtitles=subtitles,
+            video_path=video_path,
             output_dir=output_dir,
             filename=filename,
         )
