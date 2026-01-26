@@ -18,6 +18,9 @@ from app.api import (
     set_item_manager,
     set_pipeline_manager,
     set_overview_managers,
+    set_job_manager,
+    set_job_queue,
+    set_queue_job_queue,
 )
 
 
@@ -59,12 +62,21 @@ def setup_managers(temp_data_dir):
         set_item_manager(item_manager)
         set_pipeline_manager(pipeline_manager)
         set_overview_managers(source_manager, item_manager, pipeline_manager, job_manager)
+        set_job_manager(job_manager)
+
+        # Create a mock job queue for tests
+        async def noop_process(job_id: str):
+            pass
+        job_queue = JobQueue(max_concurrent=1, process_func=noop_process)
+        set_job_queue(job_queue)
+        set_queue_job_queue(job_queue)
 
         yield {
             "source": source_manager,
             "item": item_manager,
             "pipeline": pipeline_manager,
             "job": job_manager,
+            "queue": job_queue,
         }
 
 

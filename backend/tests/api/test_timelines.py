@@ -22,6 +22,9 @@ from app.api.timelines import (
     set_export_worker,
     set_jobs_dir,
 )
+from app.api.segments import router as segments_router
+from app.api.export import router as export_router
+from app.api.media import router as media_router
 
 
 @pytest.fixture
@@ -86,6 +89,9 @@ def client(timeline_manager, temp_dirs):
 
     app = FastAPI()
     app.include_router(router)
+    app.include_router(segments_router)
+    app.include_router(export_router)
+    app.include_router(media_router)
 
     # Set up module-level dependencies
     set_timeline_manager(timeline_manager)

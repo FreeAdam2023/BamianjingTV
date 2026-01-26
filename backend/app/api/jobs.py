@@ -1,0 +1,309 @@
+"""Job API endpoints.
+
+Handles job creation, listing, status, and video streaming.
+"""
+
+from pathlib import Path
+from typing import List, Optional
+from urllib.parse import quote
+
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+
+from app.config import settings
+from app.models.job import Job, JobCreate, JobStatus
+
+
+router = APIRouter(tags=["jobs"])
+
+# Module-level references (set by main.py during startup)
+_job_manager = None
+_job_queue = None
+_webhook_service = None
+
+
+def set_job_manager(manager):
+    global _job_manager
+    _job_manager = manager
+
+
+def set_job_queue(queue):
+    global _job_queue
+    _job_queue = queue
+
+
+def set_webhook_service(service):
+    global _webhook_service
+    _webhook_service = service
+
+
+# ============ Request/Response Models ============
+
+class BatchJobCreate(BaseModel):
+    """Request model for creating batch jobs."""
+    urls: List[str]
+    target_language: str = "zh"
+    priority: int = 0
+    callback_url: Optional[str] = None
+    use_traditional_chinese: bool = True
+
+
+class BatchJobResponse(BaseModel):
+    """Response model for batch job creation."""
+    job_ids: List[str]
+    count: int
+
+
+class WebhookRegister(BaseModel):
+    """Request model for registering a webhook."""
+    job_id: str
+    callback_url: str
+
+
+# ============ Job Endpoints ============
+
+@router.post("/jobs", response_model=Job)
+async def create_job(
+    job_create: JobCreate,
+    callback_url: Optional[str] = None,
+    background_tasks: BackgroundTasks = None,
+):
+    """Create a new video processing job."""
+    # Trigger auto-cleanup check in background (if enabled)
+    if settings.cleanup_enabled and background_tasks:
+        from app.services.cleanup import auto_cleanup_if_needed
+        background_tasks.add_task(
+            auto_cleanup_if_needed,
+            jobs_dir=settings.jobs_dir,
+            retention_days=settings.cleanup_retention_days,
+            videos_only=settings.cleanup_videos_only,
+            enabled=True,
+        )
+
+    # Check for duplicate URL
+    existing_job = _job_manager.get_job_by_url(job_create.url)
+    if existing_job:
+        raise HTTPException(
+            status_code=409,
+            detail=f"A job already exists for this URL (Job ID: {existing_job.id}, status: {existing_job.status.value})"
+        )
+
+    job = _job_manager.create_job(
+        url=job_create.url,
+        target_language=job_create.target_language,
+        # v2 fields
+        source_type=job_create.source_type,
+        source_id=job_create.source_id,
+        item_id=job_create.item_id,
+        pipeline_id=job_create.pipeline_id,
+    )
+
+    # Hardcore Player options
+    job.use_traditional_chinese = job_create.use_traditional_chinese
+    job.skip_diarization = job_create.skip_diarization
+    _job_manager.save_job(job)
+
+    # Register webhook if provided
+    if callback_url:
+        _webhook_service.register_webhook(job.id, callback_url)
+
+    # Add to queue
+    await _job_queue.add(job.id)
+
+    from loguru import logger
+    logger.info(f"Created job {job.id} for URL: {job.url}")
+    return job
+
+
+@router.post("/jobs/batch", response_model=BatchJobResponse)
+async def create_batch_jobs(batch: BatchJobCreate):
+    """Create multiple jobs from a list of URLs."""
+    job_ids = []
+
+    for url in batch.urls:
+        job = _job_manager.create_job(
+            url=url,
+            target_language=batch.target_language,
+        )
+        job.use_traditional_chinese = batch.use_traditional_chinese
+        _job_manager.save_job(job)
+        job_ids.append(job.id)
+
+    # Add to queue
+    await _job_queue.add_batch(job_ids, priority=batch.priority)
+
+    # Register webhooks if callback provided
+    if batch.callback_url:
+        for job_id in job_ids:
+            _webhook_service.register_webhook(job_id, batch.callback_url)
+
+    return BatchJobResponse(
+        job_ids=job_ids,
+        count=len(job_ids),
+    )
+
+
+@router.get("/jobs", response_model=List[Job])
+async def list_jobs(
+    status: Optional[JobStatus] = None,
+    limit: int = Query(default=100, le=500),
+):
+    """List all jobs, optionally filtered by status."""
+    jobs = _job_manager.list_jobs(status=status, limit=limit)
+    # Validate file paths exist before returning
+    return [job.validate_file_paths() for job in jobs]
+
+
+@router.get("/jobs/{job_id}", response_model=Job)
+async def get_job(job_id: str):
+    """Get a specific job."""
+    job = _job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job.validate_file_paths()
+
+
+@router.delete("/jobs/{job_id}")
+async def delete_job(job_id: str, delete_files: bool = True):
+    """Delete a job."""
+    if not _job_manager.delete_job(job_id, delete_files=delete_files):
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {"message": f"Job {job_id} deleted"}
+
+
+@router.get("/jobs/{job_id}/video")
+async def get_job_video(job_id: str):
+    """Stream the source video for a job (for playback in video element)."""
+    job = _job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if not job.source_video:
+        raise HTTPException(status_code=404, detail="Video not downloaded yet")
+
+    video_path = Path(job.source_video)
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="Video file not found")
+
+    # Return video for inline playback (no Content-Disposition: attachment)
+    return FileResponse(
+        video_path,
+        media_type="video/mp4",
+    )
+
+
+@router.get("/jobs/{job_id}/video/export")
+async def get_job_export_video(job_id: str):
+    """Download the exported video (with subtitles) for a job."""
+    job = _job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if not job.output_video:
+        raise HTTPException(status_code=404, detail="Exported video not generated. Please complete review and export first")
+
+    video_path = Path(job.output_video)
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="Exported video file not found")
+
+    # Use title for filename, fallback to job_id
+    safe_title = (job.title or job_id).replace("/", "_").replace("\\", "_")[:100]
+    filename = f"{safe_title}_bilingual.mp4"
+    # URL-encode for Content-Disposition header (RFC 5987)
+    filename_encoded = quote(filename)
+
+    return FileResponse(
+        video_path,
+        media_type="video/mp4",
+        filename=filename,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"}
+    )
+
+
+@router.get("/jobs/{job_id}/thumbnail/{filename}")
+async def get_thumbnail(job_id: str, filename: str):
+    """Get generated thumbnail image for a job."""
+    job_dir = settings.jobs_dir / job_id
+    thumbnail_path = job_dir / "output" / filename
+
+    if not thumbnail_path.exists():
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+
+    return FileResponse(
+        thumbnail_path,
+        media_type="image/png",
+        filename=filename,
+    )
+
+
+@router.post("/jobs/{job_id}/retry")
+async def retry_job(job_id: str):
+    """Retry a failed job."""
+    job = _job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job.status != JobStatus.FAILED:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Can only retry failed jobs, current status: {job.status}"
+        )
+
+    # Reset and re-queue
+    await _job_manager.update_status(job, JobStatus.PENDING, progress=0.0)
+    await _job_queue.add(job_id, priority=1)
+
+    return {"message": f"Job {job_id} queued for retry"}
+
+
+@router.post("/jobs/{job_id}/cancel")
+async def cancel_job(job_id: str):
+    """Cancel a running job (will stop at next stage boundary)."""
+    from loguru import logger
+
+    job = _job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # Can only cancel jobs that are in progress
+    cancellable_statuses = {
+        JobStatus.PENDING,
+        JobStatus.DOWNLOADING,
+        JobStatus.TRANSCRIBING,
+        JobStatus.DIARIZING,
+        JobStatus.TRANSLATING,
+    }
+
+    if job.status not in cancellable_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot cancel job in status: {job.status.value}"
+        )
+
+    # Set cancel flag - job will check this between stages
+    job.cancel_requested = True
+    _job_manager.save_job(job)
+
+    logger.info(f"Cancel requested for job {job_id}")
+    return {"message": f"Job {job_id} marked for cancellation, will stop after current stage completes"}
+
+
+# ============ Webhook Endpoints ============
+
+@router.post("/webhooks/register")
+async def register_webhook(webhook: WebhookRegister):
+    """Register a webhook callback for a job."""
+    job = _job_manager.get_job(webhook.job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    _webhook_service.register_webhook(webhook.job_id, webhook.callback_url)
+    return {"message": f"Webhook registered for job {webhook.job_id}"}
+
+
+@router.delete("/webhooks/{job_id}")
+async def unregister_webhook(job_id: str):
+    """Unregister webhook for a job."""
+    _webhook_service.unregister_webhook(job_id)
+    return {"message": f"Webhook unregistered for job {job_id}"}

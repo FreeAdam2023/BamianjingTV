@@ -14,6 +14,17 @@ from .timelines import (
     set_waveform_worker,
     set_jobs_dir,
 )
+from .jobs import (
+    router as jobs_router,
+    set_job_manager,
+    set_job_queue,
+    set_webhook_service,
+)
+from .queue import router as queue_router, set_job_queue as set_queue_job_queue
+from .cleanup import router as cleanup_router
+from .segments import router as segments_router
+from .export import router as export_router
+from .media import router as media_router
 
 __all__ = [
     # v2 Routers
@@ -24,6 +35,12 @@ __all__ = [
     "websocket_router",
     # Hardcore Player Routers
     "timelines_router",
+    "segments_router",
+    "export_router",
+    "media_router",
+    "jobs_router",
+    "queue_router",
+    "cleanup_router",
     # v2 Setup functions
     "set_source_manager",
     "set_item_manager",
@@ -37,4 +54,9 @@ __all__ = [
     "set_thumbnail_worker",
     "set_waveform_worker",
     "set_jobs_dir",
+    # Job/Queue Setup functions
+    "set_job_manager",
+    "set_job_queue",
+    "set_webhook_service",
+    "set_queue_job_queue",
 ]
