@@ -206,18 +206,25 @@ class ThumbnailWorker:
             s.get('en', s.get('text', '')) for s in subtitles[:20]
         ])[:1000]
 
-        instruction_text = ""
+        # Build instruction section - make it prominent if provided
+        instruction_section = ""
+        user_instruction_reminder = ""
         if user_instruction:
-            instruction_text = f"\n\n用户特别要求：{user_instruction}"
+            instruction_section = f"""
+**【用户创作指导 - 必须遵循】**
+{user_instruction}
+---
+"""
+            user_instruction_reminder = f"\n\n**重要：标题必须围绕用户指导「{user_instruction}」来创作！**"
 
         system_prompt = f"""你是一个YouTube视频封面标题设计师。根据视频内容生成{num_candidates}组不同风格的博眼球中文标题。
-
+{instruction_section}
 规则：
 - 每组包含主标题（6-10字）和副标题（6-12字）
 - 使用繁体中文
 - 风格要多样化：震撼型、悬念型、对抗型、情感型、揭秘型
 - 可以稍微夸张但不要虚假
-- 要抓住视频核心亮点{instruction_text}
+- 要抓住视频核心亮点
 
 输出JSON数组格式：
 [
@@ -230,7 +237,10 @@ class ThumbnailWorker:
 
 视频内容摘要：{content_sample}
 
-生成{num_candidates}组不同风格的封面标题："""
+生成{num_candidates}组不同风格的封面标题：{user_instruction_reminder}"""
+
+        # Lower temperature when user provides instruction for better adherence
+        temperature = 0.7 if user_instruction else 1.0
 
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
@@ -247,7 +257,7 @@ class ThumbnailWorker:
                             {"role": "user", "content": user_prompt},
                         ],
                         "max_tokens": 800,
-                        "temperature": 1.0,  # Higher for more diversity
+                        "temperature": temperature,
                     },
                 )
                 response.raise_for_status()
