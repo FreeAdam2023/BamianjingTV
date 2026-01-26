@@ -353,6 +353,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         coverFrameTime={coverFrameTime ?? null}
         useTraditional={useTraditional}
         converting={converting}
+        segmentCount={segments.length}
         onConvertChinese={onConvertChinese}
         onTogglePlay={toggle}
         onSeek={seekTo}
