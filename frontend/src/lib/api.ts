@@ -14,6 +14,7 @@ import type {
   SegmentState,
   WaveformData,
   CoverFrameResponse,
+  TitleCandidatesResponse,
   ThumbnailGenerateRequest,
   ThumbnailResponse,
 } from "./types";
@@ -146,6 +147,17 @@ export async function captureCoverFrame(
 ): Promise<CoverFrameResponse> {
   return fetchAPI(`/timelines/${timelineId}/cover/capture?timestamp=${timestamp}`, {
     method: "POST",
+  });
+}
+
+export async function generateTitleCandidates(
+  timelineId: string,
+  instruction?: string,
+  numCandidates = 5
+): Promise<TitleCandidatesResponse> {
+  return fetchAPI(`/timelines/${timelineId}/titles/generate?num_candidates=${numCandidates}`, {
+    method: "POST",
+    body: instruction ? JSON.stringify({ instruction }) : undefined,
   });
 }
 

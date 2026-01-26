@@ -184,6 +184,105 @@ class ThumbnailWorker:
             logger.error(f"Failed to generate clickbait title: {e}")
             return "精彩內容", "不容錯過"
 
+    async def generate_title_candidates(
+        self,
+        title: str,
+        subtitles: List[dict],
+        num_candidates: int = 5,
+        user_instruction: Optional[str] = None,
+    ) -> List[dict]:
+        """Generate multiple title candidates for user selection.
+
+        Args:
+            title: Video title
+            subtitles: List of subtitle dicts
+            num_candidates: Number of candidates to generate
+            user_instruction: Optional user instruction to guide title generation
+
+        Returns:
+            List of dicts with 'main' and 'sub' keys
+        """
+        content_sample = " ".join([
+            s.get('en', s.get('text', '')) for s in subtitles[:20]
+        ])[:1000]
+
+        instruction_text = ""
+        if user_instruction:
+            instruction_text = f"\n\n用户特别要求：{user_instruction}"
+
+        system_prompt = f"""你是一个YouTube视频封面标题设计师。根据视频内容生成{num_candidates}组不同风格的博眼球中文标题。
+
+规则：
+- 每组包含主标题（6-10字）和副标题（6-12字）
+- 使用繁体中文
+- 风格要多样化：震撼型、悬念型、对抗型、情感型、揭秘型
+- 可以稍微夸张但不要虚假
+- 要抓住视频核心亮点{instruction_text}
+
+输出JSON数组格式：
+[
+  {{"main": "主标题1", "sub": "副标题1", "style": "风格描述"}},
+  {{"main": "主标题2", "sub": "副标题2", "style": "风格描述"}},
+  ...
+]"""
+
+        user_prompt = f"""视频标题：{title}
+
+视频内容摘要：{content_sample}
+
+生成{num_candidates}组不同风格的封面标题："""
+
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    f"{settings.llm_base_url}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": settings.llm_model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        "max_tokens": 800,
+                        "temperature": 1.0,  # Higher for more diversity
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
+                content = data["choices"][0]["message"]["content"].strip()
+
+                # Parse JSON response
+                import json
+                if "```" in content:
+                    content = content.split("```")[1]
+                    if content.startswith("json"):
+                        content = content[4:]
+
+                candidates = json.loads(content)
+
+                # Ensure we have the required fields
+                result = []
+                for i, c in enumerate(candidates[:num_candidates]):
+                    result.append({
+                        "index": i,
+                        "main": c.get("main", "精彩內容"),
+                        "sub": c.get("sub", "不容錯過"),
+                        "style": c.get("style", ""),
+                    })
+
+                logger.info(f"Generated {len(result)} title candidates")
+                return result
+
+        except Exception as e:
+            logger.error(f"Failed to generate title candidates: {e}")
+            # Return default candidates
+            return [
+                {"index": 0, "main": "精彩內容", "sub": "不容錯過", "style": "默认"},
+            ]
+
     def get_video_duration(self, video_path: Path) -> Optional[float]:
         """Get video duration in seconds using ffprobe.
 
@@ -495,6 +594,8 @@ class ThumbnailWorker:
         output_dir: Path,
         filename: Optional[str] = None,
         timestamp: Optional[float] = None,
+        main_title: Optional[str] = None,
+        sub_title: Optional[str] = None,
     ) -> Optional[Path]:
         """Generate a YouTube-style thumbnail for a timeline.
 
@@ -505,6 +606,8 @@ class ThumbnailWorker:
             output_dir: Directory to save thumbnail
             filename: Optional filename
             timestamp: Optional specific timestamp for frame extraction
+            main_title: Optional pre-specified main title
+            sub_title: Optional pre-specified sub title
 
         Returns:
             Path to generated thumbnail or None
@@ -528,9 +631,12 @@ class ThumbnailWorker:
             logger.info("Analyzing emotional moments...")
             timestamp, reason = await self.analyze_emotional_moments(subtitles)
 
-        # Step 2: Generate clickbait titles
-        logger.info("Generating clickbait titles...")
-        main_title, sub_title = await self.generate_clickbait_title(title, subtitles)
+        # Step 2: Generate clickbait titles (if not provided)
+        if not main_title or not sub_title:
+            logger.info("Generating clickbait titles...")
+            gen_main, gen_sub = await self.generate_clickbait_title(title, subtitles)
+            main_title = main_title or gen_main
+            sub_title = sub_title or gen_sub
         logger.info(f"Titles: {main_title} / {sub_title}")
 
         # Step 3: Extract frame from video

@@ -26,10 +26,32 @@ class CoverFrameResponse(BaseModel):
     message: str
 
 
+class TitleCandidate(BaseModel):
+    """A single title candidate."""
+    index: int
+    main: str
+    sub: str
+    style: str
+
+
+class TitleCandidatesRequest(BaseModel):
+    """Request for title generation."""
+    instruction: str | None = None  # User instruction to guide AI
+
+
+class TitleCandidatesResponse(BaseModel):
+    """Response for title candidates."""
+    timeline_id: str
+    candidates: List[TitleCandidate]
+    message: str
+
+
 class ThumbnailGenerateRequest(BaseModel):
     """Request for thumbnail generation."""
     timestamp: float | None = None  # Custom timestamp (optional)
     use_cover_frame: bool = True  # Use previously captured cover frame
+    main_title: str | None = None  # User-selected or custom main title
+    sub_title: str | None = None  # User-selected or custom sub title
 
 
 class ThumbnailResponse(BaseModel):
@@ -54,6 +76,69 @@ class WaveformGenerateResponse(BaseModel):
     track_type: str
     status: str
     message: str
+
+
+@router.post("/{timeline_id}/titles/generate", response_model=TitleCandidatesResponse)
+async def generate_title_candidates(
+    timeline_id: str,
+    request: TitleCandidatesRequest | None = None,
+    num_candidates: int = Query(default=5, ge=1, le=10, description="Number of candidates"),
+):
+    """Generate multiple title candidates for thumbnail.
+
+    Args:
+        timeline_id: Timeline ID
+        request: Optional user instruction to guide AI
+        num_candidates: Number of candidates to generate (1-10)
+
+    Returns candidate titles for user selection.
+    """
+    from loguru import logger
+
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    thumbnail_worker = _get_thumbnail_worker()
+
+    # Extract subtitles for analysis
+    subtitles = [
+        {"start": seg.start, "end": seg.end, "en": seg.en}
+        for seg in timeline.segments if seg.en
+    ]
+
+    instruction = request.instruction if request else None
+
+    try:
+        candidates = await thumbnail_worker.generate_title_candidates(
+            title=timeline.source_title,
+            subtitles=subtitles,
+            num_candidates=num_candidates,
+            user_instruction=instruction,
+        )
+
+        response_candidates = [
+            TitleCandidate(
+                index=c["index"],
+                main=c["main"],
+                sub=c["sub"],
+                style=c.get("style", ""),
+            )
+            for c in candidates
+        ]
+
+        logger.info(f"Generated {len(candidates)} title candidates for timeline {timeline_id}")
+
+        return TitleCandidatesResponse(
+            timeline_id=timeline_id,
+            candidates=response_candidates,
+            message=f"Generated {len(candidates)} title candidates",
+        )
+
+    except Exception as e:
+        logger.exception(f"Title generation failed for timeline {timeline_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/{timeline_id}/cover/capture", response_model=CoverFrameResponse)
@@ -180,6 +265,10 @@ async def generate_thumbnail(
     frame_path = None
     use_cover = request.use_cover_frame if request else True
 
+    # Get user-provided titles if any
+    main_title = request.main_title if request else None
+    sub_title = request.sub_title if request else None
+
     if request and request.timestamp is not None:
         # Explicit timestamp provided
         timestamp = request.timestamp
@@ -190,6 +279,9 @@ async def generate_thumbnail(
         if cover_path.exists():
             frame_path = cover_path
             logger.info(f"Using cover frame: {frame_path}")
+
+    if main_title:
+        logger.info(f"Using user-provided titles: {main_title} / {sub_title}")
 
     # Generate thumbnail
     filename = f"thumbnail_{int(time.time())}.png"
@@ -203,6 +295,8 @@ async def generate_thumbnail(
                 frame_path=frame_path,
                 output_dir=output_dir,
                 filename=filename,
+                main_title=main_title,
+                sub_title=sub_title,
             )
         else:
             # Generate from video with optional timestamp
@@ -213,6 +307,8 @@ async def generate_thumbnail(
                 output_dir=output_dir,
                 filename=filename,
                 timestamp=timestamp,
+                main_title=main_title,
+                sub_title=sub_title,
             )
 
         if not thumbnail_path:

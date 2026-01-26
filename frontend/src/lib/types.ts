@@ -81,9 +81,24 @@ export interface CoverFrameResponse {
   message: string;
 }
 
+export interface TitleCandidate {
+  index: number;
+  main: string;
+  sub: string;
+  style: string;
+}
+
+export interface TitleCandidatesResponse {
+  timeline_id: string;
+  candidates: TitleCandidate[];
+  message: string;
+}
+
 export interface ThumbnailGenerateRequest {
   timestamp?: number;  // Custom timestamp
   use_cover_frame?: boolean;  // Use previously captured cover frame
+  main_title?: string;  // User-selected main title
+  sub_title?: string;  // User-selected sub title
 }
 
 export interface ThumbnailResponse {

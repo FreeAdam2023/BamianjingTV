@@ -5,8 +5,8 @@
  */
 
 import { useState } from "react";
-import type { ExportProfile, ExportRequest, Timeline } from "@/lib/types";
-import { generateThumbnail, formatDuration } from "@/lib/api";
+import type { ExportProfile, ExportRequest, Timeline, TitleCandidate } from "@/lib/types";
+import { generateThumbnail, generateTitleCandidates, formatDuration } from "@/lib/api";
 
 interface ExportPanelProps {
   timeline: Timeline;
@@ -33,6 +33,12 @@ export default function ExportPanel({
   const [youtubeDescription, setYoutubeDescription] = useState("");
   const [youtubeTags, setYoutubeTags] = useState("");
   const [youtubePrivacy, setYoutubePrivacy] = useState<"private" | "unlisted" | "public">("private");
+
+  // Title candidates
+  const [titleCandidates, setTitleCandidates] = useState<TitleCandidate[]>([]);
+  const [selectedTitle, setSelectedTitle] = useState<TitleCandidate | null>(null);
+  const [loadingTitles, setLoadingTitles] = useState(false);
+  const [titleInstruction, setTitleInstruction] = useState("");
 
   // Thumbnail generation
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
@@ -73,12 +79,41 @@ export default function ExportPanel({
     return `${protocol}//${hostname}:8000`;
   };
 
+  const handleGenerateTitles = async () => {
+    setLoadingTitles(true);
+    try {
+      const result = await generateTitleCandidates(
+        timeline.timeline_id,
+        titleInstruction || undefined,
+        5
+      );
+      setTitleCandidates(result.candidates);
+      setSelectedTitle(null);
+    } catch (err) {
+      alert("Failed to generate titles: " + (err instanceof Error ? err.message : "Unknown error"));
+    } finally {
+      setLoadingTitles(false);
+    }
+  };
+
   const handleGenerateThumbnail = async () => {
     setGeneratingThumbnail(true);
     try {
-      // Use cover frame if available, otherwise let AI auto-select
-      const request = coverFrameUrl ? { use_cover_frame: true } : undefined;
-      const result = await generateThumbnail(timeline.timeline_id, request);
+      const request: { use_cover_frame?: boolean; main_title?: string; sub_title?: string } = {};
+
+      if (coverFrameUrl) {
+        request.use_cover_frame = true;
+      }
+
+      if (selectedTitle) {
+        request.main_title = selectedTitle.main;
+        request.sub_title = selectedTitle.sub;
+      }
+
+      const result = await generateThumbnail(
+        timeline.timeline_id,
+        Object.keys(request).length > 0 ? request : undefined
+      );
       setThumbnailUrl(`${getBaseUrl()}${result.thumbnail_url}`);
       setShowOriginal(false);
     } catch (err) {
@@ -90,7 +125,7 @@ export default function ExportPanel({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg p-6 w-[480px] max-h-[90vh] overflow-y-auto">
+      <div className="bg-gray-800 rounded-lg p-6 w-[520px] max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-bold mb-4">Export Video</h2>
 
         {/* Export profile */}
@@ -212,8 +247,94 @@ export default function ExportPanel({
             <span className="font-medium">Video Thumbnail</span>
             {coverFrameTime !== null && (
               <span className="text-sm text-purple-400">
-                Cover set @ {formatDuration(coverFrameTime)}
+                Cover @ {formatDuration(coverFrameTime)}
               </span>
+            )}
+          </div>
+
+          {/* Title Generation Section */}
+          <div className="mb-4 p-3 bg-gray-900 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-300">Thumbnail Titles</span>
+              <button
+                onClick={handleGenerateTitles}
+                disabled={loadingTitles}
+                className="px-3 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 rounded flex items-center gap-1"
+              >
+                {loadingTitles ? (
+                  <>
+                    <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Generating...
+                  </>
+                ) : titleCandidates.length > 0 ? (
+                  "Regenerate"
+                ) : (
+                  "Generate 5 Titles"
+                )}
+              </button>
+            </div>
+
+            {/* Instruction Input */}
+            <div className="mb-3">
+              <input
+                type="text"
+                value={titleInstruction}
+                onChange={(e) => setTitleInstruction(e.target.value)}
+                placeholder="Tell AI how to generate titles (e.g., 'focus on conflict', 'more dramatic')..."
+                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm placeholder-gray-500"
+              />
+            </div>
+
+            {/* Title Candidates */}
+            {titleCandidates.length > 0 && (
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {titleCandidates.map((candidate) => (
+                  <button
+                    key={candidate.index}
+                    onClick={() => setSelectedTitle(candidate)}
+                    className={`w-full text-left p-2 rounded border-2 transition-colors ${
+                      selectedTitle?.index === candidate.index
+                        ? "border-purple-500 bg-purple-500/20"
+                        : "border-transparent bg-gray-800 hover:bg-gray-750"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${
+                        selectedTitle?.index === candidate.index
+                          ? "bg-purple-500 text-white"
+                          : "bg-gray-700 text-gray-400"
+                      }`}>
+                        {candidate.index + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-yellow-400 font-bold truncate">{candidate.main}</div>
+                        <div className="text-white text-sm truncate">{candidate.sub}</div>
+                        {candidate.style && (
+                          <div className="text-xs text-gray-500 mt-0.5">{candidate.style}</div>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {titleCandidates.length === 0 && !loadingTitles && (
+              <p className="text-xs text-gray-500 text-center py-2">
+                Click "Generate 5 Titles" to get AI suggestions
+              </p>
+            )}
+
+            {selectedTitle && (
+              <div className="mt-2 p-2 bg-purple-900/30 rounded text-sm">
+                <span className="text-purple-400">Selected:</span>
+                <span className="text-yellow-400 ml-2">{selectedTitle.main}</span>
+                <span className="text-gray-400 mx-1">/</span>
+                <span className="text-white">{selectedTitle.sub}</span>
+              </div>
             )}
           </div>
 
@@ -221,13 +342,11 @@ export default function ExportPanel({
           <div className="relative rounded-lg overflow-hidden bg-gray-900 aspect-video mb-3">
             {thumbnailUrl ? (
               <>
-                {/* Show either original cover or generated thumbnail */}
                 <img
                   src={showOriginal && coverFrameUrl ? coverFrameUrl : thumbnailUrl}
                   alt={showOriginal ? "Original cover frame" : "Generated thumbnail"}
                   className="w-full h-full object-cover"
                 />
-                {/* Toggle buttons */}
                 {coverFrameUrl && (
                   <div className="absolute top-2 left-2 flex gap-1">
                     <button
@@ -252,7 +371,6 @@ export default function ExportPanel({
                     </button>
                   </div>
                 )}
-                {/* Download button */}
                 <a
                   href={thumbnailUrl}
                   download="thumbnail.png"
@@ -287,7 +405,7 @@ export default function ExportPanel({
             )}
           </div>
 
-          {/* Generate Button */}
+          {/* Generate Thumbnail Button */}
           <button
             onClick={handleGenerateThumbnail}
             disabled={generatingThumbnail}
@@ -303,15 +421,15 @@ export default function ExportPanel({
               </>
             ) : thumbnailUrl ? (
               "Regenerate Thumbnail"
-            ) : coverFrameUrl ? (
-              "Generate Thumbnail from Cover"
             ) : (
-              "Generate Thumbnail (AI Auto-select)"
+              "Generate Thumbnail"
             )}
           </button>
 
           <p className="text-xs text-gray-500 mt-2 text-center">
-            Large Chinese text overlay added automatically by AI
+            {selectedTitle
+              ? "Using selected title"
+              : "AI will generate title automatically"}
           </p>
         </div>
 
