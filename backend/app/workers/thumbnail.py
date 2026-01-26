@@ -422,7 +422,6 @@ class ThumbnailWorker:
         image_path: Path,
         main_title: str,
         sub_title: str,
-        badge_text: str = "中英對照",
     ) -> bytes:
         """Add text overlays to the thumbnail image.
 
@@ -430,10 +429,9 @@ class ThumbnailWorker:
             image_path: Path to base image
             main_title: Main title (yellow text)
             sub_title: Sub title (white text on blue bar)
-            badge_text: Corner badge text
 
         Returns:
-            Final image bytes
+            Final image bytes (with "中英字幕" badge in top-left)
         """
         from PIL import Image, ImageDraw, ImageFont, ImageEnhance
         import os
@@ -537,14 +535,28 @@ class ThumbnailWorker:
 
         draw.text((sub_x, sub_y), sub_title, font=sub_font, fill=white)
 
-        # Draw corner badge (top-left)
-        badge_padding = 10
-        badge_bbox = draw.textbbox((0, 0), badge_text, font=badge_font)
-        badge_width = badge_bbox[2] - badge_bbox[0] + badge_padding * 2
-        badge_height = badge_bbox[3] - badge_bbox[1] + badge_padding * 2
+        # Draw corner badge (top-left) - two lines: "中英" / "字幕"
+        badge_line1 = "中英"
+        badge_line2 = "字幕"
+        badge_padding_x = 16
+        badge_padding_y = 12
+        line_spacing = 6
+
+        bbox1 = draw.textbbox((0, 0), badge_line1, font=badge_font)
+        bbox2 = draw.textbbox((0, 0), badge_line2, font=badge_font)
+        line1_width = bbox1[2] - bbox1[0]
+        line2_width = bbox2[2] - bbox2[0]
+        line_height = bbox1[3] - bbox1[1]
+
+        badge_width = max(line1_width, line2_width) + badge_padding_x * 2
+        badge_height = line_height * 2 + line_spacing + badge_padding_y * 2
 
         draw.rectangle([(20, 20), (20 + badge_width, 20 + badge_height)], fill=yellow)
-        draw.text((20 + badge_padding, 20 + badge_padding - 5), badge_text, font=badge_font, fill=(0, 0, 0))
+        # Center each line horizontally
+        line1_x = 20 + (badge_width - line1_width) // 2
+        line2_x = 20 + (badge_width - line2_width) // 2
+        draw.text((line1_x, 20 + badge_padding_y), badge_line1, font=badge_font, fill=(0, 0, 0))
+        draw.text((line2_x, 20 + badge_padding_y + line_height + line_spacing), badge_line2, font=badge_font, fill=(0, 0, 0))
 
         # Save to bytes
         output = io.BytesIO()
