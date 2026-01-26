@@ -830,3 +830,65 @@ async def generate_waveform(
     except Exception as e:
         logger.exception(f"Waveform generation failed for timeline {timeline_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class RegenerateTranslationResponse(BaseModel):
+    """Response for regenerate translation."""
+    message: str
+    updated_count: int
+
+
+@router.post("/{timeline_id}/regenerate-translation", response_model=RegenerateTranslationResponse)
+async def regenerate_translation(timeline_id: str):
+    """Regenerate translation for all segments in a timeline.
+
+    Uses the existing English text (original) and re-translates to Chinese.
+    This is useful if the original translation was poor or needs updating.
+
+    Args:
+        timeline_id: Timeline ID
+
+    Returns count of updated segments.
+    """
+    from loguru import logger
+    from app.workers.translation import TranslationWorker
+
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    # Determine target language based on current setting
+    target_language = "zh-TW" if timeline.use_traditional_chinese else "zh-CN"
+
+    try:
+        worker = TranslationWorker()
+        updated_count = 0
+
+        # Translate each segment
+        for segment in timeline.segments:
+            if segment.en:  # Only translate if there's English text
+                new_translation = await worker.translate_text(
+                    segment.en,
+                    target_language=target_language
+                )
+                if new_translation != segment.zh:
+                    segment.zh = new_translation
+                    updated_count += 1
+                    logger.debug(f"Segment {segment.id}: {segment.en[:30]}... -> {new_translation[:30]}...")
+
+        # Save the timeline
+        manager.save_timeline(timeline)
+
+        logger.info(
+            f"Regenerated translation for timeline {timeline_id}: {updated_count} segments updated"
+        )
+
+        return RegenerateTranslationResponse(
+            message=f"Successfully regenerated translation for {updated_count} segments",
+            updated_count=updated_count,
+        )
+
+    except Exception as e:
+        logger.exception(f"Translation regeneration failed for timeline {timeline_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

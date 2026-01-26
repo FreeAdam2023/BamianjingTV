@@ -297,6 +297,14 @@ export async function cancelJob(jobId: string): Promise<{ message: string }> {
   });
 }
 
+export async function regenerateTranslation(
+  timelineId: string
+): Promise<{ message: string; updated_count: number }> {
+  return fetchAPI(`/timelines/${timelineId}/regenerate-translation`, {
+    method: "POST",
+  });
+}
+
 // ============ Waveform API ============
 
 export async function getWaveform(

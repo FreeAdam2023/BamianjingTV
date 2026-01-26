@@ -6,7 +6,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import VideoPlayer, { VideoPlayerRef, VideoMode } from "@/components/VideoPlayer";
 import SegmentList from "@/components/SegmentList";
 import { TimelineEditor } from "@/components/timeline";
@@ -14,7 +14,7 @@ import { useTimeline } from "@/hooks/useTimeline";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useTimelineKeyboard } from "@/hooks/useTimelineKeyboard";
 import { useMultiTrackWaveform, TrackType } from "@/hooks/useMultiTrackWaveform";
-import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles } from "@/lib/api";
+import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslation } from "@/lib/api";
 import ReviewHeader from "./ReviewHeader";
 import ExportPanel from "./ExportPanel";
 import KeyboardHelp from "./KeyboardHelp";
@@ -22,6 +22,7 @@ import BulkActions from "./BulkActions";
 
 export default function ReviewPage() {
   const params = useParams();
+  const router = useRouter();
   const timelineId = params.timelineId as string;
 
   const {
@@ -39,6 +40,7 @@ export default function ReviewPage() {
   } = useTimeline(timelineId);
 
   const [converting, setConverting] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
 
   const [currentSegmentId, setCurrentSegmentId] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -145,6 +147,36 @@ export default function ReviewPage() {
     }
   }, [timeline, refresh]);
 
+  // Handle delete job
+  const handleDelete = useCallback(async () => {
+    if (!timeline) return;
+    if (!confirm("确定要删除这个 Job 吗？此操作不可撤销。")) return;
+    try {
+      await deleteJob(timeline.job_id);
+      router.push("/");
+    } catch (err) {
+      console.error("Failed to delete job:", err);
+      alert("删除失败: " + (err instanceof Error ? err.message : "Unknown error"));
+    }
+  }, [timeline, router]);
+
+  // Handle regenerate translation
+  const handleRegenerateTranslation = useCallback(async () => {
+    if (!timeline) return;
+    if (!confirm("确定要重新生成翻译吗？这将覆盖现有的中文字幕。")) return;
+    setRegenerating(true);
+    try {
+      const result = await regenerateTranslation(timeline.timeline_id);
+      await refresh();
+      alert(`翻译完成：更新了 ${result.updated_count} 条字幕`);
+    } catch (err) {
+      console.error("Failed to regenerate translation:", err);
+      alert("翻译失败: " + (err instanceof Error ? err.message : "Unknown error"));
+    } finally {
+      setRegenerating(false);
+    }
+  }, [timeline, refresh]);
+
   // Handle timeline seek
   const handleTimelineSeek = useCallback((time: number) => {
     if (videoPlayerRef.current) {
@@ -195,8 +227,12 @@ export default function ReviewPage() {
         saving={saving}
         stats={stats}
         timelineId={timeline.timeline_id}
+        jobId={timeline.job_id}
         exportStatus={timeline.export_status}
         onExportClick={() => setShowExportPanel(true)}
+        onDelete={handleDelete}
+        onRegenerateTranslation={handleRegenerateTranslation}
+        regenerating={regenerating}
       />
 
       {/* Main content */}
