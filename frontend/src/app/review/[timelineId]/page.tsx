@@ -305,7 +305,7 @@ export default function ReviewPage() {
         </div>
 
         {/* Segment list panel */}
-        <div className="w-96 border-l border-gray-700 flex flex-col">
+        <div className="w-[480px] border-l border-gray-700 flex flex-col">
           {/* Bulk actions */}
           <div className="p-2 border-b border-gray-700 flex gap-2">
             <button
