@@ -47,7 +47,6 @@ class YouTubeWorker:
             return self._service_cache[cache_key]
 
         from google.oauth2.credentials import Credentials
-        from google_auth_oauthlib.flow import InstalledAppFlow
         from google.auth.transport.requests import Request
         from googleapiclient.discovery import build
 
@@ -76,23 +75,14 @@ class YouTubeWorker:
                     f"Channel token invalid or expired. Please re-authorize the channel."
                 )
 
-            # Fall back to interactive auth for default token
-            if not self.credentials_file.exists():
-                raise YouTubeUploadError(
-                    f"YouTube credentials file not found: {self.credentials_file}\n"
-                    "Please download OAuth 2.0 credentials from Google Cloud Console"
-                )
-
-            flow = InstalledAppFlow.from_client_secrets_file(
-                str(self.credentials_file),
-                self.SCOPES,
+            # No valid credentials - user needs to authorize via web UI
+            # Cannot use browser-based auth in headless/Docker environment
+            raise YouTubeUploadError(
+                "YouTube 未授权。请先在 Channels 页面创建 YouTube 频道并完成 OAuth 授权，"
+                "或确保 token 文件存在且有效。\n"
+                "YouTube not authorized. Please create a YouTube channel in the Channels page "
+                "and complete OAuth authorization first."
             )
-            credentials = flow.run_local_server(port=0)
-
-            # Save token
-            effective_token_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(effective_token_file, "wb") as f:
-                pickle.dump(credentials, f)
 
         service = build("youtube", "v3", credentials=credentials)
         self._service_cache[cache_key] = service
