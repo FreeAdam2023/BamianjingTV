@@ -584,6 +584,10 @@ async def capture_cover_frame(
                 detail="Failed to extract frame from video"
             )
 
+        # Save cover frame timestamp to timeline
+        timeline.cover_frame_time = timestamp
+        manager.save_timeline(timeline)
+
         cover_url = f"/jobs/{timeline.job_id}/cover"
 
         logger.info(f"Captured cover frame for timeline {timeline_id} at {timestamp}s")

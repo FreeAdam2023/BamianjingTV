@@ -4,7 +4,7 @@
  * ReviewPage - Timeline review page with video player, timeline editor, and segment list
  */
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import VideoPlayer, { VideoPlayerRef, VideoMode } from "@/components/VideoPlayer";
@@ -51,6 +51,14 @@ export default function ReviewPage() {
 
   // Waveform data for timeline
   const { tracks: waveformTracks, generateTrack: generateWaveform } = useMultiTrackWaveform(timelineId);
+
+  // Initialize cover frame from timeline data
+  useEffect(() => {
+    if (timeline?.cover_frame_time !== undefined && timeline?.cover_frame_time !== null) {
+      setCoverFrameTime(timeline.cover_frame_time);
+      setCoverFrameUrl(`${getCoverFrameUrl(timeline.job_id)}?t=${timeline.cover_frame_time}`);
+    }
+  }, [timeline?.cover_frame_time, timeline?.job_id]);
 
   const waveformData = {
     original: waveformTracks.original.waveform,

@@ -32,6 +32,8 @@ export interface Timeline {
   output_essence_path: string | null;
   youtube_video_id: string | null;
   youtube_url: string | null;
+  // Cover frame for thumbnail
+  cover_frame_time: number | null;
   // Export progress tracking
   export_status: ExportStatus;
   export_progress: number;

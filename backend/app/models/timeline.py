@@ -107,6 +107,9 @@ class Timeline(BaseModel):
     export_error: Optional[str] = None  # Error message if failed
     export_started_at: Optional[datetime] = None
 
+    # Cover frame for thumbnail
+    cover_frame_time: Optional[float] = None  # Timestamp of captured cover frame
+
     # AI-generated metadata drafts (saved to avoid re-generation)
     draft_youtube_title: Optional[str] = None
     draft_youtube_description: Optional[str] = None
