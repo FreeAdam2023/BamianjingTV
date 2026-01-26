@@ -155,6 +155,7 @@ export interface MetadataDraft {
   youtube_tags: string[] | null;
   thumbnail_candidates: TitleCandidate[] | null;
   instruction: string | null;
+  selected_title: TitleCandidate | null;
 }
 
 export interface MetadataDraftResponse {

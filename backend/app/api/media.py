@@ -123,6 +123,7 @@ class MetadataDraft(BaseModel):
     youtube_tags: List[str] | None = None
     thumbnail_candidates: List[TitleCandidate] | None = None
     instruction: str | None = None
+    selected_title: TitleCandidate | None = None
 
 
 class MetadataDraftResponse(BaseModel):

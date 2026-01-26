@@ -55,7 +55,7 @@ export default function ExportPanel({
   const saveDraft = useCallback(async () => {
     // Don't save during initial load or if nothing to save
     if (loadingDraft || initialLoadRef.current) return;
-    if (!youtubeTitle && !youtubeDescription && !youtubeTags && titleCandidates.length === 0) return;
+    if (!youtubeTitle && !youtubeDescription && !youtubeTags && titleCandidates.length === 0 && !selectedTitle) return;
 
     setSavingDraft(true);
     try {
@@ -65,6 +65,7 @@ export default function ExportPanel({
         youtube_tags: youtubeTags ? youtubeTags.split(",").map(t => t.trim()).filter(Boolean) : null,
         thumbnail_candidates: titleCandidates.length > 0 ? titleCandidates : null,
         instruction: aiInstruction || null,
+        selected_title: selectedTitle || null,
       };
       await saveMetadataDraft(timeline.timeline_id, draft);
       setDraftSavedAt(new Date());
@@ -74,7 +75,7 @@ export default function ExportPanel({
     } finally {
       setSavingDraft(false);
     }
-  }, [timeline.timeline_id, youtubeTitle, youtubeDescription, youtubeTags, titleCandidates, aiInstruction, loadingDraft]);
+  }, [timeline.timeline_id, youtubeTitle, youtubeDescription, youtubeTags, titleCandidates, aiInstruction, selectedTitle, loadingDraft]);
 
   // Debounced auto-save when any metadata changes
   useEffect(() => {
@@ -102,7 +103,7 @@ export default function ExportPanel({
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [youtubeTitle, youtubeDescription, youtubeTags, titleCandidates, aiInstruction, loadingDraft, saveDraft]);
+  }, [youtubeTitle, youtubeDescription, youtubeTags, titleCandidates, aiInstruction, selectedTitle, loadingDraft, saveDraft]);
 
   // Thumbnail generation
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
@@ -122,12 +123,14 @@ export default function ExportPanel({
             youtube_title: draft.youtube_title?.slice(0, 30),
             candidates_count: draft.thumbnail_candidates?.length,
             instruction: draft.instruction,
+            selected_title: draft.selected_title?.main,
           });
           if (draft.youtube_title) setYoutubeTitle(draft.youtube_title);
           if (draft.youtube_description) setYoutubeDescription(draft.youtube_description);
           if (draft.youtube_tags) setYoutubeTags(draft.youtube_tags.join(", "));
           if (draft.thumbnail_candidates) setTitleCandidates(draft.thumbnail_candidates);
           if (draft.instruction) setAiInstruction(draft.instruction);
+          if (draft.selected_title) setSelectedTitle(draft.selected_title);
         }
       } catch (err) {
         console.error("[ExportPanel] Failed to load metadata draft:", err);
