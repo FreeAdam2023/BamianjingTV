@@ -23,6 +23,7 @@ export default function SegmentList({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editEn, setEditEn] = useState("");
   const [editZh, setEditZh] = useState("");
+  const [saving, setSaving] = useState(false);
 
   // Auto-scroll to current segment
   useEffect(() => {
@@ -63,11 +64,26 @@ export default function SegmentList({
     setEditZh("");
   };
 
-  const saveEditing = (segmentId: number) => {
+  const saveEditing = async (segmentId: number) => {
     if (onTextChange) {
-      onTextChange(segmentId, editEn, editZh);
+      setSaving(true);
+      try {
+        await onTextChange(segmentId, editEn, editZh);
+        setEditingId(null);
+      } catch (err) {
+        console.error("Failed to save:", err);
+      } finally {
+        setSaving(false);
+      }
     }
-    setEditingId(null);
+  };
+
+  // Handle double-click to edit
+  const handleDoubleClick = (segment: EditableSegment, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onTextChange && editingId !== segment.id) {
+      startEditing(segment);
+    }
   };
 
   return (
@@ -97,14 +113,14 @@ export default function SegmentList({
               {/* Edit button */}
               {editingId !== segment.id && onTextChange && (
                 <button
-                  className="text-gray-400 hover:text-blue-400 transition"
+                  className="px-2 py-0.5 text-xs bg-gray-700 text-gray-300 rounded hover:bg-blue-600 hover:text-white transition"
                   onClick={(e) => {
                     e.stopPropagation();
                     startEditing(segment);
                   }}
-                  title="Edit text"
+                  title="Edit subtitles (or double-click text)"
                 >
-                  ✏️
+                  Edit
                 </button>
               )}
             </div>
@@ -122,6 +138,9 @@ export default function SegmentList({
                   className="w-full bg-gray-800 text-white text-sm p-2 rounded border border-gray-600 focus:border-blue-500 outline-none resize-none"
                   rows={2}
                   autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") cancelEditing();
+                  }}
                 />
               </div>
               {/* Chinese input */}
@@ -132,31 +151,48 @@ export default function SegmentList({
                   onChange={(e) => setEditZh(e.target.value)}
                   className="w-full bg-gray-800 text-yellow-400 text-sm p-2 rounded border border-gray-600 focus:border-blue-500 outline-none resize-none"
                   rows={2}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") cancelEditing();
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                      saveEditing(segment.id);
+                    }
+                  }}
                 />
               </div>
               {/* Save/Cancel buttons */}
-              <div className="flex gap-2 justify-end">
+              <div className="flex gap-2 justify-end items-center">
+                <span className="text-xs text-gray-500">Ctrl+Enter to save, Esc to cancel</span>
                 <button
                   className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-500 transition"
                   onClick={cancelEditing}
+                  disabled={saving}
                 >
                   Cancel
                 </button>
                 <button
-                  className="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-400 transition"
+                  className="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-400 transition disabled:bg-blue-400"
                   onClick={() => saveEditing(segment.id)}
+                  disabled={saving}
                 >
-                  Save
+                  {saving ? "Saving..." : "Save"}
                 </button>
               </div>
             </div>
           ) : (
-            <>
+            <div
+              className="group cursor-text"
+              onDoubleClick={(e) => handleDoubleClick(segment, e)}
+              title="Double-click to edit"
+            >
               {/* English text */}
-              <div className="text-white text-sm mb-1">{segment.en}</div>
+              <div className="text-white text-sm mb-1 group-hover:bg-gray-700/50 rounded px-1 -mx-1 transition">
+                {segment.en}
+              </div>
               {/* Chinese text */}
-              <div className="text-yellow-400 text-sm mb-2">{segment.zh}</div>
-            </>
+              <div className="text-yellow-400 text-sm mb-2 group-hover:bg-gray-700/50 rounded px-1 -mx-1 transition">
+                {segment.zh}
+              </div>
+            </div>
           )}
 
           {/* State buttons - hide when editing */}
