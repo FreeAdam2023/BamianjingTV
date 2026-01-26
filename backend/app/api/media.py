@@ -838,9 +838,9 @@ class RegenerateTranslationResponse(BaseModel):
     updated_count: int
 
 
-@router.post("/{timeline_id}/regenerate-translation", response_model=RegenerateTranslationResponse)
+@router.post("/{timeline_id}/regenerate-translation")
 async def regenerate_translation(timeline_id: str):
-    """Regenerate translation for all segments in a timeline.
+    """Regenerate translation for all segments in a timeline with SSE progress.
 
     Uses the existing English text (original) and re-translates to Chinese.
     This is useful if the original translation was poor or needs updating.
@@ -848,9 +848,11 @@ async def regenerate_translation(timeline_id: str):
     Args:
         timeline_id: Timeline ID
 
-    Returns count of updated segments.
+    Returns SSE stream with progress updates, then final result.
     """
+    import json
     from loguru import logger
+    from fastapi.responses import StreamingResponse
     from app.workers.translation import TranslationWorker
 
     manager = _get_manager()
@@ -861,34 +863,61 @@ async def regenerate_translation(timeline_id: str):
     # Determine target language based on current setting
     target_language = "zh-TW" if timeline.use_traditional_chinese else "zh-CN"
 
-    try:
+    async def generate_progress():
+        """Generator that yields SSE events with progress."""
         worker = TranslationWorker()
         updated_count = 0
+        total = len(timeline.segments)
 
-        # Translate each segment
-        for segment in timeline.segments:
-            if segment.en:  # Only translate if there's English text
-                new_translation = await worker.translate_text(
-                    segment.en,
-                    target_language=target_language
-                )
-                if new_translation != segment.zh:
-                    segment.zh = new_translation
-                    updated_count += 1
-                    logger.debug(f"Segment {segment.id}: {segment.en[:30]}... -> {new_translation[:30]}...")
+        try:
+            for i, segment in enumerate(timeline.segments):
+                if segment.en:  # Only translate if there's English text
+                    new_translation = await worker.translate_text(
+                        segment.en,
+                        target_language=target_language
+                    )
+                    if new_translation != segment.zh:
+                        segment.zh = new_translation
+                        updated_count += 1
 
-        # Save the timeline
-        manager.save_timeline(timeline)
+                # Send progress update
+                progress_data = {
+                    "type": "progress",
+                    "current": i + 1,
+                    "total": total,
+                    "updated": updated_count
+                }
+                yield f"data: {json.dumps(progress_data)}\n\n"
 
-        logger.info(
-            f"Regenerated translation for timeline {timeline_id}: {updated_count} segments updated"
-        )
+            # Save the timeline
+            manager.save_timeline(timeline)
 
-        return RegenerateTranslationResponse(
-            message=f"Successfully regenerated translation for {updated_count} segments",
-            updated_count=updated_count,
-        )
+            logger.info(
+                f"Regenerated translation for timeline {timeline_id}: {updated_count} segments updated"
+            )
 
-    except Exception as e:
-        logger.exception(f"Translation regeneration failed for timeline {timeline_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+            # Send completion event
+            complete_data = {
+                "type": "complete",
+                "message": f"Successfully regenerated translation for {updated_count} segments",
+                "updated_count": updated_count
+            }
+            yield f"data: {json.dumps(complete_data)}\n\n"
+
+        except Exception as e:
+            logger.exception(f"Translation regeneration failed for timeline {timeline_id}: {e}")
+            error_data = {
+                "type": "error",
+                "message": str(e)
+            }
+            yield f"data: {json.dumps(error_data)}\n\n"
+
+    return StreamingResponse(
+        generate_progress(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )

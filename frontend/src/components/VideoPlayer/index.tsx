@@ -24,6 +24,10 @@ interface VideoPlayerProps {
   useTraditional?: boolean;
   converting?: boolean;
   onConvertChinese?: (toTraditional: boolean) => void;
+  // Regenerate translation
+  regenerating?: boolean;
+  regenerateProgress?: { current: number; total: number } | null;
+  onRegenerateTranslation?: () => void;
   // Video mode for preview
   videoMode?: VideoMode;
   onVideoModeChange?: (mode: VideoMode) => void;
@@ -50,6 +54,9 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   useTraditional,
   converting,
   onConvertChinese,
+  regenerating,
+  regenerateProgress,
+  onRegenerateTranslation,
   videoMode = "source",
   onVideoModeChange,
   hasExportFull = false,
@@ -388,6 +395,9 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         converting={converting}
         segmentCount={segments.length}
         onConvertChinese={onConvertChinese}
+        regenerating={regenerating}
+        regenerateProgress={regenerateProgress}
+        onRegenerateTranslation={onRegenerateTranslation}
         videoMode={videoMode}
         onVideoModeChange={onVideoModeChange}
         hasExportFull={hasExportFull}

@@ -6,18 +6,24 @@ import { useRef, useCallback, useState } from "react";
 import { formatDuration } from "@/lib/api";
 
 /**
- * Chinese Language Selector - Dropdown with confirm button
+ * Chinese Language Selector - Dropdown with confirm button and regenerate translation
  */
 function ChineseLanguageSelector({
   useTraditional,
   converting,
   segmentCount,
   onConvert,
+  regenerating,
+  regenerateProgress,
+  onRegenerateTranslation,
 }: {
   useTraditional: boolean;
   converting: boolean;
   segmentCount: number;
   onConvert: (toTraditional: boolean) => void;
+  regenerating?: boolean;
+  regenerateProgress?: { current: number; total: number } | null;
+  onRegenerateTranslation?: () => void;
 }) {
   const [selectedValue, setSelectedValue] = useState<string>(
     useTraditional ? "traditional" : "simplified"
@@ -45,7 +51,7 @@ function ChineseLanguageSelector({
       <select
         value={selectedValue}
         onChange={(e) => setSelectedValue(e.target.value)}
-        disabled={converting}
+        disabled={converting || regenerating}
         className="bg-gray-700 text-white text-sm px-2 py-1 rounded border-none outline-none cursor-pointer disabled:opacity-50"
       >
         <option value="simplified">简体中文</option>
@@ -56,7 +62,7 @@ function ChineseLanguageSelector({
       {needsConversion && (
         <button
           onClick={handleConfirm}
-          disabled={converting}
+          disabled={converting || regenerating}
           className="px-2 py-1 text-sm bg-orange-500 hover:bg-orange-600 text-white rounded disabled:opacity-50 flex items-center gap-1"
         >
           {converting ? (
@@ -74,8 +80,37 @@ function ChineseLanguageSelector({
       )}
 
       {/* Current state indicator when no change needed */}
-      {!needsConversion && !converting && (
+      {!needsConversion && !converting && !regenerating && (
         <span className="text-xs text-green-400">✓</span>
+      )}
+
+      {/* Regenerate Translation Button */}
+      {onRegenerateTranslation && (
+        <button
+          onClick={onRegenerateTranslation}
+          disabled={regenerating || converting}
+          className="px-2 py-1 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded disabled:opacity-50 flex items-center gap-1 ml-1"
+          title="重新生成翻译字幕"
+        >
+          {regenerating ? (
+            <>
+              <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              {regenerateProgress
+                ? `${regenerateProgress.current}/${regenerateProgress.total}`
+                : "翻译中..."}
+            </>
+          ) : (
+            <>
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              重新翻译
+            </>
+          )}
+        </button>
       )}
     </div>
   );
@@ -97,6 +132,10 @@ interface VideoControlsProps {
   converting?: boolean;
   segmentCount?: number;
   onConvertChinese?: (toTraditional: boolean) => void;
+  // Regenerate translation
+  regenerating?: boolean;
+  regenerateProgress?: { current: number; total: number } | null;
+  onRegenerateTranslation?: () => void;
   // Video mode for preview
   videoMode?: VideoMode;
   onVideoModeChange?: (mode: VideoMode) => void;
@@ -126,6 +165,9 @@ export default function VideoControls({
   converting,
   segmentCount,
   onConvertChinese,
+  regenerating,
+  regenerateProgress,
+  onRegenerateTranslation,
   videoMode = "source",
   onVideoModeChange,
   hasExportFull = false,
@@ -391,6 +433,9 @@ export default function VideoControls({
               converting={converting ?? false}
               segmentCount={segmentCount ?? 0}
               onConvert={onConvertChinese}
+              regenerating={regenerating}
+              regenerateProgress={regenerateProgress}
+              onRegenerateTranslation={onRegenerateTranslation}
             />
           )}
         </div>

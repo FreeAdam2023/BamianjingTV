@@ -297,12 +297,69 @@ export async function cancelJob(jobId: string): Promise<{ message: string }> {
   });
 }
 
-export async function regenerateTranslation(
-  timelineId: string
+export interface RegenerateTranslationProgress {
+  type: "progress" | "complete" | "error";
+  current?: number;
+  total?: number;
+  updated?: number;
+  message?: string;
+  updated_count?: number;
+}
+
+export async function regenerateTranslationWithProgress(
+  timelineId: string,
+  onProgress: (progress: RegenerateTranslationProgress) => void
 ): Promise<{ message: string; updated_count: number }> {
-  return fetchAPI(`/timelines/${timelineId}/regenerate-translation`, {
+  const response = await fetch(`${API_BASE}/timelines/${timelineId}/regenerate-translation`, {
     method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
   });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(error.detail || "API request failed");
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("No response body");
+  }
+
+  const decoder = new TextDecoder();
+  let result = { message: "", updated_count: 0 };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    const chunk = decoder.decode(value, { stream: true });
+    const lines = chunk.split("\n");
+
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        try {
+          const data = JSON.parse(line.slice(6)) as RegenerateTranslationProgress;
+          onProgress(data);
+
+          if (data.type === "complete") {
+            result = {
+              message: data.message || "",
+              updated_count: data.updated_count || 0,
+            };
+          } else if (data.type === "error") {
+            throw new Error(data.message || "Translation failed");
+          }
+        } catch (e) {
+          if (e instanceof SyntaxError) continue; // Skip invalid JSON
+          throw e;
+        }
+      }
+    }
+  }
+
+  return result;
 }
 
 // ============ Waveform API ============

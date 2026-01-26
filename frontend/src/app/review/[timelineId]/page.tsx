@@ -14,7 +14,7 @@ import { useTimeline } from "@/hooks/useTimeline";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useTimelineKeyboard } from "@/hooks/useTimelineKeyboard";
 import { useMultiTrackWaveform, TrackType } from "@/hooks/useMultiTrackWaveform";
-import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslation } from "@/lib/api";
+import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress } from "@/lib/api";
 import ReviewHeader from "./ReviewHeader";
 import ExportPanel from "./ExportPanel";
 import KeyboardHelp from "./KeyboardHelp";
@@ -41,6 +41,7 @@ export default function ReviewPage() {
 
   const [converting, setConverting] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [regenerateProgress, setRegenerateProgress] = useState<{ current: number; total: number } | null>(null);
 
   const [currentSegmentId, setCurrentSegmentId] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -165,8 +166,16 @@ export default function ReviewPage() {
     if (!timeline) return;
     if (!confirm("确定要重新生成翻译吗？这将覆盖现有的中文字幕。")) return;
     setRegenerating(true);
+    setRegenerateProgress({ current: 0, total: timeline.segments.length });
     try {
-      const result = await regenerateTranslation(timeline.timeline_id);
+      const result = await regenerateTranslationWithProgress(
+        timeline.timeline_id,
+        (progress) => {
+          if (progress.type === "progress" && progress.current !== undefined && progress.total !== undefined) {
+            setRegenerateProgress({ current: progress.current, total: progress.total });
+          }
+        }
+      );
       await refresh();
       alert(`翻译完成：更新了 ${result.updated_count} 条字幕`);
     } catch (err) {
@@ -174,6 +183,7 @@ export default function ReviewPage() {
       alert("翻译失败: " + (err instanceof Error ? err.message : "Unknown error"));
     } finally {
       setRegenerating(false);
+      setRegenerateProgress(null);
     }
   }, [timeline, refresh]);
 
@@ -231,8 +241,6 @@ export default function ReviewPage() {
         exportStatus={timeline.export_status}
         onExportClick={() => setShowExportPanel(true)}
         onDelete={handleDelete}
-        onRegenerateTranslation={handleRegenerateTranslation}
-        regenerating={regenerating}
       />
 
       {/* Main content */}
@@ -252,6 +260,9 @@ export default function ReviewPage() {
               useTraditional={timeline.use_traditional_chinese}
               converting={converting}
               onConvertChinese={handleConvertChinese}
+              regenerating={regenerating}
+              regenerateProgress={regenerateProgress}
+              onRegenerateTranslation={handleRegenerateTranslation}
               videoMode={videoMode}
               onVideoModeChange={setVideoMode}
               hasExportFull={!!timeline.output_full_path}
