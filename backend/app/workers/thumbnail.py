@@ -184,6 +184,130 @@ class ThumbnailWorker:
             logger.error(f"Failed to generate clickbait title: {e}")
             return "精彩內容", "不容錯過"
 
+    async def generate_youtube_metadata(
+        self,
+        title: str,
+        subtitles: List[dict],
+        source_url: Optional[str] = None,
+        duration: Optional[float] = None,
+    ) -> dict:
+        """Generate SEO-optimized YouTube metadata (title, description, tags).
+
+        Args:
+            title: Original video title
+            subtitles: List of subtitle dicts
+            source_url: Original video URL
+            duration: Video duration in seconds
+
+        Returns:
+            Dict with 'title', 'description', 'tags' keys
+        """
+        # Get content sample from subtitles
+        content_sample = " ".join([
+            s.get('en', s.get('text', '')) for s in subtitles[:30]
+        ])[:1500]
+
+        # Format duration for description
+        duration_str = ""
+        if duration:
+            hours = int(duration // 3600)
+            minutes = int((duration % 3600) // 60)
+            if hours > 0:
+                duration_str = f"{hours}小时{minutes}分钟"
+            else:
+                duration_str = f"{minutes}分钟"
+
+        system_prompt = """你是一个YouTube SEO专家。根据视频内容生成能最大化曝光量的元数据。
+
+**任务：生成YouTube SEO优化的标题、描述和标签**
+
+## 标题规则：
+- 长度：40-70个字符（中文约20-35字）
+- 使用繁体中文
+- 包含核心关键词
+- 吸引点击但不虚假
+- 可加入数字、问号、惊叹号增加吸引力
+- 示例：「川普2025新政策震驚全球！專家解讀5大影響」
+
+## 描述规则：
+- 第一行：核心内容摘要（会显示在搜索结果）
+- 包含3-5个核心关键词
+- 添加时间戳（如果可能）
+- 包含行动号召（订阅、点赞、评论）
+- 添加相关 #hashtag
+- 使用繁体中文
+- 长度：200-500字
+
+## 标签规则：
+- 15-25个相关标签
+- 混合：核心关键词 + 长尾关键词 + 热门话题
+- 使用繁体中文和英文标签
+- 避免无关标签
+
+输出JSON格式：
+{
+  "title": "SEO优化的标题",
+  "description": "完整的描述（包含hashtag）",
+  "tags": ["标签1", "标签2", "标签3", ...]
+}
+
+只输出JSON，不要其他内容。"""
+
+        user_prompt = f"""原视频标题：{title}
+
+视频内容摘要：
+{content_sample}
+
+{f"视频时长：{duration_str}" if duration_str else ""}
+{f"原始链接：{source_url}" if source_url else ""}
+
+请生成SEO优化的YouTube元数据："""
+
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    f"{settings.llm_base_url}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": settings.llm_model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        "max_tokens": 1500,
+                        "temperature": 0.7,
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
+                content = data["choices"][0]["message"]["content"].strip()
+
+                # Parse JSON response
+                import json
+                if "```" in content:
+                    content = content.split("```")[1]
+                    if content.startswith("json"):
+                        content = content[4:]
+
+                result = json.loads(content)
+                logger.info(f"Generated YouTube metadata: title={result.get('title', '')[:30]}...")
+                return {
+                    "title": result.get("title", title),
+                    "description": result.get("description", f"Original: {source_url or 'N/A'}"),
+                    "tags": result.get("tags", ["learning", "english", "chinese"]),
+                }
+
+        except Exception as e:
+            logger.error(f"Failed to generate YouTube metadata: {e}")
+            return {
+                "title": title,
+                "description": f"Original: {source_url or 'N/A'}",
+                "tags": ["learning", "english", "chinese"],
+            }
+
     async def generate_title_candidates(
         self,
         title: str,

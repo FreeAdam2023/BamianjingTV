@@ -6,7 +6,7 @@
 
 import { useState, useEffect } from "react";
 import type { ExportProfile, ExportRequest, Timeline, TitleCandidate } from "@/lib/types";
-import { generateThumbnail, generateTitleCandidates, formatDuration } from "@/lib/api";
+import { generateThumbnail, generateTitleCandidates, generateYouTubeMetadata, formatDuration } from "@/lib/api";
 
 interface ExportPanelProps {
   timeline: Timeline;
@@ -44,6 +44,9 @@ export default function ExportPanel({
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [generatingThumbnail, setGeneratingThumbnail] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
+
+  // YouTube metadata generation
+  const [generatingMetadata, setGeneratingMetadata] = useState(false);
 
   // ESC key to close
   useEffect(() => {
@@ -102,6 +105,20 @@ export default function ExportPanel({
       alert("Failed to generate titles: " + (err instanceof Error ? err.message : "Unknown error"));
     } finally {
       setLoadingTitles(false);
+    }
+  };
+
+  const handleGenerateYouTubeMetadata = async () => {
+    setGeneratingMetadata(true);
+    try {
+      const result = await generateYouTubeMetadata(timeline.timeline_id);
+      setYoutubeTitle(result.title);
+      setYoutubeDescription(result.description);
+      setYoutubeTags(result.tags.join(", "));
+    } catch (err) {
+      alert("Failed to generate metadata: " + (err instanceof Error ? err.message : "Unknown error"));
+    } finally {
+      setGeneratingMetadata(false);
     }
   };
 
@@ -215,9 +232,36 @@ export default function ExportPanel({
 
           {uploadToYouTube && (
             <div className="space-y-4 ml-6">
+              {/* AI Generate Button */}
+              <button
+                onClick={handleGenerateYouTubeMetadata}
+                disabled={generatingMetadata}
+                className="w-full px-3 py-2 text-sm bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:from-gray-600 disabled:to-gray-600 rounded flex items-center justify-center gap-2"
+              >
+                {generatingMetadata ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    AI Generating...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    AI Generate SEO Metadata
+                  </>
+                )}
+              </button>
+              <p className="text-xs text-gray-500 text-center -mt-2">
+                Auto-generate optimized title, description & tags for maximum exposure
+              </p>
+
               <div>
                 <label className="block text-sm text-gray-400 mb-1">
-                  Title (optional, defaults to source title)
+                  Title
                 </label>
                 <input
                   type="text"
@@ -229,12 +273,12 @@ export default function ExportPanel({
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Description (optional)</label>
+                <label className="block text-sm text-gray-400 mb-1">Description</label>
                 <textarea
                   value={youtubeDescription}
                   onChange={(e) => setYoutubeDescription(e.target.value)}
                   placeholder={`Original: ${timeline?.source_url}`}
-                  rows={3}
+                  rows={5}
                   className="w-full bg-gray-700 rounded px-3 py-2 text-sm resize-none"
                 />
               </div>

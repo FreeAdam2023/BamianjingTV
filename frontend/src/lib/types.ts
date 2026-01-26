@@ -114,6 +114,14 @@ export interface ChineseConversionResponse {
   message: string;
 }
 
+export interface YouTubeMetadataResponse {
+  timeline_id: string;
+  title: string;
+  description: string;
+  tags: string[];
+  message: string;
+}
+
 export interface Job {
   id: string;
   url: string;

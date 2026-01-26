@@ -18,6 +18,7 @@ import type {
   ThumbnailGenerateRequest,
   ThumbnailResponse,
   ChineseConversionResponse,
+  YouTubeMetadataResponse,
 } from "./types";
 
 // Get API URL: use env var or derive from current host with port 8000
@@ -179,6 +180,14 @@ export async function generateThumbnail(
   return fetchAPI(`/timelines/${timelineId}/thumbnail`, {
     method: "POST",
     body: request ? JSON.stringify(request) : undefined,
+  });
+}
+
+export async function generateYouTubeMetadata(
+  timelineId: string
+): Promise<YouTubeMetadataResponse> {
+  return fetchAPI(`/timelines/${timelineId}/youtube-metadata/generate`, {
+    method: "POST",
   });
 }
 

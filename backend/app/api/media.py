@@ -91,6 +91,64 @@ class WaveformGenerateResponse(BaseModel):
     message: str
 
 
+class YouTubeMetadataResponse(BaseModel):
+    """Response for YouTube metadata generation."""
+    timeline_id: str
+    title: str
+    description: str
+    tags: List[str]
+    message: str
+
+
+@router.post("/{timeline_id}/youtube-metadata/generate", response_model=YouTubeMetadataResponse)
+async def generate_youtube_metadata(timeline_id: str):
+    """Generate SEO-optimized YouTube metadata (title, description, tags).
+
+    Analyzes video content and generates:
+    - Title: SEO-optimized, clickable title
+    - Description: Detailed description with keywords, hashtags
+    - Tags: 15-25 relevant tags for discoverability
+
+    Returns metadata that can be used for YouTube upload.
+    """
+    from loguru import logger
+
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    thumbnail_worker = _get_thumbnail_worker()
+
+    # Extract subtitles for analysis
+    subtitles = [
+        {"start": seg.start, "end": seg.end, "en": seg.en}
+        for seg in timeline.segments if seg.en
+    ]
+
+    try:
+        result = await thumbnail_worker.generate_youtube_metadata(
+            title=timeline.source_title,
+            subtitles=subtitles,
+            source_url=timeline.source_url,
+            duration=timeline.source_duration,
+        )
+
+        logger.info(f"Generated YouTube metadata for timeline {timeline_id}")
+
+        return YouTubeMetadataResponse(
+            timeline_id=timeline_id,
+            title=result["title"],
+            description=result["description"],
+            tags=result["tags"],
+            message="YouTube metadata generated successfully",
+        )
+
+    except Exception as e:
+        logger.exception(f"YouTube metadata generation failed for timeline {timeline_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/{timeline_id}/convert-chinese", response_model=ChineseConversionResponse)
 async def convert_chinese_subtitles(
     timeline_id: str,
