@@ -3,8 +3,14 @@ Automatic cleanup service for old job files.
 
 Removes video files and job data older than the configured retention period
 to save disk space.
+
+Features:
+- Automatic cleanup when new jobs are created
+- Background periodic cleanup
+- Preview mode for safety
 """
 
+import asyncio
 import os
 import shutil
 from datetime import datetime, timedelta
@@ -12,6 +18,10 @@ from pathlib import Path
 from typing import Optional
 
 from loguru import logger
+
+# Track last cleanup time to avoid running too frequently
+_last_cleanup_time: Optional[datetime] = None
+_cleanup_interval_hours: int = 6  # Minimum hours between auto-cleanups
 
 
 class CleanupService:
@@ -211,3 +221,94 @@ async def run_cleanup(
         dry_run=dry_run,
     )
     return service.run(videos_only=videos_only)
+
+
+async def auto_cleanup_if_needed(
+    jobs_dir: Path,
+    retention_days: int = 30,
+    videos_only: bool = True,
+    enabled: bool = True,
+) -> Optional[dict]:
+    """
+    Automatically run cleanup if enough time has passed since last cleanup.
+
+    This function is designed to be called when new jobs are created or completed.
+    It will only actually run cleanup every N hours to avoid performance impact.
+
+    Args:
+        jobs_dir: Path to jobs directory
+        retention_days: Number of days to keep files
+        videos_only: If True, only remove video files
+        enabled: If False, skip cleanup entirely
+
+    Returns cleanup stats if cleanup was run, None otherwise.
+    """
+    global _last_cleanup_time
+
+    if not enabled:
+        return None
+
+    now = datetime.now()
+
+    # Check if enough time has passed since last cleanup
+    if _last_cleanup_time is not None:
+        hours_since_last = (now - _last_cleanup_time).total_seconds() / 3600
+        if hours_since_last < _cleanup_interval_hours:
+            logger.debug(f"Skipping auto-cleanup (last run {hours_since_last:.1f}h ago)")
+            return None
+
+    logger.info("Running automatic cleanup check...")
+    _last_cleanup_time = now
+
+    # Run cleanup in background to not block the request
+    stats = await run_cleanup(
+        jobs_dir=jobs_dir,
+        retention_days=retention_days,
+        videos_only=videos_only,
+        dry_run=False,
+    )
+
+    if stats["jobs_processed"] > 0:
+        logger.info(
+            f"Auto-cleanup: removed {stats['files_removed']} files from "
+            f"{stats['jobs_processed']} old jobs, freed {stats['bytes_freed'] / 1024 / 1024 / 1024:.2f} GB"
+        )
+
+    return stats
+
+
+def start_background_cleanup(
+    jobs_dir: Path,
+    retention_days: int = 30,
+    videos_only: bool = True,
+    interval_hours: int = 6,
+) -> asyncio.Task:
+    """
+    Start a background task that periodically runs cleanup.
+
+    Args:
+        jobs_dir: Path to jobs directory
+        retention_days: Number of days to keep files
+        videos_only: If True, only remove video files
+        interval_hours: Hours between cleanup runs
+
+    Returns the background task.
+    """
+    async def cleanup_loop():
+        while True:
+            try:
+                await asyncio.sleep(interval_hours * 3600)  # Sleep first
+                logger.info("Running scheduled background cleanup...")
+                await run_cleanup(
+                    jobs_dir=jobs_dir,
+                    retention_days=retention_days,
+                    videos_only=videos_only,
+                    dry_run=False,
+                )
+            except asyncio.CancelledError:
+                logger.info("Background cleanup task cancelled")
+                break
+            except Exception as e:
+                logger.error(f"Background cleanup failed: {e}")
+
+    return asyncio.create_task(cleanup_loop())

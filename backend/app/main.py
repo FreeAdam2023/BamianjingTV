@@ -3,12 +3,13 @@
 Learning video factory: transcription, translation, and bilingual subtitles.
 """
 
+import asyncio
 import json
 from pathlib import Path
 from typing import List, Optional
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from loguru import logger
@@ -341,9 +342,30 @@ async def lifespan(app: FastAPI):
     if recovered > 0:
         logger.info(f"Recovered {recovered} incomplete jobs")
 
+    # Start background cleanup task if enabled
+    cleanup_task = None
+    if settings.cleanup_enabled:
+        from app.services.cleanup import start_background_cleanup
+        cleanup_task = start_background_cleanup(
+            jobs_dir=settings.jobs_dir,
+            retention_days=settings.cleanup_retention_days,
+            videos_only=settings.cleanup_videos_only,
+            interval_hours=6,  # Check every 6 hours
+        )
+        logger.info(
+            f"Background cleanup enabled: retention={settings.cleanup_retention_days} days, "
+            f"videos_only={settings.cleanup_videos_only}"
+        )
+
     yield
 
     # Cleanup
+    if cleanup_task:
+        cleanup_task.cancel()
+        try:
+            await cleanup_task
+        except asyncio.CancelledError:
+            pass
     await job_queue.stop()
     await webhook_service.close()
     logger.info("Shutting down Hardcore Player")
@@ -445,8 +467,20 @@ async def health():
 async def create_job(
     job_create: JobCreate,
     callback_url: Optional[str] = None,
+    background_tasks: BackgroundTasks = None,
 ):
     """Create a new video processing job."""
+    # Trigger auto-cleanup check in background (if enabled)
+    if settings.cleanup_enabled and background_tasks:
+        from app.services.cleanup import auto_cleanup_if_needed
+        background_tasks.add_task(
+            auto_cleanup_if_needed,
+            jobs_dir=settings.jobs_dir,
+            retention_days=settings.cleanup_retention_days,
+            videos_only=settings.cleanup_videos_only,
+            enabled=True,
+        )
+
     # Check for duplicate URL
     existing_job = job_manager.get_job_by_url(job_create.url)
     if existing_job:

@@ -87,6 +87,12 @@ class Settings(BaseSettings):
     youtube_credentials_file: str = "credentials/youtube_oauth.json"
     youtube_token_file: str = "credentials/youtube_token.json"
 
+    # Cleanup settings (auto-delete old files to save disk space)
+    cleanup_enabled: bool = False  # Enable scheduled cleanup
+    cleanup_retention_days: int = 30  # Keep files for N days
+    cleanup_videos_only: bool = True  # Only delete videos, keep metadata
+    cleanup_schedule_hour: int = 3  # Hour of day to run (0-23, default 3 AM)
+
     # Server settings
     host: str = "0.0.0.0"
     port: int = 8000
