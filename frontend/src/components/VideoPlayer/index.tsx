@@ -238,12 +238,35 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
             playSegment(currentSegmentId);
           }
           break;
+        case "ArrowLeft":
+          e.preventDefault();
+          // Shift+← = 10s, ← = 5s
+          seekTo(Math.max(0, currentTime - (e.shiftKey ? 10 : 5)));
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          // Shift+→ = 10s, → = 5s
+          seekTo(Math.min(duration, currentTime + (e.shiftKey ? 10 : 5)));
+          break;
+        case "j":
+        case "J":
+          e.preventDefault();
+          // J = rewind 10s (YouTube style)
+          seekTo(Math.max(0, currentTime - 10));
+          break;
+        case "k":
+        case "K":
+          e.preventDefault();
+          // K = play/pause (YouTube style)
+          toggle();
+          break;
+        // Note: We skip "l" here as it's already used for loop
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggle, toggleLoop, playSegment, currentSegmentId]);
+  }, [toggle, toggleLoop, playSegment, currentSegmentId, seekTo, currentTime, duration]);
 
   // Get current segment for subtitle display
   const currentSegment = currentSegmentId !== null

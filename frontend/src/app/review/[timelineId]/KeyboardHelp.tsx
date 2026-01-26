@@ -26,14 +26,16 @@ export default function KeyboardHelp() {
       </button>
       {showHelp && (
         <div className="mt-2 text-xs text-gray-500 flex flex-wrap gap-4 bg-gray-800/50 rounded-lg p-3">
-          <span><kbd className="kbd">Space</kbd> Play/Pause</span>
-          <span><kbd className="kbd">j</kbd>/<kbd className="kbd">k</kbd> Next/Prev</span>
+          <span><kbd className="kbd">Space</kbd>/<kbd className="kbd">K</kbd> Play/Pause</span>
+          <span><kbd className="kbd">←</kbd>/<kbd className="kbd">→</kbd> ±5s</span>
+          <span><kbd className="kbd">Shift+←</kbd>/<kbd className="kbd">→</kbd> ±10s</span>
+          <span><kbd className="kbd">J</kbd> -10s</span>
+          <span><kbd className="kbd">L</kbd> Loop</span>
+          <span><kbd className="kbd">,</kbd>/<kbd className="kbd">.</kbd> Frame ±1</span>
+          <span><kbd className="kbd">[</kbd>/<kbd className="kbd">]</kbd> Segment boundary</span>
           <span><kbd className="kbd">Shift+K</kbd> Keep</span>
           <span><kbd className="kbd">D</kbd> Drop</span>
           <span><kbd className="kbd">U</kbd> Undecided</span>
-          <span><kbd className="kbd">L</kbd> Loop</span>
-          <span><kbd className="kbd">,</kbd>/<kbd className="kbd">.</kbd> Frame ±1</span>
-          <span><kbd className="kbd">[</kbd>/<kbd className="kbd">]</kbd> Prev/Next boundary</span>
         </div>
       )}
     </div>

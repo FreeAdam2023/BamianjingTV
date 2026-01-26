@@ -65,7 +65,19 @@ export default function VideoControls({
 
       {/* Control buttons */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          {/* Rewind 5s */}
+          <button
+            onClick={() => onSeek(Math.max(0, currentTime - 5))}
+            className="text-white hover:text-blue-400 p-1"
+            title="Rewind 5s (←)"
+          >
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+              <text x="12" y="15" textAnchor="middle" fontSize="7" fill="currentColor">5</text>
+            </svg>
+          </button>
+
           {/* Play/Pause */}
           <button
             onClick={onTogglePlay}
@@ -83,8 +95,20 @@ export default function VideoControls({
             )}
           </button>
 
+          {/* Forward 5s */}
+          <button
+            onClick={() => onSeek(Math.min(duration, currentTime + 5))}
+            className="text-white hover:text-blue-400 p-1"
+            title="Forward 5s (→)"
+          >
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/>
+              <text x="12" y="15" textAnchor="middle" fontSize="7" fill="currentColor">5</text>
+            </svg>
+          </button>
+
           {/* Time display */}
-          <span className="text-white text-sm">
+          <span className="text-white text-sm ml-2">
             {formatDuration(currentTime)} / {formatDuration(duration)}
           </span>
 
