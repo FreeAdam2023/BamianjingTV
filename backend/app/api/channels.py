@@ -7,6 +7,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from fastapi.responses import RedirectResponse
+from loguru import logger
 from pydantic import BaseModel
 
 from app.models.channel import (
