@@ -14,7 +14,7 @@ import { useTimeline } from "@/hooks/useTimeline";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useTimelineKeyboard } from "@/hooks/useTimelineKeyboard";
 import { useMultiTrackWaveform, TrackType } from "@/hooks/useMultiTrackWaveform";
-import { captureCoverFrame, getCoverFrameUrl } from "@/lib/api";
+import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles } from "@/lib/api";
 import ReviewHeader from "./ReviewHeader";
 import ExportPanel from "./ExportPanel";
 import KeyboardHelp from "./KeyboardHelp";
@@ -35,7 +35,10 @@ export default function ReviewPage() {
     setSegmentTrim,
     markReviewed,
     startExport,
+    refresh,
   } = useTimeline(timelineId);
+
+  const [converting, setConverting] = useState(false);
 
   const [currentSegmentId, setCurrentSegmentId] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -116,6 +119,23 @@ export default function ReviewPage() {
     }
   }, [timeline]);
 
+  // Handle Chinese conversion
+  const handleConvertChinese = useCallback(async (toTraditional: boolean) => {
+    if (!timeline) return;
+    setConverting(true);
+    try {
+      const result = await convertChineseSubtitles(timeline.timeline_id, toTraditional);
+      // Refresh timeline to get updated subtitles
+      await refresh();
+      alert(`Converted ${result.converted_count} subtitles to ${result.target} Chinese`);
+    } catch (err) {
+      console.error("Failed to convert Chinese:", err);
+      alert("Failed to convert: " + (err instanceof Error ? err.message : "Unknown error"));
+    } finally {
+      setConverting(false);
+    }
+  }, [timeline, refresh]);
+
   // Handle timeline seek
   const handleTimelineSeek = useCallback((time: number) => {
     if (videoPlayerRef.current) {
@@ -165,7 +185,10 @@ export default function ReviewPage() {
         title={timeline.source_title}
         saving={saving}
         stats={stats}
+        useTraditional={timeline.use_traditional_chinese}
+        converting={converting}
         onExportClick={() => setShowExportPanel(true)}
+        onConvertChinese={handleConvertChinese}
       />
 
       {/* Main content */}

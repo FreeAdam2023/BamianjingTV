@@ -61,6 +61,19 @@ class ThumbnailResponse(BaseModel):
     message: str
 
 
+class ChineseConversionRequest(BaseModel):
+    """Request for Chinese conversion."""
+    to_traditional: bool = True  # True for simplified->traditional, False for traditional->simplified
+
+
+class ChineseConversionResponse(BaseModel):
+    """Response for Chinese conversion."""
+    timeline_id: str
+    converted_count: int
+    target: str  # "traditional" or "simplified"
+    message: str
+
+
 class WaveformResponse(BaseModel):
     """Response for waveform data."""
     peaks: List[float]
@@ -76,6 +89,72 @@ class WaveformGenerateResponse(BaseModel):
     track_type: str
     status: str
     message: str
+
+
+@router.post("/{timeline_id}/convert-chinese", response_model=ChineseConversionResponse)
+async def convert_chinese_subtitles(
+    timeline_id: str,
+    request: ChineseConversionRequest,
+):
+    """Convert subtitle Chinese between simplified and traditional.
+
+    Args:
+        timeline_id: Timeline ID
+        request: Conversion direction (to_traditional: True for S->T, False for T->S)
+
+    Converts all Chinese subtitles in the timeline and saves.
+    """
+    from loguru import logger
+
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    try:
+        import opencc
+        if request.to_traditional:
+            converter = opencc.OpenCC("s2t")  # Simplified to Traditional
+            target = "traditional"
+        else:
+            converter = opencc.OpenCC("t2s")  # Traditional to Simplified
+            target = "simplified"
+    except ImportError:
+        raise HTTPException(
+            status_code=500,
+            detail="opencc library not installed on server"
+        )
+
+    converted_count = 0
+    try:
+        for segment in timeline.segments:
+            if segment.zh:
+                original = segment.zh
+                converted = converter.convert(segment.zh)
+                if converted != original:
+                    segment.zh = converted
+                    converted_count += 1
+
+        # Update the timeline's traditional setting
+        timeline.use_traditional_chinese = request.to_traditional
+
+        # Save the timeline
+        manager.save_timeline(timeline)
+
+        logger.info(
+            f"Converted {converted_count} subtitles to {target} for timeline {timeline_id}"
+        )
+
+        return ChineseConversionResponse(
+            timeline_id=timeline_id,
+            converted_count=converted_count,
+            target=target,
+            message=f"Converted {converted_count} subtitles to {target} Chinese",
+        )
+
+    except Exception as e:
+        logger.exception(f"Chinese conversion failed for timeline {timeline_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/{timeline_id}/titles/generate", response_model=TitleCandidatesResponse)

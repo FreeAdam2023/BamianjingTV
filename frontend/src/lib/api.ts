@@ -17,6 +17,7 @@ import type {
   TitleCandidatesResponse,
   ThumbnailGenerateRequest,
   ThumbnailResponse,
+  ChineseConversionResponse,
 } from "./types";
 
 // Get API URL: use env var or derive from current host with port 8000
@@ -158,6 +159,16 @@ export async function generateTitleCandidates(
   return fetchAPI(`/timelines/${timelineId}/titles/generate?num_candidates=${numCandidates}`, {
     method: "POST",
     body: instruction ? JSON.stringify({ instruction }) : undefined,
+  });
+}
+
+export async function convertChineseSubtitles(
+  timelineId: string,
+  toTraditional: boolean
+): Promise<ChineseConversionResponse> {
+  return fetchAPI(`/timelines/${timelineId}/convert-chinese`, {
+    method: "POST",
+    body: JSON.stringify({ to_traditional: toTraditional }),
   });
 }
 

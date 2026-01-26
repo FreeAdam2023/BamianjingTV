@@ -107,6 +107,13 @@ export interface ThumbnailResponse {
   message: string;
 }
 
+export interface ChineseConversionResponse {
+  timeline_id: string;
+  converted_count: number;
+  target: "traditional" | "simplified";
+  message: string;
+}
+
 export interface Job {
   id: string;
   url: string;

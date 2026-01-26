@@ -16,20 +16,26 @@ export function useTimeline(timelineId: string) {
   const [saving, setSaving] = useState(false);
 
   // Load timeline
-  useEffect(() => {
-    async function load() {
-      try {
-        const data = await getTimeline(timelineId);
-        setTimeline(data);
-        setError(null);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load timeline");
-      } finally {
-        setLoading(false);
-      }
+  const loadTimeline = useCallback(async () => {
+    try {
+      const data = await getTimeline(timelineId);
+      setTimeline(data);
+      setError(null);
+      return data;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load timeline");
+      throw err;
     }
-    load();
   }, [timelineId]);
+
+  useEffect(() => {
+    loadTimeline().finally(() => setLoading(false));
+  }, [loadTimeline]);
+
+  // Refresh timeline data
+  const refresh = useCallback(async () => {
+    return loadTimeline();
+  }, [loadTimeline]);
 
   // Update segment state
   const setSegmentState = useCallback(
@@ -191,5 +197,6 @@ export function useTimeline(timelineId: string) {
     setSegmentTrim,
     markReviewed,
     startExport,
+    refresh,
   };
 }
