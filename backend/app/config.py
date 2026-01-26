@@ -91,7 +91,7 @@ class Settings(BaseSettings):
 
     # YouTube settings
     youtube_credentials_file: str = "credentials/youtube_oauth.json"
-    youtube_token_file: str = "credentials/youtube_token.json"
+    youtube_token_file: str = "credentials/youtube_token.pickle"
 
     # Cleanup settings (auto-delete old files to save disk space)
     cleanup_enabled: bool = False  # Enable scheduled cleanup
