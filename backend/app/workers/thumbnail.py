@@ -26,11 +26,9 @@ class ThumbnailWorker:
             self.image_model = settings.image_model
             self.enabled = True
         elif self.is_grok:
-            # Grok image generation may not be available for all accounts
-            # Disable by default - user can enable via IMAGE_MODEL env var
-            self.image_model = ""
-            self.enabled = False
-            logger.info("Thumbnail generation disabled (Grok API detected, IMAGE_MODEL not configured)")
+            # Use Grok's Aurora image generation model
+            self.image_model = "grok-2-image-1212"
+            self.enabled = True
         else:
             # Fallback to DALL-E for OpenAI
             self.image_model = "dall-e-3"
