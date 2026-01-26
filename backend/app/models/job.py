@@ -149,6 +149,9 @@ class Job(BaseModel):
     skip_diarization: bool = Field(
         default=False, description="Skip speaker diarization step"
     )
+    used_youtube_subtitles: bool = Field(
+        default=False, description="Whether YouTube subtitles were used instead of Whisper"
+    )
 
     # ========== Job Control ==========
     cancel_requested: bool = Field(default=False, description="User requested cancellation")

@@ -174,10 +174,105 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     [segments]
   );
 
+  // Debug: Log video URL on mount
+  useEffect(() => {
+    console.log("[VideoPlayer] Mounted with jobId:", jobId);
+    console.log("[VideoPlayer] Video URL:", videoUrl);
+  }, [jobId, videoUrl]);
+
+  // Debug: Log container and video element dimensions
+  useEffect(() => {
+    const logDimensions = () => {
+      if (containerRef.current) {
+        const containerRect = containerRef.current.getBoundingClientRect();
+        const video = videoRef.current;
+        const videoParent = video?.parentElement;
+        const videoParentRect = videoParent?.getBoundingClientRect();
+
+        console.log("[VideoPlayer] Dimensions:", {
+          container: {
+            width: containerRect.width,
+            height: containerRect.height,
+          },
+          videoParent: videoParentRect ? {
+            width: videoParentRect.width,
+            height: videoParentRect.height,
+          } : null,
+          video: video ? {
+            clientWidth: video.clientWidth,
+            clientHeight: video.clientHeight,
+            offsetWidth: video.offsetWidth,
+            offsetHeight: video.offsetHeight,
+          } : null,
+          subtitleHeightRatio,
+        });
+      }
+    };
+
+    // Log immediately
+    logDimensions();
+
+    // Log again after a short delay (in case of layout shifts)
+    const timeout = setTimeout(logDimensions, 500);
+
+    // Log on resize
+    window.addEventListener("resize", logDimensions);
+
+    return () => {
+      clearTimeout(timeout);
+      window.removeEventListener("resize", logDimensions);
+    };
+  }, [subtitleHeightRatio]);
+
   // Handle time update from video
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+
+    // Debug: Video element event handlers
+    const handleLoadStart = () => {
+      console.log("[VideoPlayer] loadstart - Video loading started");
+    };
+
+    const handleLoadedMetadata = () => {
+      console.log("[VideoPlayer] loadedmetadata - Metadata loaded:", {
+        duration: video.duration,
+        videoWidth: video.videoWidth,
+        videoHeight: video.videoHeight,
+      });
+    };
+
+    const handleLoadedData = () => {
+      console.log("[VideoPlayer] loadeddata - First frame loaded");
+    };
+
+    const handleCanPlay = () => {
+      console.log("[VideoPlayer] canplay - Video can start playing");
+    };
+
+    const handleCanPlayThrough = () => {
+      console.log("[VideoPlayer] canplaythrough - Video fully buffered");
+    };
+
+    const handleError = () => {
+      const error = video.error;
+      console.error("[VideoPlayer] error - Video error:", {
+        code: error?.code,
+        message: error?.message,
+        MEDIA_ERR_ABORTED: error?.code === 1,
+        MEDIA_ERR_NETWORK: error?.code === 2,
+        MEDIA_ERR_DECODE: error?.code === 3,
+        MEDIA_ERR_SRC_NOT_SUPPORTED: error?.code === 4,
+      });
+    };
+
+    const handleStalled = () => {
+      console.warn("[VideoPlayer] stalled - Video stalled (network issue?)");
+    };
+
+    const handleWaiting = () => {
+      console.log("[VideoPlayer] waiting - Waiting for more data...");
+    };
 
     const handleTimeUpdate = () => {
       const time = video.currentTime;
@@ -200,18 +295,52 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     };
 
     const handleDurationChange = () => {
+      console.log("[VideoPlayer] durationchange:", video.duration);
       setDuration(video.duration);
     };
 
-    const handlePlay = () => setIsPlaying(true);
-    const handlePause = () => setIsPlaying(false);
+    const handlePlay = () => {
+      console.log("[VideoPlayer] play - Video started playing");
+      setIsPlaying(true);
+    };
 
+    const handlePause = () => {
+      console.log("[VideoPlayer] pause - Video paused");
+      setIsPlaying(false);
+    };
+
+    // Add all event listeners
+    video.addEventListener("loadstart", handleLoadStart);
+    video.addEventListener("loadedmetadata", handleLoadedMetadata);
+    video.addEventListener("loadeddata", handleLoadedData);
+    video.addEventListener("canplay", handleCanPlay);
+    video.addEventListener("canplaythrough", handleCanPlayThrough);
+    video.addEventListener("error", handleError);
+    video.addEventListener("stalled", handleStalled);
+    video.addEventListener("waiting", handleWaiting);
     video.addEventListener("timeupdate", handleTimeUpdate);
     video.addEventListener("durationchange", handleDurationChange);
     video.addEventListener("play", handlePlay);
     video.addEventListener("pause", handlePause);
 
+    // Log initial video state
+    console.log("[VideoPlayer] Initial video state:", {
+      src: video.src,
+      readyState: video.readyState,
+      networkState: video.networkState,
+      paused: video.paused,
+      currentTime: video.currentTime,
+    });
+
     return () => {
+      video.removeEventListener("loadstart", handleLoadStart);
+      video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      video.removeEventListener("loadeddata", handleLoadedData);
+      video.removeEventListener("canplay", handleCanPlay);
+      video.removeEventListener("canplaythrough", handleCanPlayThrough);
+      video.removeEventListener("error", handleError);
+      video.removeEventListener("stalled", handleStalled);
+      video.removeEventListener("waiting", handleWaiting);
       video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("durationchange", handleDurationChange);
       video.removeEventListener("play", handlePlay);
@@ -354,8 +483,18 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     ? segments.find((s) => s.id === currentSegmentId)
     : findSegmentAtTime(currentTime);
 
-  // Video source URL (proxied through Next.js rewrite)
-  const videoUrl = `/api/jobs/${jobId}/video`;
+  // Video source URL - use backend directly for better streaming support
+  // In browser, we need to use the actual backend host, not the Docker internal network
+  const getVideoUrl = () => {
+    if (typeof window !== "undefined") {
+      // Browser: use same host as current page but with backend port
+      const { protocol, hostname } = window.location;
+      return `${protocol}//${hostname}:8000/jobs/${jobId}/video`;
+    }
+    // SSR fallback
+    return `/api/jobs/${jobId}/video`;
+  };
+  const videoUrl = getVideoUrl();
 
   // Calculate font sizes based on subtitle height ratio and style settings
   const fontScale = subtitleHeightRatio / 0.5;
@@ -370,20 +509,23 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   return (
     <div
       ref={containerRef}
-      className="flex flex-col bg-black rounded-lg overflow-hidden"
-      style={{ height: "100%" }}
+      className="flex flex-col bg-black rounded-lg overflow-hidden h-full"
     >
       {/* Video area */}
       <div
         className="relative flex-shrink-0"
-        style={{ height: `${(1 - subtitleHeightRatio) * 100}%` }}
+        style={{
+          height: `${(1 - subtitleHeightRatio) * 100}%`,
+          minHeight: "200px",
+        }}
       >
         <video
           ref={videoRef}
           src={videoUrl}
           className="w-full h-full object-contain cursor-pointer bg-black"
-          preload="metadata"
+          preload="auto"
           onClick={toggle}
+          playsInline
         />
         {/* Watermark overlay */}
         {watermarkUrl && (

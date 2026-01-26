@@ -172,6 +172,91 @@ make docker-cpu-up
 
 ---
 
+## 快速重新部署命令
+
+代码更新后的快速重新部署命令。
+
+### CPU 环境
+
+```bash
+# 仅重启后端
+cd ~/BamianjingTV && git pull && docker compose -f docker-compose.cpu.yml up -d --build --force-recreate api
+
+# 重启前端和后端
+cd ~/BamianjingTV && git pull && docker compose -f docker-compose.cpu.yml up -d --build --force-recreate api frontend
+
+# 完全重建（清除缓存）
+cd ~/BamianjingTV && git pull && docker compose -f docker-compose.cpu.yml build --no-cache api frontend && docker compose -f docker-compose.cpu.yml up -d --force-recreate api frontend
+```
+
+### GPU 环境
+
+```bash
+# 仅重启后端
+cd ~/BamianjingTV && git pull && docker compose up -d --build --force-recreate api
+
+# 重启前端和后端
+cd ~/BamianjingTV && git pull && docker compose up -d --build --force-recreate api frontend
+
+# 完全重建（清除缓存）
+cd ~/BamianjingTV && git pull && docker compose build --no-cache api frontend && docker compose up -d --force-recreate api frontend
+```
+
+### 查看实时日志
+
+```bash
+# CPU 环境
+docker compose -f docker-compose.cpu.yml logs -f api frontend
+
+# GPU 环境
+docker compose logs -f api frontend
+```
+
+---
+
+## 自动清理配置
+
+系统支持自动清理旧的视频文件以节省磁盘空间。
+
+### 环境变量
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CLEANUP_ENABLED` | `false` | 启用自动清理 |
+| `CLEANUP_RETENTION_DAYS` | `30` | 保留天数 |
+| `CLEANUP_VIDEOS_ONLY` | `true` | 仅删除视频，保留元数据 |
+
+### 配置示例
+
+```bash
+# .env
+CLEANUP_ENABLED=true
+CLEANUP_RETENTION_DAYS=30
+CLEANUP_VIDEOS_ONLY=true
+```
+
+### 工作原理
+
+- 创建新任务时自动检查并清理过期文件
+- 每 6 小时最多执行一次清理（避免频繁 IO）
+- 默认仅删除视频文件，保留 JSON 元数据和字幕
+
+### 手动清理 API
+
+```bash
+# 预览将要清理的文件（不实际删除）
+curl -X POST "http://localhost:8000/admin/cleanup/preview" \
+  -H "Content-Type: application/json" \
+  -d '{"retention_days": 30}'
+
+# 执行清理
+curl -X POST "http://localhost:8000/admin/cleanup" \
+  -H "Content-Type: application/json" \
+  -d '{"retention_days": 30, "videos_only": true, "dry_run": false}'
+```
+
+---
+
 ## 环境变量配置
 
 复制示例配置:
