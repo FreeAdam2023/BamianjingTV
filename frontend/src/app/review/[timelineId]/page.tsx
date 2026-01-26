@@ -15,6 +15,7 @@ import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useTimelineKeyboard } from "@/hooks/useTimelineKeyboard";
 import { useMultiTrackWaveform, TrackType } from "@/hooks/useMultiTrackWaveform";
 import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress } from "@/lib/api";
+import { useToast, useConfirm } from "@/components/ui";
 import ReviewHeader from "./ReviewHeader";
 import ExportPanel from "./ExportPanel";
 import KeyboardHelp from "./KeyboardHelp";
@@ -24,6 +25,8 @@ export default function ReviewPage() {
   const params = useParams();
   const router = useRouter();
   const timelineId = params.timelineId as string;
+  const toast = useToast();
+  const confirm = useConfirm();
 
   const {
     timeline,
@@ -125,11 +128,12 @@ export default function ReviewPage() {
       setCoverFrameTime(timestamp);
       // Add cache buster to force reload
       setCoverFrameUrl(`${getCoverFrameUrl(timeline.job_id)}?t=${Date.now()}`);
+      toast.success("封面已设置");
     } catch (err) {
       console.error("Failed to capture cover frame:", err);
-      alert("Failed to capture cover frame: " + (err instanceof Error ? err.message : "Unknown error"));
+      toast.error("封面设置失败: " + (err instanceof Error ? err.message : "Unknown error"));
     }
-  }, [timeline]);
+  }, [timeline, toast]);
 
   // Handle Chinese conversion
   const handleConvertChinese = useCallback(async (toTraditional: boolean) => {
@@ -139,32 +143,47 @@ export default function ReviewPage() {
       const result = await convertChineseSubtitles(timeline.timeline_id, toTraditional);
       // Refresh timeline to get updated subtitles
       await refresh();
-      alert(`Converted ${result.converted_count} subtitles to ${result.target} Chinese`);
+      toast.success(`已转换 ${result.converted_count} 条字幕为${result.target === "traditional" ? "繁体" : "简体"}中文`);
     } catch (err) {
       console.error("Failed to convert Chinese:", err);
-      alert("Failed to convert: " + (err instanceof Error ? err.message : "Unknown error"));
+      toast.error("转换失败: " + (err instanceof Error ? err.message : "Unknown error"));
     } finally {
       setConverting(false);
     }
-  }, [timeline, refresh]);
+  }, [timeline, refresh, toast]);
 
   // Handle delete job
   const handleDelete = useCallback(async () => {
     if (!timeline) return;
-    if (!confirm("确定要删除这个 Job 吗？此操作不可撤销。")) return;
+    const confirmed = await confirm({
+      title: "删除 Job",
+      message: "确定要删除这个 Job 吗？此操作不可撤销。",
+      type: "danger",
+      confirmText: "删除",
+      cancelText: "取消",
+    });
+    if (!confirmed) return;
     try {
       await deleteJob(timeline.job_id);
+      toast.success("Job 已删除");
       router.push("/");
     } catch (err) {
       console.error("Failed to delete job:", err);
-      alert("删除失败: " + (err instanceof Error ? err.message : "Unknown error"));
+      toast.error("删除失败: " + (err instanceof Error ? err.message : "Unknown error"));
     }
-  }, [timeline, router]);
+  }, [timeline, router, confirm, toast]);
 
   // Handle regenerate translation
   const handleRegenerateTranslation = useCallback(async () => {
     if (!timeline) return;
-    if (!confirm("确定要重新生成翻译吗？这将覆盖现有的中文字幕。")) return;
+    const confirmed = await confirm({
+      title: "重新翻译",
+      message: "确定要重新生成翻译吗？这将覆盖现有的中文字幕。",
+      type: "warning",
+      confirmText: "重新翻译",
+      cancelText: "取消",
+    });
+    if (!confirmed) return;
     setRegenerating(true);
     setRegenerateProgress({ current: 0, total: timeline.segments.length });
     try {
@@ -177,15 +196,15 @@ export default function ReviewPage() {
         }
       );
       await refresh();
-      alert(`翻译完成：更新了 ${result.updated_count} 条字幕`);
+      toast.success(`翻译完成：更新了 ${result.updated_count} 条字幕`);
     } catch (err) {
       console.error("Failed to regenerate translation:", err);
-      alert("翻译失败: " + (err instanceof Error ? err.message : "Unknown error"));
+      toast.error("翻译失败: " + (err instanceof Error ? err.message : "Unknown error"));
     } finally {
       setRegenerating(false);
       setRegenerateProgress(null);
     }
-  }, [timeline, refresh]);
+  }, [timeline, refresh, confirm, toast]);
 
   // Handle timeline seek
   const handleTimelineSeek = useCallback((time: number) => {

@@ -17,6 +17,7 @@ import {
   startChannelOAuth,
   revokeChannelOAuth,
 } from "@/lib/api";
+import { useToast, useConfirm } from "@/components/ui";
 import type {
   ChannelSummary,
   ChannelCreate,
@@ -27,6 +28,8 @@ import type {
 
 function ChannelsPageContent() {
   const searchParams = useSearchParams();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [channels, setChannels] = useState<ChannelSummary[]>([]);
   const [channelDetails, setChannelDetails] = useState<Record<string, Channel>>({});
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
@@ -97,23 +100,28 @@ function ChannelsPageContent() {
       window.location.href = result.auth_url;
     } catch (error) {
       console.error("[ChannelsPage] Failed to start OAuth:", error);
-      alert("Failed to start authorization: " + (error as Error).message);
+      toast.error("授权启动失败: " + (error as Error).message);
       setAuthorizingChannel(null);
     }
   };
 
   const handleRevokeAuth = async (channelId: string, channelName: string) => {
-    if (!confirm(`Revoke authorization for "${channelName}"? You will need to re-authorize to publish.`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: "撤销授权",
+      message: `确定要撤销 "${channelName}" 的授权吗？之后需要重新授权才能发布。`,
+      type: "warning",
+      confirmText: "撤销",
+    });
+    if (!confirmed) return;
 
     try {
       console.log("[ChannelsPage] Revoking OAuth for channel:", channelId);
       await revokeChannelOAuth(channelId);
+      toast.success("授权已撤销");
       loadChannels();
     } catch (error) {
       console.error("[ChannelsPage] Failed to revoke OAuth:", error);
-      alert("Failed to revoke: " + (error as Error).message);
+      toast.error("撤销失败: " + (error as Error).message);
     }
   };
 
@@ -168,16 +176,20 @@ function ChannelsPageContent() {
       loadChannels();
     } catch (error) {
       console.error("[ChannelsPage] Failed to create channel:", error);
-      alert("Failed to create channel: " + (error as Error).message);
+      toast.error("创建频道失败: " + (error as Error).message);
     } finally {
       setCreating(false);
     }
   };
 
   const handleDeleteChannel = async (channelId: string, channelName: string) => {
-    if (!confirm(`Delete channel "${channelName}"? This cannot be undone.`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: "删除频道",
+      message: `确定要删除 "${channelName}" 吗？此操作不可撤销。`,
+      type: "danger",
+      confirmText: "删除",
+    });
+    if (!confirmed) return;
 
     try {
       console.log("[ChannelsPage] Deleting channel:", channelId);
@@ -185,10 +197,11 @@ function ChannelsPageContent() {
       if (selectedChannel === channelId) {
         setSelectedChannel(null);
       }
+      toast.success("频道已删除");
       loadChannels();
     } catch (error) {
       console.error("[ChannelsPage] Failed to delete channel:", error);
-      alert("Failed to delete channel: " + (error as Error).message);
+      toast.error("删除失败: " + (error as Error).message);
     }
   };
 

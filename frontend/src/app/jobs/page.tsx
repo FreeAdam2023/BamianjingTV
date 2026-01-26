@@ -3,9 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import { listJobs, createJob, deleteJob, cancelJob, formatDuration, getVideoUrl, getExportVideoUrl } from "@/lib/api";
+import { useToast, useConfirm } from "@/components/ui";
 import type { Job, JobCreate } from "@/lib/types";
 
 export default function JobsPage() {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -100,36 +103,44 @@ export default function JobsPage() {
   }
 
   async function handleDelete(jobId: string, title: string) {
-    if (!confirm(`Are you sure you want to delete "${title || jobId}"?\n\nThis will delete all related files.`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: "删除 Job",
+      message: `确定要删除 "${title || jobId}" 吗？这将删除所有相关文件。`,
+      type: "danger",
+      confirmText: "删除",
+    });
+    if (!confirmed) return;
 
     setDeletingId(jobId);
     try {
       await deleteJob(jobId);
+      toast.success("Job 已删除");
       loadJobs(false);
     } catch (err) {
       console.error("Failed to delete job:", err);
-      const message = err instanceof Error ? err.message : "Failed to delete job";
-      setError(message);
+      toast.error("删除失败: " + (err instanceof Error ? err.message : "Unknown error"));
     } finally {
       setDeletingId(null);
     }
   }
 
   async function handleCancel(jobId: string, title: string) {
-    if (!confirm(`Are you sure you want to cancel "${title || jobId}"?\n\nThe job will stop after the current stage completes.`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: "取消 Job",
+      message: `确定要取消 "${title || jobId}" 吗？Job 将在当前阶段完成后停止。`,
+      type: "warning",
+      confirmText: "取消 Job",
+    });
+    if (!confirmed) return;
 
     setCancellingId(jobId);
     try {
       await cancelJob(jobId);
+      toast.success("Job 已取消");
       loadJobs(false);
     } catch (err) {
       console.error("Failed to cancel job:", err);
-      const message = err instanceof Error ? err.message : "Failed to cancel job";
-      setError(message);
+      toast.error("取消失败: " + (err instanceof Error ? err.message : "Unknown error"));
     } finally {
       setCancellingId(null);
     }

@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { ExportProfile, ExportRequest, ExportStatusResponse, Timeline, TitleCandidate } from "@/lib/types";
 import { generateThumbnail, generateUnifiedMetadata, getMetadataDraft, getExportStatus, formatDuration } from "@/lib/api";
+import { useToast } from "@/components/ui";
 
 interface ExportPanelProps {
   timeline: Timeline;
@@ -23,6 +24,7 @@ export default function ExportPanel({
   onClose,
   onExport,
 }: ExportPanelProps) {
+  const toast = useToast();
   const [exportProfile, setExportProfile] = useState<ExportProfile>("full");
   const [useTraditional, setUseTraditional] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -150,7 +152,7 @@ export default function ExportPanel({
       setTimeout(() => fetchExportStatus(), 500);
     } catch (err) {
       console.error("[ExportPanel] Export failed:", err);
-      alert("Export failed: " + (err instanceof Error ? err.message : "Unknown error"));
+      toast.error("导出失败: " + (err instanceof Error ? err.message : "Unknown error"));
       setExporting(false);
     }
   };
@@ -192,7 +194,7 @@ export default function ExportPanel({
       setSelectedTitle(null);
     } catch (err) {
       console.error("[ExportPanel] Failed to generate metadata:", err);
-      alert("Failed to generate metadata: " + (err instanceof Error ? err.message : "Unknown error"));
+      toast.error("元数据生成失败: " + (err instanceof Error ? err.message : "Unknown error"));
     } finally {
       setGeneratingAll(false);
     }
@@ -219,7 +221,7 @@ export default function ExportPanel({
       setThumbnailUrl(`${getBaseUrl()}${result.thumbnail_url}`);
       setShowOriginal(false);
     } catch (err) {
-      alert("Thumbnail generation failed: " + (err instanceof Error ? err.message : "Unknown error"));
+      toast.error("封面生成失败: " + (err instanceof Error ? err.message : "Unknown error"));
     } finally {
       setGeneratingThumbnail(false);
     }
@@ -385,7 +387,7 @@ export default function ExportPanel({
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(youtubeTitle);
-                    alert("标题已复制!");
+                    toast.success("标题已复制");
                   }}
                   className="text-xs text-blue-400 hover:text-blue-300"
                 >
@@ -410,7 +412,7 @@ export default function ExportPanel({
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(youtubeDescription);
-                    alert("描述已复制!");
+                    toast.success("描述已复制");
                   }}
                   className="text-xs text-blue-400 hover:text-blue-300"
                 >
@@ -435,7 +437,7 @@ export default function ExportPanel({
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(youtubeTags);
-                    alert("标签已复制!");
+                    toast.success("标签已复制");
                   }}
                   className="text-xs text-blue-400 hover:text-blue-300"
                 >
@@ -475,7 +477,7 @@ export default function ExportPanel({
                 onClick={() => {
                   const text = `标题:\n${youtubeTitle || timeline?.source_title}\n\n描述:\n${youtubeDescription || ""}\n\n标签:\n${youtubeTags || ""}`;
                   navigator.clipboard.writeText(text);
-                  alert("全部信息已复制到剪贴板!");
+                  toast.success("全部信息已复制到剪贴板");
                 }}
                 className="flex-1 px-3 py-2 text-sm bg-gray-700 hover:bg-gray-600 rounded flex items-center justify-center gap-2"
               >

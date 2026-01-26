@@ -5,30 +5,67 @@
  */
 
 import { keepAllSegments, dropAllSegments, resetAllSegments } from "@/lib/api";
+import { useToast, useConfirm } from "@/components/ui";
 
 interface BulkActionsProps {
   timelineId: string;
 }
 
 export default function BulkActions({ timelineId }: BulkActionsProps) {
+  const toast = useToast();
+  const confirm = useConfirm();
+
   const handleKeepAll = async () => {
-    if (confirm("Mark all segments as KEEP?")) {
-      await keepAllSegments(timelineId);
-      window.location.reload();
+    const confirmed = await confirm({
+      title: "全部保留",
+      message: "确定要将所有片段标记为保留吗？",
+      type: "info",
+      confirmText: "全部保留",
+    });
+    if (confirmed) {
+      try {
+        const result = await keepAllSegments(timelineId);
+        toast.success(`已将 ${result.updated} 个片段标记为保留`);
+        window.location.reload();
+      } catch (err) {
+        toast.error("操作失败: " + (err instanceof Error ? err.message : "Unknown error"));
+      }
     }
   };
 
   const handleDropAll = async () => {
-    if (confirm("Mark all segments as DROP?")) {
-      await dropAllSegments(timelineId);
-      window.location.reload();
+    const confirmed = await confirm({
+      title: "全部丢弃",
+      message: "确定要将所有片段标记为丢弃吗？",
+      type: "danger",
+      confirmText: "全部丢弃",
+    });
+    if (confirmed) {
+      try {
+        const result = await dropAllSegments(timelineId);
+        toast.success(`已将 ${result.updated} 个片段标记为丢弃`);
+        window.location.reload();
+      } catch (err) {
+        toast.error("操作失败: " + (err instanceof Error ? err.message : "Unknown error"));
+      }
     }
   };
 
   const handleResetAll = async () => {
-    if (confirm("Reset all segments to UNDECIDED?")) {
-      await resetAllSegments(timelineId);
-      window.location.reload();
+    const confirmed = await confirm({
+      title: "全部重置",
+      message: "确定要将所有片段重置为未决定状态吗？",
+      type: "warning",
+      confirmText: "重置",
+    });
+    if (confirmed) {
+      try {
+        const result = await resetAllSegments(timelineId);
+        toast.success(`已重置 ${result.updated} 个片段`);
+        window.location.reload();
+      } catch (err) {
+        toast.error("操作失败: " + (err instanceof Error ? err.message : "Unknown error"));
+      }
     }
   };
 
