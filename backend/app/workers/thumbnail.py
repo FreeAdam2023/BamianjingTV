@@ -473,9 +473,23 @@ class ThumbnailWorker:
                         continue
             return ImageFont.load_default()
 
-        # Fonts - Large text for impact (half-screen coverage)
-        main_font = load_font(140)  # Much larger for visibility
-        sub_font = load_font(100)   # Larger sub text
+        def get_font_to_fit(text: str, max_width: int, max_size: int, min_size: int = 40) -> ImageFont.FreeTypeFont:
+            """Find the largest font size that fits the text within max_width."""
+            for size in range(max_size, min_size - 1, -5):
+                font = load_font(size)
+                bbox = draw.textbbox((0, 0), text, font=font)
+                text_width = bbox[2] - bbox[0]
+                if text_width <= max_width:
+                    return font
+            return load_font(min_size)
+
+        # Calculate available width with padding
+        padding = 40  # 20px on each side
+        available_width = YOUTUBE_WIDTH - padding * 2
+
+        # Fonts - dynamically sized to fit
+        main_font = get_font_to_fit(main_title, available_width, max_size=140, min_size=60)
+        sub_font = get_font_to_fit(sub_title, available_width, max_size=100, min_size=40)
         badge_font = load_font(42)
 
         # Colors
