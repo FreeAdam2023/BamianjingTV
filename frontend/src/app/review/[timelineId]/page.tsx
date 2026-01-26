@@ -15,9 +15,11 @@ import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useTimelineKeyboard } from "@/hooks/useTimelineKeyboard";
 import { useMultiTrackWaveform, TrackType } from "@/hooks/useMultiTrackWaveform";
 import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress } from "@/lib/api";
+import type { ExportStatusResponse } from "@/lib/types";
 import { useToast, useConfirm } from "@/components/ui";
 import ReviewHeader from "./ReviewHeader";
 import ExportPanel from "./ExportPanel";
+import PreviewUploadPanel from "./PreviewUploadPanel";
 import KeyboardHelp from "./KeyboardHelp";
 import BulkActions from "./BulkActions";
 
@@ -50,6 +52,8 @@ export default function ReviewPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
   const [showExportPanel, setShowExportPanel] = useState(false);
+  const [showPreviewPanel, setShowPreviewPanel] = useState(false);
+  const [exportStatusForPreview, setExportStatusForPreview] = useState<ExportStatusResponse | null>(null);
   const [currentVideoTime, setCurrentVideoTime] = useState(0);
   const [coverFrameTime, setCoverFrameTime] = useState<number | null>(null);
   const [coverFrameUrl, setCoverFrameUrl] = useState<string | null>(null);
@@ -260,6 +264,10 @@ export default function ReviewPage() {
         exportStatus={timeline.export_status}
         onExportClick={() => setShowExportPanel(true)}
         onDelete={handleDelete}
+        onShowPreview={(status) => {
+          setExportStatusForPreview(status);
+          setShowPreviewPanel(true);
+        }}
       />
 
       {/* Main content */}
@@ -330,6 +338,25 @@ export default function ReviewPage() {
           coverFrameTime={coverFrameTime}
           onClose={() => setShowExportPanel(false)}
           onExport={startExport}
+          onExportStarted={() => {
+            setShowExportPanel(false);
+            refresh(); // Refresh to update export_status
+          }}
+        />
+      )}
+
+      {/* Preview & Upload Panel */}
+      {showPreviewPanel && exportStatusForPreview && (
+        <PreviewUploadPanel
+          timeline={timeline}
+          exportStatus={exportStatusForPreview}
+          onClose={() => {
+            setShowPreviewPanel(false);
+            setExportStatusForPreview(null);
+          }}
+          onUploadStarted={() => {
+            refresh(); // Refresh to update export_status
+          }}
         />
       )}
     </main>

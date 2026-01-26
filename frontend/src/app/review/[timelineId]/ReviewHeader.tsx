@@ -5,7 +5,7 @@
  */
 
 import Link from "next/link";
-import type { ExportStatus } from "@/lib/types";
+import type { ExportStatus, ExportStatusResponse } from "@/lib/types";
 import ExportStatusIndicator from "./ExportStatusIndicator";
 
 interface ReviewStats {
@@ -25,6 +25,7 @@ interface ReviewHeaderProps {
   exportStatus?: ExportStatus;
   onExportClick: () => void;
   onDelete: () => void;
+  onShowPreview?: (status: ExportStatusResponse) => void;
 }
 
 export default function ReviewHeader({
@@ -36,6 +37,7 @@ export default function ReviewHeader({
   exportStatus = "idle",
   onExportClick,
   onDelete,
+  onShowPreview,
 }: ReviewHeaderProps) {
   return (
     <header className="bg-gray-800 px-4 py-3 flex items-center justify-between">
@@ -52,7 +54,9 @@ export default function ReviewHeader({
         {exportStatus !== "idle" && (
           <ExportStatusIndicator
             timelineId={timelineId}
+            jobId={jobId}
             initialStatus={exportStatus}
+            onShowPreview={onShowPreview}
           />
         )}
 

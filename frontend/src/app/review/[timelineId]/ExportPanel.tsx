@@ -4,9 +4,9 @@
  * ExportPanel - Modal for export settings and thumbnail generation
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import type { ExportProfile, ExportRequest, ExportStatusResponse, Timeline, TitleCandidate, MetadataDraft } from "@/lib/types";
-import { generateThumbnail, generateUnifiedMetadata, getMetadataDraft, saveMetadataDraft, getExportStatus, formatDuration } from "@/lib/api";
+import { useState, useEffect, useRef, useCallback } from "react";
+import type { ExportProfile, ExportRequest, Timeline, TitleCandidate, MetadataDraft } from "@/lib/types";
+import { generateThumbnail, generateUnifiedMetadata, getMetadataDraft, saveMetadataDraft, formatDuration } from "@/lib/api";
 import { useToast } from "@/components/ui";
 
 interface ExportPanelProps {
@@ -15,6 +15,7 @@ interface ExportPanelProps {
   coverFrameTime: number | null;
   onClose: () => void;
   onExport: (request: ExportRequest) => Promise<unknown>;
+  onExportStarted?: () => void;
 }
 
 export default function ExportPanel({
@@ -23,18 +24,17 @@ export default function ExportPanel({
   coverFrameTime,
   onClose,
   onExport,
+  onExportStarted,
 }: ExportPanelProps) {
   const toast = useToast();
   const [exportProfile, setExportProfile] = useState<ExportProfile>("full");
   const [useTraditional, setUseTraditional] = useState(true);
   const [exporting, setExporting] = useState(false);
 
-  // YouTube upload options
-  const [uploadToYouTube, setUploadToYouTube] = useState(false);
+  // YouTube metadata (for draft saving, upload happens in PreviewUploadPanel)
   const [youtubeTitle, setYoutubeTitle] = useState("");
   const [youtubeDescription, setYoutubeDescription] = useState("");
   const [youtubeTags, setYoutubeTags] = useState("");
-  const [youtubePrivacy, setYoutubePrivacy] = useState<"private" | "unlisted" | "public">("private");
 
   // Title candidates (thumbnail)
   const [titleCandidates, setTitleCandidates] = useState<TitleCandidate[]>([]);
@@ -138,42 +138,6 @@ export default function ExportPanel({
     loadDraft();
   }, [timeline.timeline_id]);
 
-  // Export status tracking
-  const [exportStatus, setExportStatus] = useState<ExportStatusResponse | null>(null);
-  const [pollingExport, setPollingExport] = useState(false);
-
-  // Fetch export status
-  const fetchExportStatus = useCallback(async () => {
-    try {
-      const status = await getExportStatus(timeline.timeline_id);
-      console.log("[ExportPanel] Export status:", {
-        status: status.status,
-        progress: status.progress,
-        message: status.message,
-      });
-      setExportStatus(status);
-      return status;
-    } catch (err) {
-      console.error("[ExportPanel] Failed to fetch export status:", err);
-      return null;
-    }
-  }, [timeline.timeline_id]);
-
-  // Poll export status when exporting
-  useEffect(() => {
-    if (!pollingExport) return;
-
-    const interval = setInterval(async () => {
-      const status = await fetchExportStatus();
-      if (status && (status.status === "completed" || status.status === "failed")) {
-        setPollingExport(false);
-        setExporting(false);
-      }
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [pollingExport, fetchExportStatus]);
-
   // ESC key to close
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -184,31 +148,22 @@ export default function ExportPanel({
   }, [onClose]);
 
   const handleExport = async () => {
-    console.log("[ExportPanel] Starting export...", { profile: exportProfile, uploadToYouTube });
+    console.log("[ExportPanel] Starting export...", { profile: exportProfile });
     setExporting(true);
-    setExportStatus(null);
     try {
       const request: ExportRequest = {
         profile: exportProfile,
         use_traditional_chinese: useTraditional,
-        upload_to_youtube: uploadToYouTube,
+        upload_to_youtube: false, // Don't upload yet, user will preview first
       };
-
-      if (uploadToYouTube) {
-        if (youtubeTitle) request.youtube_title = youtubeTitle;
-        if (youtubeDescription) request.youtube_description = youtubeDescription;
-        if (youtubeTags) request.youtube_tags = youtubeTags.split(",").map(t => t.trim()).filter(Boolean);
-        request.youtube_privacy = youtubePrivacy;
-      }
 
       console.log("[ExportPanel] Export request:", request);
       await onExport(request);
-      console.log("[ExportPanel] Export started, beginning status polling...");
+      console.log("[ExportPanel] Export started");
+      toast.success("开始导出视频，进度显示在顶部...");
 
-      // Start polling for status
-      setPollingExport(true);
-      // Fetch initial status after a short delay
-      setTimeout(() => fetchExportStatus(), 500);
+      // Close modal and let header show progress
+      onExportStarted?.();
     } catch (err) {
       console.error("[ExportPanel] Export failed:", err);
       toast.error("导出失败: " + (err instanceof Error ? err.message : "Unknown error"));
@@ -431,20 +386,22 @@ export default function ExportPanel({
           </div>
         </div>
 
-        {/* YouTube Upload Section */}
+        {/* YouTube Metadata Section */}
         <div className="border-t border-gray-700 pt-4 mt-4">
-          <label className="flex items-center gap-2 mb-4 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={uploadToYouTube}
-              onChange={(e) => setUploadToYouTube(e.target.checked)}
-              className="w-4 h-4"
-            />
-            <span className="font-medium">自动上传到 YouTube</span>
+          <div className="flex items-center justify-between mb-4">
+            <span className="font-medium flex items-center gap-2">
+              <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
+              </svg>
+              YouTube 元数据
+            </span>
             {youtubeTitle && (
-              <span className="text-xs text-green-400 ml-auto">元数据已就绪</span>
+              <span className="text-xs text-green-400">元数据已就绪</span>
             )}
-          </label>
+          </div>
+          <p className="text-xs text-gray-500 mb-3">
+            导出完成后可预览视频，确认后再上传到 YouTube
+          </p>
 
           {/* Title with copy button */}
           <div className="mb-3">
@@ -521,51 +478,22 @@ export default function ExportPanel({
             />
           </div>
 
-          {/* Privacy selector - only when auto-upload enabled */}
-          {uploadToYouTube && (
-            <div className="mb-3">
-              <label className="text-sm text-gray-400 mb-1 block">隐私设置</label>
-              <select
-                value={youtubePrivacy}
-                onChange={(e) => setYoutubePrivacy(e.target.value as "private" | "unlisted" | "public")}
-                className="w-full bg-gray-700 rounded px-3 py-2 text-sm"
-              >
-                <option value="private">私享 (Private)</option>
-                <option value="unlisted">不公开 (Unlisted)</option>
-                <option value="public">公开 (Public)</option>
-              </select>
-            </div>
-          )}
-
-          {/* Manual upload buttons - only when NOT auto-uploading */}
-          {!uploadToYouTube && (
-            <div className="flex gap-2 mt-4">
-              <button
-                onClick={() => {
-                  const text = `标题:\n${youtubeTitle || timeline?.source_title}\n\n描述:\n${youtubeDescription || ""}\n\n标签:\n${youtubeTags || ""}`;
-                  navigator.clipboard.writeText(text);
-                  toast.success("全部信息已复制到剪贴板");
-                }}
-                className="flex-1 px-3 py-2 text-sm bg-gray-700 hover:bg-gray-600 rounded flex items-center justify-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-                复制全部
-              </button>
-              <button
-                onClick={() => {
-                  window.open("https://studio.youtube.com/channel/UC/videos/upload?d=ud", "_blank");
-                }}
-                className="flex-1 px-3 py-2 text-sm bg-red-600 hover:bg-red-700 rounded flex items-center justify-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
-                </svg>
-                打开 YouTube Studio
-              </button>
-            </div>
-          )}
+          {/* Copy all button */}
+          <div className="mt-3">
+            <button
+              onClick={() => {
+                const text = `标题:\n${youtubeTitle || timeline?.source_title}\n\n描述:\n${youtubeDescription || ""}\n\n标签:\n${youtubeTags || ""}`;
+                navigator.clipboard.writeText(text);
+                toast.success("全部信息已复制到剪贴板");
+              }}
+              className="w-full px-3 py-2 text-sm bg-gray-700 hover:bg-gray-600 rounded flex items-center justify-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              复制全部元数据
+            </button>
+          </div>
         </div>
 
         {/* Thumbnail Generation Section */}
@@ -775,138 +703,40 @@ export default function ExportPanel({
           </p>
         </div>
 
-        {/* Export Status */}
-        {exportStatus && (
-          <div className="mt-4 p-4 rounded-lg bg-gray-900">
-            <div className="flex items-center gap-3 mb-2">
-              {(exportStatus.status === "exporting" || exportStatus.status === "uploading") && (
-                <svg className="animate-spin h-5 w-5 text-blue-400" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-              )}
-              {exportStatus.status === "completed" && (
-                <svg className="h-5 w-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              )}
-              {exportStatus.status === "failed" && (
-                <svg className="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              )}
-              <span className={`font-medium ${
-                exportStatus.status === "completed" ? "text-green-400" :
-                exportStatus.status === "failed" ? "text-red-400" :
-                "text-blue-400"
-              }`}>
-                {exportStatus.status === "exporting" ? "正在导出视频..." :
-                 exportStatus.status === "uploading" ? "正在上传到 YouTube..." :
-                 exportStatus.status === "completed" ? "完成!" :
-                 exportStatus.status === "failed" ? "失败" : ""}
-              </span>
-            </div>
-
-            {/* Progress bar */}
-            {(exportStatus.status === "exporting" || exportStatus.status === "uploading") && (
-              <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden mb-2">
-                <div
-                  className={`h-full transition-all duration-300 ${exportStatus.status === "uploading" ? "bg-red-500" : "bg-blue-500"}`}
-                  style={{ width: `${exportStatus.progress}%` }}
-                />
-              </div>
-            )}
-
-            {/* Status message */}
-            {exportStatus.message && (
-              <p className="text-sm text-gray-400">{exportStatus.message}</p>
-            )}
-
-            {/* Error message */}
-            {exportStatus.error && (
-              <p className="text-sm text-red-400 mt-1">{exportStatus.error}</p>
-            )}
-
-            {/* Action buttons when complete */}
-            {exportStatus.status === "completed" && (
-              <div className="flex flex-col gap-2 mt-3">
-                {/* YouTube link if auto-uploaded */}
-                {exportStatus.youtube_url && (
-                  <a
-                    href={exportStatus.youtube_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full px-3 py-2 text-sm bg-red-600 hover:bg-red-700 rounded flex items-center justify-center gap-2"
-                  >
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
-                    </svg>
-                    在 YouTube 上查看
-                  </a>
-                )}
-                <div className="flex gap-2">
-                  {exportStatus.full_video_path && (
-                    <a
-                      href={`${getBaseUrl()}/jobs/${timeline.job_id}/video/export`}
-                      download
-                      className="flex-1 px-3 py-2 text-sm bg-green-600 hover:bg-green-700 rounded flex items-center justify-center gap-2"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                      </svg>
-                      下载视频
-                    </a>
-                  )}
-                  {/* Manual upload button only if not auto-uploaded */}
-                  {!exportStatus.youtube_url && (
-                    <button
-                      onClick={() => window.open("https://studio.youtube.com/channel/UC/videos/upload?d=ud", "_blank")}
-                      className="flex-1 px-3 py-2 text-sm bg-red-600 hover:bg-red-700 rounded flex items-center justify-center gap-2"
-                    >
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
-                      </svg>
-                      手动上传
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Buttons */}
         <div className="flex gap-4 mt-6">
           <button
             onClick={onClose}
             className="flex-1 py-2 bg-gray-600 hover:bg-gray-700 rounded"
           >
-            {exportStatus?.status === "completed" || exportStatus?.status === "failed" ? "Close" : "Cancel"}
+            取消
           </button>
-          {(!exportStatus || exportStatus.status === "failed") && (
-            <button
-              onClick={handleExport}
-              disabled={exporting}
-              className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 rounded flex items-center justify-center gap-2"
-            >
-              {exporting ? (
-                <>
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  Starting...
-                </>
-              ) : exportStatus?.status === "failed" ? (
-                "重试"
-              ) : uploadToYouTube ? (
-                "导出并上传到 YouTube"
-              ) : (
-                "开始导出"
-              )}
-            </button>
-          )}
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 rounded flex items-center justify-center gap-2"
+          >
+            {exporting ? (
+              <>
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                正在开始...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                开始导出
+              </>
+            )}
+          </button>
         </div>
+        <p className="text-xs text-gray-500 text-center mt-2">
+          导出完成后可预览视频，确认后再上传到 YouTube
+        </p>
       </div>
     </div>
   );
