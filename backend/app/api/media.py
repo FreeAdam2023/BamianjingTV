@@ -160,7 +160,8 @@ async def convert_chinese_subtitles(
         timeline_id: Timeline ID
         request: Conversion direction (to_traditional: True for S->T, False for T->S)
 
-    Converts all Chinese subtitles in the timeline and saves.
+    If already in the target format, returns immediately without conversion.
+    Subtitles are permanently stored - no need to re-convert.
     """
     from loguru import logger
 
@@ -169,14 +170,26 @@ async def convert_chinese_subtitles(
     if not timeline:
         raise HTTPException(status_code=404, detail="Timeline not found")
 
+    target = "traditional" if request.to_traditional else "simplified"
+
+    # Check if already in target format - no conversion needed
+    if timeline.use_traditional_chinese == request.to_traditional:
+        logger.info(
+            f"Timeline {timeline_id} already in {target} Chinese, skipping conversion"
+        )
+        return ChineseConversionResponse(
+            timeline_id=timeline_id,
+            converted_count=0,
+            target=target,
+            message=f"Already in {target} Chinese (no conversion needed)",
+        )
+
     try:
         import opencc
         if request.to_traditional:
             converter = opencc.OpenCC("s2t")  # Simplified to Traditional
-            target = "traditional"
         else:
             converter = opencc.OpenCC("t2s")  # Traditional to Simplified
-            target = "simplified"
     except ImportError:
         raise HTTPException(
             status_code=500,
@@ -196,7 +209,7 @@ async def convert_chinese_subtitles(
         # Update the timeline's traditional setting
         timeline.use_traditional_chinese = request.to_traditional
 
-        # Save the timeline
+        # Save the timeline (permanent storage)
         manager.save_timeline(timeline)
 
         logger.info(
