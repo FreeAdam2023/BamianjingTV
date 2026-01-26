@@ -20,13 +20,21 @@ class ThumbnailWorker:
         # Detect if using Grok API (xAI)
         self.is_grok = "x.ai" in self.base_url.lower()
 
-        # Image generation settings
-        if self.is_grok:
-            # Use Grok's image generation (Aurora model)
-            self.image_model = "grok-2-image"
+        # Image generation settings from config
+        # If config specifies a model, use it; otherwise auto-detect
+        if settings.image_model:
+            self.image_model = settings.image_model
+            self.enabled = True
+        elif self.is_grok:
+            # Grok image generation may not be available for all accounts
+            # Disable by default - user can enable via IMAGE_MODEL env var
+            self.image_model = ""
+            self.enabled = False
+            logger.info("Thumbnail generation disabled (Grok API detected, IMAGE_MODEL not configured)")
         else:
-            # Fallback to DALL-E
+            # Fallback to DALL-E for OpenAI
             self.image_model = "dall-e-3"
+            self.enabled = True
 
     async def generate_prompt_from_content(
         self,
@@ -107,6 +115,10 @@ Generate a dramatic, eye-catching thumbnail image prompt."""
         Returns:
             Path to generated image or None if failed
         """
+        if not self.enabled:
+            logger.warning("Thumbnail generation is disabled. Set IMAGE_MODEL env var to enable.")
+            return None
+
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 

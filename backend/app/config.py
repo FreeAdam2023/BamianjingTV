@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     llm_base_url: str = "https://api.x.ai/v1"  # Default to Grok
     llm_model: str = "grok-4-fast-non-reasoning"  # Default model
 
+    # Image generation settings (for thumbnails)
+    # Set to empty string to disable thumbnail generation
+    # Grok: "grok-2-image" (may not be available for all accounts)
+    # OpenAI: "dall-e-3"
+    image_model: str = ""  # Empty = disabled by default
+
     # Legacy Azure settings (only used if llm_base_url contains "azure")
     azure_api_version: str = "2024-12-01-preview"
     azure_deployment: str = ""
