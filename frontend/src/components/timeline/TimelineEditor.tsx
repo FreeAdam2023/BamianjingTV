@@ -316,9 +316,9 @@ export default function TimelineEditor({
   waveformData,
   onGenerateWaveform,
 }: TimelineEditorProps) {
-  // Track configuration state
+  // Track configuration state - all audio tracks hidden by default, show on demand
   const [trackConfigs, setTrackConfigs] = useState<TrackConfig[]>([
-    { type: "original", name: "Original", visible: true, muted: false, solo: false },
+    { type: "original", name: "Original", visible: false, muted: false, solo: false },
     { type: "dubbing", name: "Dubbing", visible: false, muted: false, solo: false },
     { type: "bgm", name: "BGM", visible: false, muted: false, solo: false },
   ]);
