@@ -167,6 +167,11 @@ async def generate_unified_metadata(
     instruction = request.instruction if request else None
     num_candidates = request.num_title_candidates if request else 5
 
+    logger.info(
+        f"Unified metadata request for timeline {timeline_id}: "
+        f"instruction={repr(instruction)}, num_candidates={num_candidates}"
+    )
+
     try:
         result = await thumbnail_worker.generate_unified_metadata(
             title=timeline.source_title,

@@ -347,17 +347,27 @@ class ThumbnailWorker:
             else:
                 duration_str = f"{minutes}分钟"
 
-        # Build instruction section
-        instruction_section = ""
+        # Log the instruction for debugging
         if user_instruction:
-            instruction_section = f"""
-**【用户创作指导 - 必须遵循】**
-{user_instruction}
+            logger.info(f"Generating metadata with user instruction: {user_instruction}")
+        else:
+            logger.info("Generating metadata without user instruction")
+
+        # Build instruction section - placed prominently in user prompt for better adherence
+        instruction_block = ""
+        if user_instruction:
+            instruction_block = f"""
+⚠️ **用户创作指导 - 最高优先级，必须严格遵循！** ⚠️
+「{user_instruction}」
+
+你必须根据上述指导来创作内容。标题和描述必须围绕用户指定的主题/角度。
+如果用户指定了"突出冲突"，标题必须体现冲突；如果指定了"某个话题"，必须以该话题为核心。
 ---
+
 """
 
         system_prompt = f"""你是一个YouTube内容优化专家。根据视频内容生成**协调一致**的YouTube元数据和封面标题。
-{instruction_section}
+
 **重要：YouTube标题和封面标题必须主题一致、风格协调！**
 
 ## 任务1：YouTube元数据
@@ -407,7 +417,7 @@ class ThumbnailWorker:
 
 只输出JSON，不要其他内容。"""
 
-        user_prompt = f"""原视频标题：{title}
+        user_prompt = f"""{instruction_block}原视频标题：{title}
 
 视频内容摘要：
 {content_sample}
@@ -415,10 +425,10 @@ class ThumbnailWorker:
 {f"视频时长：{duration_str}" if duration_str else ""}
 {f"原始链接：{source_url}" if source_url else ""}
 
-请生成协调一致的YouTube元数据和{num_title_candidates}组封面标题候选："""
+请生成协调一致的YouTube元数据和{num_title_candidates}组封面标题候选：{f" **请务必围绕用户指导「{user_instruction}」来创作！**" if user_instruction else ""}"""
 
-        # Lower temperature when user provides instruction
-        temperature = 0.7 if user_instruction else 0.85
+        # Lower temperature when user provides instruction for better adherence
+        temperature = 0.6 if user_instruction else 0.85
 
         try:
             async with httpx.AsyncClient(timeout=90.0) as client:

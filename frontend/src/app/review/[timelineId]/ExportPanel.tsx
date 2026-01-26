@@ -526,7 +526,7 @@ export default function ExportPanel({
                 {titleCandidates.map((candidate) => (
                   <button
                     key={candidate.index}
-                    onClick={() => setSelectedTitle(candidate)}
+                    onClick={() => setSelectedTitle({ ...candidate })}
                     className={`w-full text-left p-2 rounded border-2 transition-colors ${
                       selectedTitle?.index === candidate.index
                         ? "border-purple-500 bg-purple-500/20"
@@ -560,13 +560,56 @@ export default function ExportPanel({
               </p>
             )}
 
+            {/* Editable selected title */}
             {selectedTitle && (
-              <div className="mt-2 p-2 bg-purple-900/30 rounded text-sm">
-                <span className="text-purple-400">已选:</span>
-                <span className="text-yellow-400 ml-2">{selectedTitle.main}</span>
-                <span className="text-gray-400 mx-1">/</span>
-                <span className="text-white">{selectedTitle.sub}</span>
+              <div className="mt-3 p-3 bg-purple-900/30 rounded-lg border border-purple-700/50">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-purple-400 font-medium">已选标题（可编辑）</span>
+                  <button
+                    onClick={() => setSelectedTitle(null)}
+                    className="text-xs text-gray-500 hover:text-gray-300"
+                  >
+                    取消选择
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">主标题（黄色大字）</label>
+                    <input
+                      type="text"
+                      value={selectedTitle.main}
+                      onChange={(e) => setSelectedTitle({ ...selectedTitle, main: e.target.value })}
+                      className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-yellow-400 font-bold"
+                      placeholder="主标题"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">副标题（白色字）</label>
+                    <input
+                      type="text"
+                      value={selectedTitle.sub}
+                      onChange={(e) => setSelectedTitle({ ...selectedTitle, sub: e.target.value })}
+                      className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-white"
+                      placeholder="副标题"
+                    />
+                  </div>
+                </div>
               </div>
+            )}
+
+            {/* Custom title option when no candidates or want to add custom */}
+            {!selectedTitle && (
+              <button
+                onClick={() => setSelectedTitle({ index: -1, main: "", sub: "", style: "自定义" })}
+                className="mt-2 w-full text-left p-2 rounded border-2 border-dashed border-gray-600 hover:border-gray-500 bg-gray-800/50 hover:bg-gray-800 transition-colors"
+              >
+                <div className="flex items-center gap-2 text-gray-400">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span className="text-sm">自定义封面标题</span>
+                </div>
+              </button>
             )}
           </div>
 
@@ -660,8 +703,8 @@ export default function ExportPanel({
 
           <p className="text-xs text-gray-500 mt-2 text-center">
             {selectedTitle
-              ? "使用已选标题生成封面"
-              : "将自动生成封面标题（或先点击上方「一键生成」选择标题）"}
+              ? "使用编辑后的标题生成封面"
+              : "将自动生成封面标题（或先选择/自定义标题）"}
           </p>
         </div>
 
