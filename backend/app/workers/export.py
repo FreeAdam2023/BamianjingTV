@@ -147,15 +147,24 @@ class ExportWorker:
 
         # Calculate subtitle area dimensions
         subtitle_area_height = int(video_height * subtitle_area_ratio)
-        # English at ~65% height of subtitle area, Chinese at ~25%
-        english_margin_v = int(subtitle_area_height * 0.50)  # From bottom of screen
-        chinese_margin_v = int(subtitle_area_height * 0.12)  # From bottom of screen
 
-        # Scale font sizes based on video height (match review page proportions)
-        # Review page: 24px/28px at ~600px height → scale to video height
-        scale_factor = video_height / 600
-        english_font_size = int(24 * scale_factor * 0.9)  # Slightly smaller for readability
-        chinese_font_size = int(28 * scale_factor * 0.9)
+        # Scale font sizes based on subtitle area height (match review page proportions)
+        # Review page: 24px/28px English/Chinese at ~300px subtitle height
+        scale_factor = subtitle_area_height / 300
+        english_font_size = max(24, int(24 * scale_factor))
+        chinese_font_size = max(28, int(28 * scale_factor))
+
+        # Calculate vertical positions to center both subtitles as a group
+        # Layout: subtitle area has English above Chinese, both centered vertically as a unit
+        # Estimate total text block height: English font + gap + Chinese font
+        gap_between = int(20 * scale_factor)  # Gap between English and Chinese
+        total_block_height = english_font_size + gap_between + chinese_font_size
+
+        # Center the block in subtitle area
+        # MarginV in ASS is distance from bottom of screen
+        block_bottom = (subtitle_area_height - total_block_height) // 2
+        chinese_margin_v = max(10, block_bottom)  # Chinese at bottom of block
+        english_margin_v = chinese_margin_v + chinese_font_size + gap_between  # English above
 
         # Colors matching review page (ASS uses AABBGGRR format)
         # English: white #FFFFFF → &H00FFFFFF
