@@ -54,19 +54,28 @@ class YouTubeWorker:
 
         # Load existing token
         if effective_token_file.exists():
+            logger.info(f"Loading token from {effective_token_file}")
             with open(effective_token_file, "rb") as f:
                 credentials = pickle.load(f)
+            logger.info(f"Token loaded - valid: {credentials.valid}, expired: {credentials.expired}")
+        else:
+            logger.warning(f"Token file not found: {effective_token_file}")
 
         # Refresh or get new credentials
         if credentials and credentials.expired and credentials.refresh_token:
             try:
+                logger.info(f"Token expired, attempting refresh...")
                 credentials.refresh(Request())
                 # Save refreshed token
                 with open(effective_token_file, "wb") as f:
                     pickle.dump(credentials, f)
+                logger.info(f"Token refreshed successfully")
             except Exception as e:
-                logger.warning(f"Token refresh failed: {e}")
-                credentials = None
+                logger.error(f"Token refresh failed: {e}")
+                raise YouTubeUploadError(
+                    f"Token 刷新失败: {e}\n"
+                    f"请重新运行授权: python scripts/youtube_auth.py"
+                )
 
         if not credentials or not credentials.valid:
             # If we have a specific token file that doesn't work, raise error
