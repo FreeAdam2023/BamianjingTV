@@ -93,6 +93,10 @@ class Timeline(BaseModel):
     use_traditional_chinese: bool = True  # Traditional vs Simplified
     subtitle_area_ratio: float = 0.5  # Ratio of screen height for subtitle area (0.3-0.7)
 
+    # Video-level trim (independent of subtitle segments)
+    video_trim_start: float = 0.0  # Trim video from this point (seconds)
+    video_trim_end: Optional[float] = None  # Trim video to this point (None = no trim)
+
     # Speaker names mapping (e.g., {"SPEAKER_0": "Elon Musk", "SPEAKER_1": "Interviewer"})
     speaker_names: Dict[str, str] = Field(default_factory=dict)
 

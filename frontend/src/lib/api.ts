@@ -178,6 +178,42 @@ export async function dropSegmentsAfter(
   });
 }
 
+// ============ Video Trim API ============
+
+export interface VideoTrimInfo {
+  timeline_id: string;
+  trim_start: number;
+  trim_end: number | null;
+  source_duration: number;
+  effective_duration: number;
+  message?: string;
+}
+
+export async function getVideoTrim(timelineId: string): Promise<VideoTrimInfo> {
+  return fetchAPI(`/timelines/${timelineId}/trim`);
+}
+
+export async function setVideoTrim(
+  timelineId: string,
+  trimStart?: number,
+  trimEnd?: number | null
+): Promise<VideoTrimInfo> {
+  const body: { trim_start?: number; trim_end?: number | null } = {};
+  if (trimStart !== undefined) body.trim_start = trimStart;
+  if (trimEnd !== undefined) body.trim_end = trimEnd;
+
+  return fetchAPI(`/timelines/${timelineId}/trim`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function resetVideoTrim(timelineId: string): Promise<VideoTrimInfo> {
+  return fetchAPI(`/timelines/${timelineId}/trim`, {
+    method: "DELETE",
+  });
+}
+
 export async function markTimelineReviewed(
   timelineId: string
 ): Promise<{ message: string }> {

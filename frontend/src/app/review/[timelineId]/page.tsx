@@ -363,7 +363,14 @@ export default function ReviewPage() {
 
         {/* Segment list panel */}
         <div className="w-[480px] flex-shrink-0 border-l border-gray-700 flex flex-col">
-          <BulkActions timelineId={timelineId} currentTime={currentVideoTime} onUpdate={() => refresh()} />
+          <BulkActions
+            timelineId={timelineId}
+            currentTime={currentVideoTime}
+            trimStart={timeline.video_trim_start ?? 0}
+            trimEnd={timeline.video_trim_end ?? null}
+            sourceDuration={timeline.source_duration}
+            onUpdate={() => refresh()}
+          />
           <SpeakerEditor timelineId={timelineId} onSpeakerNamesChange={() => refresh()} />
           <SegmentList
             segments={timeline.segments}

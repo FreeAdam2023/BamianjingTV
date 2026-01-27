@@ -29,6 +29,9 @@ export interface Timeline {
   export_profile: ExportProfile;
   use_traditional_chinese: boolean;
   subtitle_area_ratio: number;  // 0.3-0.7, default 0.5
+  // Video-level trim (independent of subtitle segments)
+  video_trim_start: number;  // Video starts from this time (seconds)
+  video_trim_end: number | null;  // Video ends at this time (null = full duration)
   speaker_names: Record<string, string>;  // Maps speaker IDs to display names
   output_full_path: string | null;
   output_essence_path: string | null;
