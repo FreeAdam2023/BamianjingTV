@@ -319,10 +319,14 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   // Check if we're in preview mode (showing exported video)
   const isPreviewMode = videoMode !== "source";
 
+  // Dark blue color matching subtitle area and export
+  const containerBgColor = "#1a2744";
+
   return (
     <div
       ref={containerRef}
-      className="flex flex-col bg-black rounded-lg overflow-hidden h-full"
+      className="flex flex-col rounded-lg overflow-hidden h-full"
+      style={{ backgroundColor: containerBgColor }}
     >
       {/* Video area */}
       <div
@@ -336,7 +340,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
           ref={videoRef}
           src={videoUrl}
           key={videoUrl} // Force remount when URL changes
-          className="w-full h-full object-contain cursor-pointer bg-black"
+          className="w-full h-full object-contain cursor-pointer"
+          style={{ backgroundColor: containerBgColor }}
           preload="auto"
           onClick={toggle}
           playsInline
