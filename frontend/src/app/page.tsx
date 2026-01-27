@@ -58,6 +58,51 @@ export default function Home() {
     }
   }
 
+  function getExportStatusBadge(timeline: TimelineSummary) {
+    switch (timeline.export_status) {
+      case "exporting":
+        return (
+          <span className="badge badge-info animate-pulse flex items-center gap-1">
+            <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            导出中 {Math.round(timeline.export_progress)}%
+          </span>
+        );
+      case "uploading":
+        return (
+          <span className="badge bg-purple-600 text-white animate-pulse flex items-center gap-1">
+            <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            上传中 {Math.round(timeline.export_progress)}%
+          </span>
+        );
+      case "completed":
+        return (
+          <span className="badge bg-green-600 text-white flex items-center gap-1">
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            已导出
+          </span>
+        );
+      case "failed":
+        return (
+          <span className="badge badge-danger flex items-center gap-1" title={timeline.export_message || ""}>
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            导出失败
+          </span>
+        );
+      default:
+        return null;
+    }
+  }
+
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center">
@@ -104,7 +149,7 @@ export default function Home() {
       <div className="max-w-6xl mx-auto px-6 py-8">
         {/* Stats */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 animate-fade-in">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 animate-fade-in">
             <div className="stat-card">
               <div className="stat-value">
                 {(stats.timelines as Record<string, number>)?.pending || 0}
@@ -118,8 +163,14 @@ export default function Home() {
               <div className="stat-label">Reviewed</div>
             </div>
             <div className="stat-card">
+              <div className="stat-value text-purple-400">
+                {timelines.filter(t => t.export_status === "completed").length}
+              </div>
+              <div className="stat-label">Exported</div>
+            </div>
+            <div className="stat-card">
               <div className="stat-value text-blue-400 animate-pulse-soft">
-                {processingJobs.length}
+                {processingJobs.length + timelines.filter(t => t.export_status === "exporting" || t.export_status === "uploading").length}
               </div>
               <div className="stat-label">Processing</div>
             </div>
@@ -215,9 +266,12 @@ export default function Home() {
               >
                 <div className="flex justify-between items-start gap-4">
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-semibold truncate mb-1">
-                      {timeline.source_title}
-                    </h3>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-lg font-semibold truncate">
+                        {timeline.source_title}
+                      </h3>
+                      {getExportStatusBadge(timeline)}
+                    </div>
                     <p className="text-gray-400 text-sm">
                       {formatDuration(timeline.source_duration)} · {timeline.total_segments} segments
                     </p>
@@ -233,12 +287,26 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
+                {/* Review progress bar */}
                 <div className="progress-bar mt-4">
                   <div
                     className="progress-fill bg-gradient-to-r from-green-500 to-emerald-400"
                     style={{ width: `${timeline.review_progress}%` }}
                   />
                 </div>
+                {/* Export progress bar (when exporting/uploading) */}
+                {(timeline.export_status === "exporting" || timeline.export_status === "uploading") && (
+                  <div className="progress-bar mt-2">
+                    <div
+                      className={`progress-fill ${
+                        timeline.export_status === "uploading"
+                          ? "bg-gradient-to-r from-purple-500 to-pink-400"
+                          : "bg-gradient-to-r from-blue-500 to-cyan-400"
+                      }`}
+                      style={{ width: `${timeline.export_progress}%` }}
+                    />
+                  </div>
+                )}
               </Link>
             ))}
           </div>
