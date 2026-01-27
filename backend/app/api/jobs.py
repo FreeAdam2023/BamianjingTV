@@ -171,9 +171,20 @@ async def get_job(job_id: str):
 
 @router.delete("/jobs/{job_id}")
 async def delete_job(job_id: str, delete_files: bool = True):
-    """Delete a job."""
+    """Delete a job and its associated timeline."""
+    from app.api.timelines import _get_manager as _get_timeline_manager
+
+    # First, delete associated timeline if it exists
+    timeline_manager = _get_timeline_manager()
+    if timeline_manager:
+        timeline = timeline_manager.get_timeline_by_job(job_id)
+        if timeline:
+            timeline_manager.delete_timeline(timeline.timeline_id)
+
+    # Then delete the job
     if not _job_manager.delete_job(job_id, delete_files=delete_files):
         raise HTTPException(status_code=404, detail="Job not found")
+
     return {"message": f"Job {job_id} deleted"}
 
 
