@@ -375,6 +375,12 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
       >
         <div className="absolute inset-x-0 -top-2 -bottom-2" />
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-1 bg-gray-400 rounded group-hover:bg-blue-400" />
+        {/* Percentage indicator shown during drag */}
+        {isDragging && (
+          <div className="absolute left-1/2 -translate-x-1/2 -top-8 px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded shadow-lg whitespace-nowrap">
+            字幕区域: {Math.round(subtitleHeightRatio * 100)}%
+          </div>
+        )}
       </div>
 
       {/* Subtitle overlay */}
