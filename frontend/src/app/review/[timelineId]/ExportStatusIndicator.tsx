@@ -230,11 +230,29 @@ export default function ExportStatusIndicator({
         </>
       )}
 
-      {/* Error message */}
-      {currentStatus === "failed" && status?.error && (
-        <span className="text-xs text-red-400 max-w-[200px] truncate" title={status.error}>
-          {status.error}
-        </span>
+      {/* Actions when failed */}
+      {currentStatus === "failed" && (
+        <>
+          {/* Error message */}
+          {status?.error && (
+            <span className="text-xs text-red-400 max-w-[150px] truncate" title={status.error}>
+              {status.error.slice(0, 50)}...
+            </span>
+          )}
+          {/* Retry button - show if video was exported (full_video_path exists) */}
+          {status?.full_video_path && onShowPreview && (
+            <button
+              onClick={() => onShowPreview(status)}
+              className="px-3 py-1 text-xs bg-yellow-600 hover:bg-yellow-700 rounded flex items-center gap-1"
+              title="视频已导出，点击重试上传"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              重试上传
+            </button>
+          )}
+        </>
       )}
     </div>
   );
