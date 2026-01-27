@@ -189,8 +189,9 @@ export default function ExportPanel({
       console.log("[ExportPanel] Export started");
       toast.success("开始导出视频，进度显示在顶部...");
 
-      // Close modal and let header show progress
+      // Notify parent and close modal - progress shows in header
       onExportStarted?.();
+      onClose();
     } catch (err) {
       console.error("[ExportPanel] Export failed:", err);
       toast.error("导出失败: " + (err instanceof Error ? err.message : "Unknown error"));
