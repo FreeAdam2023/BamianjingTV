@@ -29,8 +29,10 @@ export default function ExportStatusIndicator({
 }: ExportStatusIndicatorProps) {
   const [status, setStatus] = useState<ExportStatusResponse | null>(null);
   const [polling, setPolling] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const fetchStatus = useCallback(async () => {
+    setLoading(true);
     try {
       const result = await getExportStatus(timelineId);
       console.log("[ExportStatusIndicator] Status update:", {
@@ -44,8 +46,18 @@ export default function ExportStatusIndicator({
     } catch (err) {
       console.error("[ExportStatusIndicator] Failed to fetch status:", err);
       return null;
+    } finally {
+      setLoading(false);
     }
   }, [timelineId, onStatusChange]);
+
+  // Fetch status on mount if we have a completed/failed status (to get full details)
+  useEffect(() => {
+    if ((initialStatus === "completed" || initialStatus === "failed") && !status) {
+      console.log("[ExportStatusIndicator] Fetching status for completed/failed state");
+      fetchStatus();
+    }
+  }, [initialStatus, status, fetchStatus]);
 
   // Start polling when status is active or forcePolling is true
   useEffect(() => {
@@ -184,6 +196,10 @@ export default function ExportStatusIndicator({
       {/* Actions when completed */}
       {currentStatus === "completed" && (
         <>
+          {/* Loading state while fetching status */}
+          {loading && !status && (
+            <span className="text-xs text-gray-400">加载中...</span>
+          )}
           {/* Preview & Upload button if not already uploaded */}
           {!status?.youtube_url && onShowPreview && status && (
             <button
