@@ -91,6 +91,7 @@ class Timeline(BaseModel):
     is_reviewed: bool = False
     export_profile: ExportProfile = ExportProfile.FULL
     use_traditional_chinese: bool = True  # Traditional vs Simplified
+    subtitle_area_ratio: float = 0.5  # Ratio of screen height for subtitle area (0.3-0.7)
 
     # Output paths (set after export)
     output_full_path: Optional[str] = None

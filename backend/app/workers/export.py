@@ -101,13 +101,125 @@ class ExportWorker:
         logger.info(f"Generated ASS subtitle: {output_path}")
         return output_path
 
+    def _get_video_dimensions(self, video_path: Path) -> Tuple[int, int]:
+        """Get video width and height using ffprobe."""
+        cmd = [
+            "ffprobe", "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=width,height",
+            "-of", "csv=s=x:p=0",
+            str(video_path)
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            logger.warning(f"ffprobe failed, using default 1920x1080: {result.stderr}")
+            return 1920, 1080
+        try:
+            w, h = result.stdout.strip().split("x")
+            return int(w), int(h)
+        except Exception:
+            return 1920, 1080
+
+    async def generate_ass_with_layout(
+        self,
+        segments: List[EditableSegment],
+        output_path: Path,
+        use_traditional: bool = True,
+        time_offset: float = 0.0,
+        video_height: int = 1080,
+        subtitle_area_ratio: float = 0.5,
+    ) -> Path:
+        """Generate ASS subtitle file with WYSIWYG layout (video on top, subtitles at bottom).
+
+        Args:
+            segments: List of editable segments
+            output_path: Path to save ASS file
+            use_traditional: Use Traditional Chinese
+            time_offset: Time offset for timestamps
+            video_height: Total video height
+            subtitle_area_ratio: Ratio of subtitle area (0.3-0.7)
+
+        Returns:
+            Path to ASS file
+        """
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Calculate subtitle area dimensions
+        subtitle_area_height = int(video_height * subtitle_area_ratio)
+        # English at ~70% height of subtitle area, Chinese at ~30%
+        english_margin_v = int(subtitle_area_height * 0.55)  # From bottom of screen
+        chinese_margin_v = int(subtitle_area_height * 0.15)  # From bottom of screen
+
+        # Scale font sizes based on subtitle area
+        base_scale = subtitle_area_ratio / 0.5  # Normalize to default 0.5
+        english_font_size = int(40 * base_scale)
+        chinese_font_size = int(48 * base_scale)
+
+        # ASS header with calculated positions
+        ass_header = f"""[Script Info]
+Title: Hardcore Player Bilingual Subtitles
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: {video_height}
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: English,Arial,{english_font_size},&H00FFFFFF,&H000000FF,&H00404040,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,20,20,{english_margin_v},1
+Style: Chinese,Microsoft YaHei,{chinese_font_size},&H0000FFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,1,2,20,20,{chinese_margin_v},1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+
+        # Convert Simplified to Traditional if needed
+        converter = None
+        if use_traditional:
+            try:
+                import opencc
+                converter = opencc.OpenCC("s2t")
+            except ImportError:
+                logger.warning("opencc not installed, using Simplified Chinese")
+
+        lines = [ass_header]
+
+        for seg in segments:
+            start = _seconds_to_ass_time(seg.effective_start - time_offset)
+            end = _seconds_to_ass_time(seg.effective_end - time_offset)
+
+            english_text = seg.en.replace("\n", "\\N")
+            if english_text:
+                lines.append(f"Dialogue: 0,{start},{end},English,,0,0,0,,{english_text}")
+
+            chinese_text = seg.zh.replace("\n", "\\N")
+            if chinese_text:
+                if converter:
+                    chinese_text = converter.convert(chinese_text)
+                lines.append(f"Dialogue: 0,{start},{end},Chinese,,0,0,0,,{chinese_text}")
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+
+        logger.info(f"Generated ASS subtitle with layout: {output_path}")
+        return output_path
+
     async def export_full_video(
         self,
         timeline: Timeline,
         video_path: Path,
         output_path: Path,
     ) -> Path:
-        """Export full video with bilingual subtitles burned in.
+        """Export full video with WYSIWYG layout (scaled video + subtitle area).
+
+        Layout:
+        ┌─────────────────────┐
+        │   Scaled Video      │  ← (1 - subtitle_area_ratio) of height
+        │                     │
+        ├─────────────────────┤
+        │   English subtitle  │  ← subtitle_area_ratio of height
+        │   中文字幕           │
+        └─────────────────────┘
 
         Args:
             timeline: Timeline with all segments
@@ -121,22 +233,43 @@ class ExportWorker:
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Generate ASS subtitle file
+        # Get video dimensions
+        orig_width, orig_height = self._get_video_dimensions(video_path)
+        subtitle_ratio = getattr(timeline, 'subtitle_area_ratio', 0.5)
+
+        # Calculate video area height (top portion)
+        video_area_height = int(orig_height * (1 - subtitle_ratio))
+
+        # Generate ASS subtitle file with WYSIWYG layout
         ass_path = output_path.parent / "subtitles_full.ass"
-        await self.generate_ass(
+        await self.generate_ass_with_layout(
             segments=timeline.segments,
             output_path=ass_path,
             use_traditional=timeline.use_traditional_chinese,
+            video_height=orig_height,
+            subtitle_area_ratio=subtitle_ratio,
         )
 
         # Escape special characters in path for ffmpeg filter
         ass_path_escaped = str(ass_path).replace("\\", "/").replace(":", "\\:")
 
+        # Build ffmpeg filter:
+        # 1. Scale video to fit in top portion (maintaining aspect ratio)
+        # 2. Pad to create black subtitle area at bottom
+        # 3. Overlay subtitles
+        # The scale filter: scale to fit in video_area_height, maintain aspect ratio
+        # The pad filter: pad to original height with black at bottom
+        vf_filter = (
+            f"scale={orig_width}:{video_area_height}:force_original_aspect_ratio=decrease,"
+            f"pad={orig_width}:{orig_height}:(ow-iw)/2:0:black,"
+            f"ass={ass_path_escaped}"
+        )
+
         # Build ffmpeg command
         cmd = [
             "ffmpeg",
             "-i", str(video_path),
-            "-vf", f"ass={ass_path_escaped}",
+            "-vf", vf_filter,
         ]
 
         if self.use_nvenc:
@@ -146,7 +279,7 @@ class ExportWorker:
 
         cmd.extend(["-c:a", "copy", "-y", str(output_path)])
 
-        logger.info(f"Exporting full video with subtitles: {output_path}")
+        logger.info(f"Exporting full video with WYSIWYG layout (ratio={subtitle_ratio}): {output_path}")
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         if result.returncode != 0:
