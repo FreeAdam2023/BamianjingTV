@@ -156,6 +156,7 @@ export interface MetadataDraft {
   thumbnail_candidates: TitleCandidate[] | null;
   instruction: string | null;
   selected_title: TitleCandidate | null;
+  thumbnail_url: string | null;
 }
 
 export interface MetadataDraftResponse {

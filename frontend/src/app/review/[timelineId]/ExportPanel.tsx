@@ -51,11 +51,16 @@ export default function ExportPanel({
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const initialLoadRef = useRef(true);
 
+  // Thumbnail generation (moved up so saveDraft can use it)
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [generatingThumbnail, setGeneratingThumbnail] = useState(false);
+  const [showOriginal, setShowOriginal] = useState(false);
+
   // Auto-save draft function
   const saveDraft = useCallback(async () => {
     // Don't save during initial load or if nothing to save
     if (loadingDraft || initialLoadRef.current) return;
-    if (!youtubeTitle && !youtubeDescription && !youtubeTags && titleCandidates.length === 0 && !selectedTitle) return;
+    if (!youtubeTitle && !youtubeDescription && !youtubeTags && titleCandidates.length === 0 && !selectedTitle && !thumbnailUrl) return;
 
     setSavingDraft(true);
     try {
@@ -66,6 +71,7 @@ export default function ExportPanel({
         thumbnail_candidates: titleCandidates.length > 0 ? titleCandidates : null,
         instruction: aiInstruction || null,
         selected_title: selectedTitle || null,
+        thumbnail_url: thumbnailUrl || null,
       };
       await saveMetadataDraft(timeline.timeline_id, draft);
       setDraftSavedAt(new Date());
@@ -75,7 +81,7 @@ export default function ExportPanel({
     } finally {
       setSavingDraft(false);
     }
-  }, [timeline.timeline_id, youtubeTitle, youtubeDescription, youtubeTags, titleCandidates, aiInstruction, selectedTitle, loadingDraft]);
+  }, [timeline.timeline_id, youtubeTitle, youtubeDescription, youtubeTags, titleCandidates, aiInstruction, selectedTitle, thumbnailUrl, loadingDraft]);
 
   // Debounced auto-save when any metadata changes
   useEffect(() => {
@@ -103,12 +109,7 @@ export default function ExportPanel({
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [youtubeTitle, youtubeDescription, youtubeTags, titleCandidates, aiInstruction, selectedTitle, loadingDraft, saveDraft]);
-
-  // Thumbnail generation
-  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
-  const [generatingThumbnail, setGeneratingThumbnail] = useState(false);
-  const [showOriginal, setShowOriginal] = useState(false);
+  }, [youtubeTitle, youtubeDescription, youtubeTags, titleCandidates, aiInstruction, selectedTitle, thumbnailUrl, loadingDraft, saveDraft]);
 
   // Load saved draft on mount
   useEffect(() => {
@@ -131,6 +132,7 @@ export default function ExportPanel({
           if (draft.thumbnail_candidates) setTitleCandidates(draft.thumbnail_candidates);
           if (draft.instruction) setAiInstruction(draft.instruction);
           if (draft.selected_title) setSelectedTitle(draft.selected_title);
+          if (draft.thumbnail_url) setThumbnailUrl(draft.thumbnail_url);
         }
       } catch (err) {
         console.error("[ExportPanel] Failed to load metadata draft:", err);

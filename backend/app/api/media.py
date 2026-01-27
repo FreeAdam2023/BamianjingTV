@@ -124,6 +124,7 @@ class MetadataDraft(BaseModel):
     thumbnail_candidates: List[TitleCandidate] | None = None
     instruction: str | None = None
     selected_title: TitleCandidate | None = None
+    thumbnail_url: str | None = None
 
 
 class MetadataDraftResponse(BaseModel):

@@ -29,7 +29,8 @@ export default function PreviewUploadPanel({
   const [youtubeTitle, setYoutubeTitle] = useState("");
   const [youtubeDescription, setYoutubeDescription] = useState("");
   const [youtubeTags, setYoutubeTags] = useState("");
-  const [youtubePrivacy, setYoutubePrivacy] = useState<"private" | "unlisted" | "public">("private");
+  const [youtubePrivacy, setYoutubePrivacy] = useState<"private" | "unlisted" | "public">("unlisted");
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [loadingDraft, setLoadingDraft] = useState(true);
 
   // Load saved draft on mount
@@ -42,6 +43,7 @@ export default function PreviewUploadPanel({
           if (draft.youtube_title) setYoutubeTitle(draft.youtube_title);
           if (draft.youtube_description) setYoutubeDescription(draft.youtube_description);
           if (draft.youtube_tags) setYoutubeTags(draft.youtube_tags.join(", "));
+          if (draft.thumbnail_url) setThumbnailUrl(draft.thumbnail_url);
         }
       } catch (err) {
         console.error("[PreviewUploadPanel] Failed to load draft:", err);
@@ -153,6 +155,29 @@ export default function PreviewUploadPanel({
               </div>
             )}
           </div>
+
+          {/* Thumbnail Preview */}
+          {thumbnailUrl && (
+            <div className="mb-6">
+              <h3 className="text-sm font-medium text-gray-300 mb-2">封面预览</h3>
+              <div className="relative rounded-lg overflow-hidden bg-gray-900 aspect-video" style={{ maxHeight: "200px" }}>
+                <img
+                  src={`${getBaseUrl()}${thumbnailUrl}`}
+                  alt="Generated thumbnail"
+                  className="w-full h-full object-contain"
+                />
+                <a
+                  href={`${getBaseUrl()}${thumbnailUrl}`}
+                  download="thumbnail.png"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="absolute bottom-2 right-2 px-2 py-1 text-xs bg-black/70 hover:bg-black/90 rounded"
+                >
+                  下载封面
+                </a>
+              </div>
+            </div>
+          )}
 
           {/* YouTube Metadata */}
           <div className="border-t border-gray-700 pt-4">
