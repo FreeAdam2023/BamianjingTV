@@ -28,6 +28,7 @@ export interface Timeline {
   is_reviewed: boolean;
   export_profile: ExportProfile;
   use_traditional_chinese: boolean;
+  subtitle_area_ratio: number;  // 0.3-0.7, default 0.5
   output_full_path: string | null;
   output_essence_path: string | null;
   youtube_video_id: string | null;

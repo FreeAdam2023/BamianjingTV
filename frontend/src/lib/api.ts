@@ -168,6 +168,15 @@ export async function markTimelineReviewed(
   });
 }
 
+export async function setSubtitleAreaRatio(
+  timelineId: string,
+  ratio: number
+): Promise<{ timeline_id: string; subtitle_area_ratio: number; message: string }> {
+  return fetchAPI(`/timelines/${timelineId}/subtitle-ratio?ratio=${ratio}`, {
+    method: "POST",
+  });
+}
+
 export async function triggerExport(
   timelineId: string,
   request: ExportRequest

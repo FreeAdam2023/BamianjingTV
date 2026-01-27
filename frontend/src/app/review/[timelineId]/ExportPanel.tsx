@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { ExportProfile, ExportRequest, Timeline, TitleCandidate, MetadataDraft } from "@/lib/types";
-import { generateThumbnail, generateUnifiedMetadata, getMetadataDraft, saveMetadataDraft, formatDuration } from "@/lib/api";
+import { generateThumbnail, generateUnifiedMetadata, getMetadataDraft, saveMetadataDraft, formatDuration, setSubtitleAreaRatio } from "@/lib/api";
 import { useToast } from "@/components/ui";
 
 interface ExportPanelProps {
@@ -29,7 +29,9 @@ export default function ExportPanel({
   const toast = useToast();
   const [exportProfile, setExportProfile] = useState<ExportProfile>("full");
   const [useTraditional, setUseTraditional] = useState(true);
+  const [subtitleRatio, setSubtitleRatio] = useState(timeline.subtitle_area_ratio || 0.5);
   const [exporting, setExporting] = useState(false);
+  const subtitleRatioTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // YouTube metadata (for draft saving, upload happens in PreviewUploadPanel)
   const [youtubeTitle, setYoutubeTitle] = useState("");
@@ -151,6 +153,26 @@ export default function ExportPanel({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
+
+  // Debounced subtitle ratio update
+  const handleSubtitleRatioChange = useCallback((value: number) => {
+    setSubtitleRatio(value);
+
+    // Clear existing timeout
+    if (subtitleRatioTimeoutRef.current) {
+      clearTimeout(subtitleRatioTimeoutRef.current);
+    }
+
+    // Debounce API call
+    subtitleRatioTimeoutRef.current = setTimeout(async () => {
+      try {
+        await setSubtitleAreaRatio(timeline.timeline_id, value);
+        console.log("[ExportPanel] Subtitle ratio saved:", value);
+      } catch (err) {
+        console.error("[ExportPanel] Failed to save subtitle ratio:", err);
+      }
+    }, 500);
+  }, [timeline.timeline_id]);
 
   const handleExport = async () => {
     console.log("[ExportPanel] Starting export...", { profile: exportProfile });
@@ -314,6 +336,29 @@ export default function ExportPanel({
             />
             <span>Use Traditional Chinese</span>
           </label>
+        </div>
+
+        {/* Subtitle Area Ratio slider */}
+        <div className="mb-4">
+          <label className="block text-sm text-gray-400 mb-2">
+            字幕区域比例 <span className="text-purple-400">{Math.round(subtitleRatio * 100)}%</span>
+          </label>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-500">30%</span>
+            <input
+              type="range"
+              min="0.3"
+              max="0.7"
+              step="0.05"
+              value={subtitleRatio}
+              onChange={(e) => handleSubtitleRatioChange(parseFloat(e.target.value))}
+              className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+            />
+            <span className="text-xs text-gray-500">70%</span>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            调整导出视频中字幕区域的高度比例（视频将缩放至上方）
+          </p>
         </div>
 
         {/* AI Generate Section - Unified for YouTube metadata + Thumbnail titles */}

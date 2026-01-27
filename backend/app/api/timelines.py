@@ -164,3 +164,21 @@ async def mark_timeline_reviewed(timeline_id: str):
     if not manager.mark_reviewed(timeline_id):
         raise HTTPException(status_code=404, detail="Timeline not found")
     return {"message": f"Timeline {timeline_id} marked as reviewed"}
+
+
+@router.post("/{timeline_id}/subtitle-ratio")
+async def set_subtitle_area_ratio(timeline_id: str, ratio: float = Query(..., ge=0.3, le=0.7)):
+    """Set subtitle area ratio for WYSIWYG export layout.
+
+    The ratio determines how much of the screen height is dedicated to subtitles.
+    Valid range: 0.3 to 0.7 (30% to 70% of screen height).
+    Default is 0.5 (50%).
+    """
+    manager = _get_manager()
+    if not manager.set_subtitle_area_ratio(timeline_id, ratio):
+        raise HTTPException(status_code=404, detail="Timeline not found")
+    return {
+        "timeline_id": timeline_id,
+        "subtitle_area_ratio": ratio,
+        "message": f"Subtitle area ratio set to {ratio:.0%}",
+    }

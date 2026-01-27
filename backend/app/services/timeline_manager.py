@@ -274,6 +274,31 @@ class TimelineManager:
 
         return True
 
+    def set_subtitle_area_ratio(
+        self,
+        timeline_id: str,
+        ratio: float,
+    ) -> bool:
+        """Set subtitle area ratio for WYSIWYG export.
+
+        Args:
+            timeline_id: Timeline ID
+            ratio: Subtitle area ratio (0.3-0.7)
+
+        Returns:
+            True if successful, False if timeline not found
+        """
+        timeline = self.get_timeline(timeline_id)
+        if not timeline:
+            return False
+
+        # Clamp ratio to valid range
+        timeline.subtitle_area_ratio = max(0.3, min(0.7, ratio))
+        self._save_timeline(timeline)
+        logger.info(f"Set subtitle area ratio for timeline {timeline_id}: {timeline.subtitle_area_ratio}")
+
+        return True
+
     def set_output_paths(
         self,
         timeline_id: str,
