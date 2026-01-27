@@ -253,15 +253,34 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         # Escape special characters in path for ffmpeg filter
         ass_path_escaped = str(ass_path).replace("\\", "/").replace(":", "\\:")
 
+        # Calculate scaled video dimensions while maintaining aspect ratio
+        # The video should fit within the video area (top portion)
+        orig_aspect = orig_width / orig_height
+        target_aspect = orig_width / video_area_height
+
+        if orig_aspect >= target_aspect:
+            # Video is wider than target area - scale by width, center vertically
+            scaled_width = orig_width
+            scaled_height = int(orig_width / orig_aspect)
+        else:
+            # Video is taller than target area - scale by height, center horizontally
+            scaled_height = video_area_height
+            scaled_width = int(video_area_height * orig_aspect)
+
+        logger.info(
+            f"WYSIWYG export: original={orig_width}x{orig_height}, "
+            f"video_area={orig_width}x{video_area_height}, "
+            f"scaled={scaled_width}x{scaled_height}"
+        )
+
         # Build ffmpeg filter:
-        # 1. Scale video to fit in top portion (maintaining aspect ratio)
-        # 2. Pad to create black subtitle area at bottom
+        # 1. Scale video maintaining aspect ratio
+        # 2. Pad to place scaled video at top-center with black subtitle area below
         # 3. Overlay subtitles
-        # The scale filter: scale to fit in video_area_height, maintain aspect ratio
-        # The pad filter: pad to original height with black at bottom
         vf_filter = (
-            f"scale={orig_width}:{video_area_height}:force_original_aspect_ratio=decrease,"
+            f"scale={scaled_width}:{scaled_height},"
             f"pad={orig_width}:{orig_height}:(ow-iw)/2:0:black,"
+            f"setsar=1,"
             f"ass={ass_path_escaped}"
         )
 
