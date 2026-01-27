@@ -286,11 +286,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
         # Build ffmpeg filter:
         # 1. Scale video maintaining aspect ratio
-        # 2. Pad to place scaled video at top-center with black subtitle area below
+        # 2. Pad with dark blue background (#1a2744) to match review page
         # 3. Overlay subtitles
+        # Note: FFmpeg color format is 0xRRGGBB
+        subtitle_bg_color = "0x1a2744"  # Dark blue matching review page
         vf_filter = (
             f"scale={scaled_width}:{scaled_height},"
-            f"pad={orig_width}:{orig_height}:(ow-iw)/2:0:black,"
+            f"pad={orig_width}:{orig_height}:(ow-iw)/2:0:{subtitle_bg_color},"
             f"setsar=1,"
             f"ass={ass_path_escaped}"
         )
