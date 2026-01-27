@@ -160,6 +160,24 @@ export async function resetAllSegments(
   });
 }
 
+export async function dropSegmentsBefore(
+  timelineId: string,
+  time: number
+): Promise<{ updated: number; state: string; time: number }> {
+  return fetchAPI(`/timelines/${timelineId}/segments/drop-before?time=${time}`, {
+    method: "POST",
+  });
+}
+
+export async function dropSegmentsAfter(
+  timelineId: string,
+  time: number
+): Promise<{ updated: number; state: string; time: number }> {
+  return fetchAPI(`/timelines/${timelineId}/segments/drop-after?time=${time}`, {
+    method: "POST",
+  });
+}
+
 export async function markTimelineReviewed(
   timelineId: string
 ): Promise<{ message: string }> {

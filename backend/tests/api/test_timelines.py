@@ -426,3 +426,64 @@ class TestSpeakerNames:
             json={"speaker_names": {"SPEAKER_00": "Test"}},
         )
         assert response.status_code == 404
+
+
+class TestDropByTime:
+    """Tests for drop-before and drop-after endpoints."""
+
+    def test_drop_before_time(self, client, sample_timeline):
+        """Test dropping segments before a timestamp."""
+        # Sample timeline has segments at 0-5s and 5-10s
+        # Drop everything before 5s should drop the first segment
+        response = client.post(
+            f"/timelines/{sample_timeline.timeline_id}/segments/drop-before?time=5.0"
+        )
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["updated"] == 1  # First segment (0-5s) dropped
+        assert data["state"] == "drop"
+
+    def test_drop_after_time(self, client, sample_timeline):
+        """Test dropping segments after a timestamp."""
+        # Drop everything after 5s should drop the second segment
+        response = client.post(
+            f"/timelines/{sample_timeline.timeline_id}/segments/drop-after?time=5.0"
+        )
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["updated"] == 1  # Second segment (5-10s) dropped
+        assert data["state"] == "drop"
+
+    def test_drop_before_no_segments(self, client, sample_timeline):
+        """Test drop-before when no segments match."""
+        # Drop before 0s should match nothing
+        response = client.post(
+            f"/timelines/{sample_timeline.timeline_id}/segments/drop-before?time=0"
+        )
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["updated"] == 0
+
+    def test_drop_after_no_segments(self, client, sample_timeline):
+        """Test drop-after when no segments match."""
+        # Drop after 100s should match nothing (timeline is only 10s)
+        response = client.post(
+            f"/timelines/{sample_timeline.timeline_id}/segments/drop-after?time=100.0"
+        )
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["updated"] == 0
+
+    def test_drop_before_not_found(self, client):
+        """Test drop-before for non-existent timeline."""
+        response = client.post("/timelines/nonexistent/segments/drop-before?time=5.0")
+        assert response.status_code == 404
+
+    def test_drop_after_not_found(self, client):
+        """Test drop-after for non-existent timeline."""
+        response = client.post("/timelines/nonexistent/segments/drop-after?time=5.0")
+        assert response.status_code == 404

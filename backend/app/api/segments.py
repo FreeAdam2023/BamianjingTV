@@ -83,3 +83,53 @@ async def reset_all_segments(timeline_id: str):
         timeline_id, segment_ids, SegmentState.UNDECIDED
     )
     return {"updated": updated, "state": "undecided"}
+
+
+@router.post("/{timeline_id}/segments/drop-before")
+async def drop_segments_before(timeline_id: str, time: float):
+    """Drop all segments that END before the specified time.
+
+    Use this to cut off the beginning of a video (e.g., waiting time before content starts).
+
+    Args:
+        timeline_id: Timeline ID
+        time: Timestamp in seconds. Segments ending before this time will be dropped.
+    """
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    # Find segments that end before the specified time
+    segment_ids = [seg.id for seg in timeline.segments if seg.end <= time]
+
+    if not segment_ids:
+        return {"updated": 0, "state": "drop", "message": "No segments found before this time"}
+
+    updated = manager.batch_update_segments(timeline_id, segment_ids, SegmentState.DROP)
+    return {"updated": updated, "state": "drop", "time": time}
+
+
+@router.post("/{timeline_id}/segments/drop-after")
+async def drop_segments_after(timeline_id: str, time: float):
+    """Drop all segments that START after the specified time.
+
+    Use this to cut off the end of a video.
+
+    Args:
+        timeline_id: Timeline ID
+        time: Timestamp in seconds. Segments starting after this time will be dropped.
+    """
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    # Find segments that start after the specified time
+    segment_ids = [seg.id for seg in timeline.segments if seg.start >= time]
+
+    if not segment_ids:
+        return {"updated": 0, "state": "drop", "message": "No segments found after this time"}
+
+    updated = manager.batch_update_segments(timeline_id, segment_ids, SegmentState.DROP)
+    return {"updated": updated, "state": "drop", "time": time}
