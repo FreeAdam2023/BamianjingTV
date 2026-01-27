@@ -182,3 +182,58 @@ async def set_subtitle_area_ratio(timeline_id: str, ratio: float = Query(..., ge
         "subtitle_area_ratio": ratio,
         "message": f"Subtitle area ratio set to {ratio:.0%}",
     }
+
+
+from pydantic import BaseModel
+from typing import Dict
+
+
+class SpeakerNamesUpdate(BaseModel):
+    """Request model for updating speaker names."""
+    speaker_names: Dict[str, str]
+
+
+@router.get("/{timeline_id}/speakers")
+async def get_speakers(timeline_id: str):
+    """Get unique speakers and their display names for a timeline."""
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    # Get unique speakers from segments
+    unique_speakers = set()
+    for seg in timeline.segments:
+        if seg.speaker:
+            unique_speakers.add(seg.speaker)
+
+    # Build response with current names
+    speakers = []
+    for speaker_id in sorted(unique_speakers):
+        speakers.append({
+            "speaker_id": speaker_id,
+            "display_name": timeline.speaker_names.get(speaker_id, speaker_id),
+            "segment_count": sum(1 for seg in timeline.segments if seg.speaker == speaker_id),
+        })
+
+    return {
+        "timeline_id": timeline_id,
+        "speakers": speakers,
+        "speaker_names": timeline.speaker_names,
+    }
+
+
+@router.post("/{timeline_id}/speakers")
+async def update_speaker_names(timeline_id: str, update: SpeakerNamesUpdate):
+    """Update speaker display names.
+
+    Example: {"speaker_names": {"SPEAKER_0": "Elon Musk", "SPEAKER_1": "Interviewer"}}
+    """
+    manager = _get_manager()
+    if not manager.set_speaker_names(timeline_id, update.speaker_names):
+        raise HTTPException(status_code=404, detail="Timeline not found")
+    return {
+        "timeline_id": timeline_id,
+        "speaker_names": update.speaker_names,
+        "message": f"Updated {len(update.speaker_names)} speaker name(s)",
+    }

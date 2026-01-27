@@ -21,19 +21,19 @@ export default function JobsPage() {
   const [newUrl, setNewUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [jobOptions, setJobOptions] = useState<Partial<JobCreate>>({
-    target_language: "zh",
-    use_traditional_chinese: true,
-    skip_diarization: false,
+    target_language: "zh-TW",  // Default to Traditional Chinese
+    skip_diarization: true,    // Default: skip diarization (single speaker)
   });
 
-  // Supported target languages
+  // Supported target languages (Chinese variants merged into dropdown)
   const SUPPORTED_LANGUAGES = [
-    { code: "zh", name: "中文 (Chinese)", hasVariants: true },
-    { code: "ja", name: "日本語 (Japanese)", hasVariants: false },
-    { code: "ko", name: "한국어 (Korean)", hasVariants: false },
-    { code: "es", name: "Español (Spanish)", hasVariants: false },
-    { code: "fr", name: "Français (French)", hasVariants: false },
-    { code: "de", name: "Deutsch (German)", hasVariants: false },
+    { code: "zh-TW", name: "中文 (繁體)" },
+    { code: "zh-CN", name: "中文 (简体)" },
+    { code: "ja", name: "日本語 (Japanese)" },
+    { code: "ko", name: "한국어 (Korean)" },
+    { code: "es", name: "Español (Spanish)" },
+    { code: "fr", name: "Français (French)" },
+    { code: "de", name: "Deutsch (German)" },
   ];
 
   const loadJobs = useCallback(async (isInitial = false) => {
@@ -66,9 +66,8 @@ export default function JobsPage() {
   function openModal() {
     setNewUrl("");
     setJobOptions({
-      target_language: "zh",
-      use_traditional_chinese: true,
-      skip_diarization: false,
+      target_language: "zh-TW",  // Default to Traditional Chinese
+      skip_diarization: true,    // Default: skip diarization (single speaker)
     });
     setError(null);
     setShowModal(true);
@@ -355,6 +354,60 @@ export default function JobsPage() {
                   </div>
                 )}
 
+                {/* Processing Stats */}
+                {(job.step_timings && Object.keys(job.step_timings).length > 0) || (job.total_cost_usd && job.total_cost_usd > 0) ? (
+                  <div className="mt-4 p-3 bg-gray-800/50 border border-gray-700 rounded-lg">
+                    <div className="flex items-center gap-4 text-sm">
+                      {/* Total time */}
+                      {job.total_processing_seconds && job.total_processing_seconds > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-gray-400">⏱️</span>
+                          <span className="text-gray-300">
+                            {formatDuration(job.total_processing_seconds)}
+                          </span>
+                        </div>
+                      )}
+                      {/* Total cost */}
+                      {job.total_cost_usd && job.total_cost_usd > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-gray-400">💰</span>
+                          <span className="text-green-400">
+                            ${job.total_cost_usd.toFixed(4)}
+                          </span>
+                        </div>
+                      )}
+                      {/* Step timings */}
+                      {job.step_timings && Object.keys(job.step_timings).length > 0 && (
+                        <div className="flex-1 flex items-center gap-2 text-xs text-gray-500">
+                          <span className="text-gray-600">|</span>
+                          {Object.entries(job.step_timings).map(([step, timing]) => (
+                            timing.duration_seconds != null && (
+                              <span key={step} className="whitespace-nowrap">
+                                {step}: {timing.duration_seconds < 60
+                                  ? `${Math.round(timing.duration_seconds)}s`
+                                  : `${Math.floor(timing.duration_seconds / 60)}m${Math.round(timing.duration_seconds % 60)}s`
+                                }
+                              </span>
+                            )
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {/* API cost breakdown */}
+                    {job.api_costs && job.api_costs.length > 0 && (
+                      <div className="mt-2 text-xs text-gray-500">
+                        {job.api_costs.map((cost, i) => (
+                          <span key={i} className="mr-3">
+                            {cost.service} ({cost.model}): ${cost.cost_usd.toFixed(4)}
+                            {cost.tokens_in > 0 && ` • ${(cost.tokens_in / 1000).toFixed(1)}k in`}
+                            {cost.tokens_out > 0 && ` / ${(cost.tokens_out / 1000).toFixed(1)}k out`}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+
                 {/* Error message */}
                 {job.error && (
                   <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
@@ -411,13 +464,11 @@ export default function JobsPage() {
                     Target Language
                   </label>
                   <select
-                    value={jobOptions.target_language || "zh"}
+                    value={jobOptions.target_language || "zh-TW"}
                     onChange={(e) =>
                       setJobOptions({
                         ...jobOptions,
                         target_language: e.target.value,
-                        // Reset traditional chinese when switching away from Chinese
-                        use_traditional_chinese: e.target.value === "zh" ? jobOptions.use_traditional_chinese : false,
                       })
                     }
                     className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
@@ -431,39 +482,20 @@ export default function JobsPage() {
                   </select>
                 </div>
 
-                {/* Traditional Chinese (only show for Chinese) */}
-                {jobOptions.target_language === "zh" && (
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={jobOptions.use_traditional_chinese}
-                      onChange={(e) =>
-                        setJobOptions({ ...jobOptions, use_traditional_chinese: e.target.checked })
-                      }
-                      className="w-5 h-5 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
-                      disabled={submitting}
-                    />
-                    <div>
-                      <span className="text-white">Use Traditional Chinese (繁體)</span>
-                      <p className="text-gray-500 text-xs">Default: Traditional. Uncheck for Simplified (简体)</p>
-                    </div>
-                  </label>
-                )}
-
-                {/* Skip Diarization */}
+                {/* Enable Speaker Diarization */}
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={jobOptions.skip_diarization}
+                    checked={!jobOptions.skip_diarization}
                     onChange={(e) =>
-                      setJobOptions({ ...jobOptions, skip_diarization: e.target.checked })
+                      setJobOptions({ ...jobOptions, skip_diarization: !e.target.checked })
                     }
                     className="w-5 h-5 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
                     disabled={submitting}
                   />
                   <div>
-                    <span className="text-white">Skip Speaker Diarization</span>
-                    <p className="text-gray-500 text-xs">All content marked as single speaker</p>
+                    <span className="text-white">识别说话人</span>
+                    <p className="text-gray-500 text-xs">多人对话时自动区分不同说话人，可在后续标注姓名</p>
                   </div>
                 </label>
               </div>

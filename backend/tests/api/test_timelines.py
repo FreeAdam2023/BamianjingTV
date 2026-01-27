@@ -333,3 +333,96 @@ class TestTimelineStats:
         assert data["total"] == 2
         assert data["reviewed"] == 1
         assert data["pending"] == 1
+
+
+class TestSpeakerNames:
+    """Tests for speaker names API endpoints."""
+
+    def test_get_speakers_empty(self, client, sample_timeline):
+        """Test getting speakers when no names are set."""
+        response = client.get(f"/timelines/{sample_timeline.timeline_id}/speakers")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["timeline_id"] == sample_timeline.timeline_id
+        # Should have detected speakers from segments (list of speaker objects)
+        speaker_ids = [s["speaker_id"] for s in data["speakers"]]
+        assert "SPEAKER_00" in speaker_ids
+        assert "SPEAKER_01" in speaker_ids
+        # Verify speaker object structure
+        speaker_00 = next(s for s in data["speakers"] if s["speaker_id"] == "SPEAKER_00")
+        assert speaker_00["segment_count"] == 1
+        # Default display_name equals speaker_id when no custom name set
+        assert speaker_00["display_name"] == "SPEAKER_00"
+        # speaker_names dict should be empty when no custom names
+        assert data["speaker_names"] == {} or data["speaker_names"].get("SPEAKER_00") is None
+
+    def test_update_speaker_names(self, client, sample_timeline):
+        """Test updating speaker names."""
+        response = client.post(
+            f"/timelines/{sample_timeline.timeline_id}/speakers",
+            json={
+                "speaker_names": {
+                    "SPEAKER_00": "Alice",
+                    "SPEAKER_01": "Bob",
+                }
+            },
+        )
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["timeline_id"] == sample_timeline.timeline_id
+        assert data["speaker_names"]["SPEAKER_00"] == "Alice"
+        assert data["speaker_names"]["SPEAKER_01"] == "Bob"
+
+    def test_get_speakers_after_update(self, client, sample_timeline):
+        """Test getting speakers after names are set."""
+        # First, update names
+        client.post(
+            f"/timelines/{sample_timeline.timeline_id}/speakers",
+            json={
+                "speaker_names": {
+                    "SPEAKER_00": "Alice",
+                }
+            },
+        )
+
+        # Then get speakers
+        response = client.get(f"/timelines/{sample_timeline.timeline_id}/speakers")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["speaker_names"]["SPEAKER_00"] == "Alice"
+        # Verify display_name is updated in speaker list
+        speaker_00 = next(s for s in data["speakers"] if s["speaker_id"] == "SPEAKER_00")
+        assert speaker_00["display_name"] == "Alice"
+
+    def test_update_partial_speaker_names(self, client, sample_timeline):
+        """Test updating only some speaker names."""
+        response = client.post(
+            f"/timelines/{sample_timeline.timeline_id}/speakers",
+            json={
+                "speaker_names": {
+                    "SPEAKER_00": "Alice",
+                }
+            },
+        )
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["speaker_names"]["SPEAKER_00"] == "Alice"
+        # SPEAKER_01 should not be in speaker_names dict
+        assert "SPEAKER_01" not in data["speaker_names"]
+
+    def test_get_speakers_not_found(self, client):
+        """Test getting speakers for non-existent timeline."""
+        response = client.get("/timelines/nonexistent/speakers")
+        assert response.status_code == 404
+
+    def test_update_speakers_not_found(self, client):
+        """Test updating speakers for non-existent timeline."""
+        response = client.post(
+            "/timelines/nonexistent/speakers",
+            json={"speaker_names": {"SPEAKER_00": "Test"}},
+        )
+        assert response.status_code == 404

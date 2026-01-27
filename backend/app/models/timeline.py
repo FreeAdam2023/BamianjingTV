@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 import uuid
 
@@ -92,6 +92,9 @@ class Timeline(BaseModel):
     export_profile: ExportProfile = ExportProfile.FULL
     use_traditional_chinese: bool = True  # Traditional vs Simplified
     subtitle_area_ratio: float = 0.5  # Ratio of screen height for subtitle area (0.3-0.7)
+
+    # Speaker names mapping (e.g., {"SPEAKER_0": "Elon Musk", "SPEAKER_1": "Interviewer"})
+    speaker_names: Dict[str, str] = Field(default_factory=dict)
 
     # Output paths (set after export)
     output_full_path: Optional[str] = None

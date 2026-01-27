@@ -299,6 +299,32 @@ class TimelineManager:
 
         return True
 
+    def set_speaker_names(
+        self,
+        timeline_id: str,
+        speaker_names: dict,
+    ) -> bool:
+        """Set speaker display names.
+
+        Args:
+            timeline_id: Timeline ID
+            speaker_names: Dict mapping speaker IDs to display names
+                           e.g., {"SPEAKER_0": "Elon Musk", "SPEAKER_1": "Interviewer"}
+
+        Returns:
+            True if successful, False if timeline not found
+        """
+        timeline = self.get_timeline(timeline_id)
+        if not timeline:
+            return False
+
+        # Update speaker names (merge with existing)
+        timeline.speaker_names.update(speaker_names)
+        self._save_timeline(timeline)
+        logger.info(f"Updated speaker names for timeline {timeline_id}: {speaker_names}")
+
+        return True
+
     def set_output_paths(
         self,
         timeline_id: str,

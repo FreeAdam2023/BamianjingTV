@@ -23,6 +23,7 @@ import PreviewUploadPanel from "./PreviewUploadPanel";
 import ExportPreviewModal from "./ExportPreviewModal";
 import KeyboardHelp from "./KeyboardHelp";
 import BulkActions from "./BulkActions";
+import SpeakerEditor from "./SpeakerEditor";
 
 export default function ReviewPage() {
   const params = useParams();
@@ -363,6 +364,7 @@ export default function ReviewPage() {
         {/* Segment list panel */}
         <div className="w-[480px] flex-shrink-0 border-l border-gray-700 flex flex-col">
           <BulkActions timelineId={timelineId} />
+          <SpeakerEditor timelineId={timelineId} onSpeakerNamesChange={() => refresh()} />
           <SegmentList
             segments={timeline.segments}
             currentSegmentId={currentSegmentId}

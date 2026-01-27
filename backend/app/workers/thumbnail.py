@@ -202,10 +202,19 @@ class ThumbnailWorker:
         Returns:
             Dict with 'title', 'description', 'tags' keys
         """
-        # Get content sample from subtitles
+        # Sample content from entire video for better understanding
+        total_segments = len(subtitles)
+        max_content_segments = 50
+
+        if total_segments <= max_content_segments:
+            content_subtitles = subtitles
+        else:
+            step = total_segments / max_content_segments
+            content_subtitles = [subtitles[int(i * step)] for i in range(max_content_segments)]
+
         content_sample = " ".join([
-            s.get('en', s.get('text', '')) for s in subtitles[:30]
-        ])[:1500]
+            s.get('en', s.get('text', '')) for s in content_subtitles
+        ])[:2000]
 
         # Format duration for description
         duration_str = ""
@@ -333,9 +342,20 @@ class ThumbnailWorker:
         Returns:
             Dict with 'youtube' (title, description, tags) and 'thumbnail_candidates' (list)
         """
+        # Sample content from entire video for better understanding
+        total_segments = len(subtitles)
+        max_content_segments = 50  # More segments for content understanding
+
+        if total_segments <= max_content_segments:
+            content_subtitles = subtitles
+        else:
+            # Sample evenly across the video for content understanding
+            step = total_segments / max_content_segments
+            content_subtitles = [subtitles[int(i * step)] for i in range(max_content_segments)]
+
         content_sample = " ".join([
-            s.get('en', s.get('text', '')) for s in subtitles[:30]
-        ])[:1500]
+            s.get('en', s.get('text', '')) for s in content_subtitles
+        ])[:2000]  # Increased limit for longer videos
 
         # Format duration for description
         duration_str = ""
@@ -380,15 +400,23 @@ class ThumbnailWorker:
 
 ### 描述规则（非常重要！）：
 - 使用繁体中文
-- **必须包含时间线章节标记**，格式如下：
+- **必须包含智能时间线章节标记**，格式如下：
   ⏰ 時間線
   00:00 開場白
   02:30 第一個重點
   05:45 第二個重點
   ...
+
+**⚠️ 时间线章节生成规则（最重要！）：**
+1. **根据内容主题变化划分章节**，不是按固定时间间隔切分
+2. 识别主要话题转换点：新话题引入、重要观点、关键问答等
+3. **章节数量控制在 8-12 个**（最多不超过 15 个），只保留最重要的节点
+4. 每个章节标题要简洁有力（4-10字），概括核心内容
+5. **章节必须均匀覆盖整个视频**，从开头到结尾
+
 - **结构要求**：
   1. 第一段：核心内容摘要（2-3句话）
-  2. 第二段：時間線（⏰标记，至少5-8个时间点，根据视频内容分块）
+  2. 第二段：時間線（⏰标记，根据内容主题智能划分）
   3. 第三段：关键词标签（#hashtag格式）
   4. 第四段：行动号召（订阅、点赞、开启小铃铛）
   5. 最后必须包含：
@@ -429,32 +457,73 @@ class ThumbnailWorker:
 
 只输出JSON，不要其他内容。"""
 
-        # Format subtitles with timestamps for timeline generation
-        subtitle_timeline = "\n".join([
-            f"[{int(s.get('start', 0) // 60):02d}:{int(s.get('start', 0) % 60):02d}] {s.get('en', s.get('text', ''))[:80]}"
-            for s in subtitles[:60]  # Include more segments for better chapter detection
-        ])
+        # Format subtitles with timestamps for intelligent chapter detection
+        # Strategy: compress subtitles into time blocks for better topic detection
+        total_segments = len(subtitles)
+        video_duration_minutes = int((duration or 0) / 60) if duration else total_segments // 6
+
+        # Group subtitles into ~1 minute blocks for topic detection
+        # Each block shows the timestamp and condensed content
+        time_blocks = []
+        block_duration = 60  # seconds per block
+
+        current_block_start = 0
+        current_block_texts = []
+
+        for s in subtitles:
+            seg_start = s.get('start', 0)
+            seg_text = s.get('en', s.get('text', ''))
+
+            # Check if we've moved to a new time block
+            if seg_start >= current_block_start + block_duration and current_block_texts:
+                # Save current block
+                minutes = int(current_block_start // 60)
+                seconds = int(current_block_start % 60)
+                block_summary = ' '.join(current_block_texts)[:150]  # Condensed
+                time_blocks.append(f"[{minutes:02d}:{seconds:02d}] {block_summary}")
+
+                # Start new block
+                current_block_start = (seg_start // block_duration) * block_duration
+                current_block_texts = []
+
+            current_block_texts.append(seg_text[:50])
+
+        # Don't forget the last block
+        if current_block_texts:
+            minutes = int(current_block_start // 60)
+            seconds = int(current_block_start % 60)
+            block_summary = ' '.join(current_block_texts)[:150]
+            time_blocks.append(f"[{minutes:02d}:{seconds:02d}] {block_summary}")
+
+        subtitle_timeline = "\n".join(time_blocks)
+
+        logger.info(f"Grouped {total_segments} subtitles into {len(time_blocks)} time blocks for chapter detection")
 
         user_prompt = f"""{instruction_block}原视频标题：{title}
 
-{f"视频时长：{duration_str}" if duration_str else ""}
+{f"**视频总时长：{duration_str}** （章节必须均匀覆盖从 00:00 到结尾）" if duration_str else ""}
 {f"原始链接（必须包含在描述最后）：{source_url}" if source_url else ""}
 
-视频台词（带时间戳，用于生成时间线章节）：
+**视频内容时间块**（每分钟一块，用于识别话题变化）：
 {subtitle_timeline}
+
+**时间线要求：识别 8-12 个最重要的主题转换点作为章节（不要超过15个）**
+- 覆盖整个视频（从开头到结尾）
+- 基于内容主题变化划分
+- 章节标题简洁有力（4-10字）
 
 视频内容摘要：
 {content_sample}
 
 请生成协调一致的YouTube元数据和{num_title_candidates}组封面标题候选。
-**描述中必须包含时间线章节（根据台词内容分块）、原视频链接、版权声明！**
+**描述中必须包含智能时间线章节（根据话题变化划分，覆盖整个视频）、原视频链接、版权声明！**
 {f" **请务必围绕用户指导「{user_instruction}」来创作！**" if user_instruction else ""}"""
 
         # Lower temperature when user provides instruction for better adherence
         temperature = 0.6 if user_instruction else 0.85
 
         try:
-            async with httpx.AsyncClient(timeout=90.0) as client:
+            async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.post(
                     f"{settings.llm_base_url}/chat/completions",
                     headers={
@@ -467,7 +536,7 @@ class ThumbnailWorker:
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": user_prompt},
                         ],
-                        "max_tokens": 2000,
+                        "max_tokens": 3000,  # Increased for longer timeline with more chapters
                         "temperature": temperature,
                     },
                 )

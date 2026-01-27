@@ -28,6 +28,11 @@ def set_job_manager(manager):
     _job_manager = manager
 
 
+def _get_job_manager():
+    """Get the job manager instance."""
+    return _job_manager
+
+
 def set_job_queue(queue):
     global _job_queue
     _job_queue = queue

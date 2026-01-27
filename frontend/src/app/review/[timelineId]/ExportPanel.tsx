@@ -331,16 +331,17 @@ export default function ExportPanel({
           </div>
         </div>
 
-        {/* Traditional Chinese toggle */}
+        {/* Target Language dropdown */}
         <div className="mb-4">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={useTraditional}
-              onChange={(e) => setUseTraditional(e.target.checked)}
-            />
-            <span>Use Traditional Chinese</span>
-          </label>
+          <label className="block text-sm text-gray-400 mb-2">Target Language</label>
+          <select
+            value={useTraditional ? "zh-TW" : "zh-CN"}
+            onChange={(e) => setUseTraditional(e.target.value === "zh-TW")}
+            className="w-full bg-gray-700 rounded px-3 py-2 text-sm"
+          >
+            <option value="zh-TW">中文 (繁體)</option>
+            <option value="zh-CN">中文 (简体)</option>
+          </select>
         </div>
 
         {/* Subtitle Area Ratio slider */}

@@ -29,6 +29,7 @@ export interface Timeline {
   export_profile: ExportProfile;
   use_traditional_chinese: boolean;
   subtitle_area_ratio: number;  // 0.3-0.7, default 0.5
+  speaker_names: Record<string, string>;  // Maps speaker IDs to display names
   output_full_path: string | null;
   output_essence_path: string | null;
   youtube_video_id: string | null;
@@ -188,6 +189,23 @@ export interface ExportStatusResponse {
   essence_video_path: string | null;
 }
 
+export interface StepTiming {
+  started_at: string | null;
+  ended_at: string | null;
+  duration_seconds: number | null;
+}
+
+export interface ApiCost {
+  service: string;
+  model: string;
+  tokens_in: number;
+  tokens_out: number;
+  audio_seconds: number;
+  cost_usd: number;
+  description: string | null;
+  timestamp: string;
+}
+
 export interface Job {
   id: string;
   url: string;
@@ -203,6 +221,11 @@ export interface Job {
   timeline_id: string | null;
   source_video: string | null;
   output_video: string | null;
+  // Processing stats
+  step_timings?: Record<string, StepTiming>;
+  api_costs?: ApiCost[];
+  total_processing_seconds?: number | null;
+  total_cost_usd?: number | null;
 }
 
 export interface JobCreate {

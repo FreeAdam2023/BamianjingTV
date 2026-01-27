@@ -177,6 +177,33 @@ export async function setSubtitleAreaRatio(
   });
 }
 
+// Speaker naming APIs
+export interface SpeakerInfo {
+  speaker_id: string;
+  display_name: string;
+  segment_count: number;
+}
+
+export interface SpeakersResponse {
+  timeline_id: string;
+  speakers: SpeakerInfo[];
+  speaker_names: Record<string, string>;
+}
+
+export async function getSpeakers(timelineId: string): Promise<SpeakersResponse> {
+  return fetchAPI(`/timelines/${timelineId}/speakers`);
+}
+
+export async function updateSpeakerNames(
+  timelineId: string,
+  speakerNames: Record<string, string>
+): Promise<{ timeline_id: string; speaker_names: Record<string, string>; message: string }> {
+  return fetchAPI(`/timelines/${timelineId}/speakers`, {
+    method: "POST",
+    body: JSON.stringify({ speaker_names: speakerNames }),
+  });
+}
+
 export async function triggerExport(
   timelineId: string,
   request: ExportRequest

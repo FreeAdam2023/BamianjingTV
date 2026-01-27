@@ -8,12 +8,14 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.models.timeline import ExportStatus, TimelineExportRequest
+from app.models.job import JobStatus
 from app.api.timelines import (
     _get_manager,
     _get_export_worker,
     _get_youtube_worker,
     _get_jobs_dir,
 )
+from app.api.jobs import _get_job_manager
 
 router = APIRouter(prefix="/timelines", tags=["export"])
 
@@ -140,10 +142,14 @@ async def _run_export(
 
     manager = _get_manager()
     export_worker = _get_export_worker()
+    job_manager = _get_job_manager()
 
     timeline = manager.get_timeline(timeline_id)
     if not timeline:
         return
+
+    # Get job for timing tracking
+    job = job_manager.get_job(timeline.job_id)
 
     try:
         # Initialize export status
@@ -153,6 +159,11 @@ async def _run_export(
             progress=0.0,
             message="Preparing export...",
         )
+
+        # Start export timing
+        if job:
+            job.start_step("export")
+            job_manager.save_job(job)
 
         # Step 1: Export video with subtitles
         manager.update_export_status(
@@ -238,6 +249,11 @@ async def _run_export(
                     message=f"YouTube upload complete: {upload_result['url']}",
                 )
 
+                # Update job status to COMPLETED and end export timing
+                if job:
+                    job.end_step("export")
+                    await job_manager.update_status(job, JobStatus.COMPLETED, progress=1.0)
+
                 logger.info(f"YouTube upload completed: {upload_result['url']}")
 
             except Exception as yt_err:
@@ -257,6 +273,11 @@ async def _run_export(
                 progress=100.0,
                 message="Export complete",
             )
+
+            # Update job status to COMPLETED and end export timing
+            if job:
+                job.end_step("export")
+                await job_manager.update_status(job, JobStatus.COMPLETED, progress=1.0)
 
     except Exception as e:
         logger.exception(f"Export failed for timeline {timeline_id}: {e}")

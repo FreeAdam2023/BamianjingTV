@@ -243,36 +243,65 @@ class DownloadWorker:
         import re
 
         segments = []
-        current_segment = None
 
         with open(subtitle_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        # Split into cues
-        # VTT format: timestamp --> timestamp\ntext
-        cue_pattern = re.compile(
-            r"(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})\s*\n(.*?)(?=\n\n|\Z)",
-            re.DOTALL
-        )
+        logger.debug(f"VTT file size: {len(content)} chars, first 500: {content[:500]}")
 
-        for match in cue_pattern.finditer(content):
-            start_str, end_str, text = match.groups()
+        # Line-by-line parsing (most reliable for various VTT formats)
+        lines = content.split("\n")
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
 
-            # Parse timestamps
-            start = self._parse_vtt_timestamp(start_str)
-            end = self._parse_vtt_timestamp(end_str)
+            # Look for timestamp line (contains "-->")
+            if "-->" in line:
+                # Extract timestamps, handling various formats:
+                # 00:00:00.000 --> 00:00:05.000
+                # 00:00.000 --> 00:05.000
+                # 00:00:00.000 --> 00:00:05.000 align:start position:0%
+                parts = line.split("-->")
+                if len(parts) == 2:
+                    # Get first token of each part (timestamp)
+                    start_str = parts[0].strip().split()[0] if parts[0].strip() else ""
+                    # For end, get first token that looks like a timestamp
+                    end_part = parts[1].strip()
+                    end_tokens = end_part.split()
+                    end_str = end_tokens[0] if end_tokens else ""
 
-            # Clean up text (remove HTML tags, extra whitespace)
-            text = re.sub(r"<[^>]+>", "", text)  # Remove HTML tags
-            text = re.sub(r"\s+", " ", text).strip()  # Normalize whitespace
+                    # Collect text until empty line or next timestamp
+                    text_lines = []
+                    i += 1
+                    while i < len(lines):
+                        next_line = lines[i]
+                        # Stop at empty line or timestamp line
+                        if not next_line.strip() or "-->" in next_line:
+                            break
+                        # Skip lines that look like cue identifiers (just numbers)
+                        if not next_line.strip().isdigit():
+                            text_lines.append(next_line.strip())
+                        i += 1
 
-            if text:
-                segments.append({
-                    "start": start,
-                    "end": end,
-                    "text": text,
-                    "speaker": "SPEAKER_00",  # No speaker info from YouTube
-                })
+                    text = " ".join(text_lines)
+                    # Clean up text
+                    text = re.sub(r"<[^>]+>", "", text)  # Remove HTML/VTT tags
+                    text = re.sub(r"\s+", " ", text).strip()  # Normalize whitespace
+
+                    if text and start_str and end_str:
+                        try:
+                            start = self._parse_vtt_timestamp(start_str)
+                            end = self._parse_vtt_timestamp(end_str)
+                            segments.append({
+                                "start": start,
+                                "end": end,
+                                "text": text,
+                                "speaker": "SPEAKER_00",
+                            })
+                        except Exception as e:
+                            logger.warning(f"Failed to parse timestamp '{start_str}' -> '{end_str}': {e}")
+                    continue
+            i += 1
 
         # Merge consecutive segments with same text (YouTube often duplicates)
         merged = []
@@ -283,13 +312,25 @@ class DownloadWorker:
             else:
                 merged.append(seg)
 
-        logger.info(f"Parsed {len(merged)} segments from YouTube subtitles")
+        logger.info(f"Parsed {len(merged)} segments from YouTube subtitles (raw: {len(segments)})")
         return merged
 
     def _parse_vtt_timestamp(self, ts: str) -> float:
-        """Parse VTT timestamp (HH:MM:SS.mmm) to seconds."""
+        """Parse VTT timestamp to seconds. Handles HH:MM:SS.mmm and MM:SS.mmm formats."""
+        ts = ts.strip()
         parts = ts.split(":")
-        hours = int(parts[0])
-        minutes = int(parts[1])
-        seconds = float(parts[2])
-        return hours * 3600 + minutes * 60 + seconds
+
+        if len(parts) == 3:
+            # HH:MM:SS.mmm
+            hours = int(parts[0])
+            minutes = int(parts[1])
+            seconds = float(parts[2])
+            return hours * 3600 + minutes * 60 + seconds
+        elif len(parts) == 2:
+            # MM:SS.mmm
+            minutes = int(parts[0])
+            seconds = float(parts[1])
+            return minutes * 60 + seconds
+        else:
+            # Try parsing as just seconds
+            return float(ts)

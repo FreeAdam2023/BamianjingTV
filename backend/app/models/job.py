@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional
 from pydantic import BaseModel, Field, model_validator
 import uuid
 
@@ -53,9 +53,9 @@ class JobCreate(BaseModel):
     """
 
     url: str = Field(..., description="Video URL")
-    target_language: str = Field(default="zh", description="Target language code")
+    target_language: str = Field(default="zh-TW", description="Target language code (zh-TW, zh-CN, ja, ko, etc.)")
     use_traditional_chinese: bool = Field(
-        default=True, description="Use Traditional Chinese for subtitles"
+        default=True, description="Use Traditional Chinese for subtitles (derived from target_language)"
     )
     skip_diarization: bool = Field(
         default=False, description="Skip speaker diarization step"
@@ -70,6 +70,17 @@ class JobCreate(BaseModel):
     @model_validator(mode="after")
     def populate_v2_fields(self) -> "JobCreate":
         """Auto-populate v2 fields for backward compatibility."""
+        # Handle merged Chinese language codes
+        if self.target_language == "zh-TW":
+            self.use_traditional_chinese = True
+            self.target_language = "zh"  # Normalize for processing
+        elif self.target_language == "zh-CN":
+            self.use_traditional_chinese = False
+            self.target_language = "zh"  # Normalize for processing
+        elif self.target_language == "zh":
+            # Legacy support: use use_traditional_chinese as provided
+            pass
+
         if self.source_type is None:
             self.source_type = infer_source_type_from_url(self.url)
 
@@ -156,6 +167,16 @@ class Job(BaseModel):
     # ========== Job Control ==========
     cancel_requested: bool = Field(default=False, description="User requested cancellation")
 
+    # ========== Processing Stats ==========
+    # Step timings: {step_name: {started_at, ended_at, duration_seconds}}
+    step_timings: Dict[str, dict] = Field(default_factory=dict, description="Timing for each processing step")
+    # API costs: [{service, model, tokens_in, tokens_out, cost_usd, timestamp}]
+    api_costs: List[dict] = Field(default_factory=list, description="API call costs")
+    # Total processing time in seconds (calculated)
+    total_processing_seconds: Optional[float] = Field(default=None, description="Total processing time")
+    # Total cost in USD (calculated)
+    total_cost_usd: Optional[float] = Field(default=None, description="Total API cost")
+
     def get_job_dir(self, base_dir: Path) -> Path:
         """Get the job directory path."""
         return base_dir / self.id
@@ -176,3 +197,66 @@ class Job(BaseModel):
         if progress is not None:
             self.progress = progress
         self.updated_at = datetime.now()
+
+    def start_step(self, step_name: str) -> None:
+        """Record the start time of a processing step."""
+        self.step_timings[step_name] = {
+            "started_at": datetime.now().isoformat(),
+            "ended_at": None,
+            "duration_seconds": None,
+        }
+        self.updated_at = datetime.now()
+
+    def end_step(self, step_name: str) -> float:
+        """Record the end time of a processing step. Returns duration in seconds."""
+        if step_name not in self.step_timings:
+            return 0.0
+
+        started_at = datetime.fromisoformat(self.step_timings[step_name]["started_at"])
+        ended_at = datetime.now()
+        duration = (ended_at - started_at).total_seconds()
+
+        self.step_timings[step_name]["ended_at"] = ended_at.isoformat()
+        self.step_timings[step_name]["duration_seconds"] = duration
+        self.updated_at = datetime.now()
+
+        # Update total processing time
+        self._recalculate_totals()
+        return duration
+
+    def add_api_cost(
+        self,
+        service: str,
+        model: str,
+        cost_usd: float,
+        tokens_in: int = 0,
+        tokens_out: int = 0,
+        audio_seconds: float = 0,
+        description: str = None,
+    ) -> None:
+        """Record an API call cost."""
+        self.api_costs.append({
+            "service": service,
+            "model": model,
+            "tokens_in": tokens_in,
+            "tokens_out": tokens_out,
+            "audio_seconds": audio_seconds,
+            "cost_usd": cost_usd,
+            "description": description,
+            "timestamp": datetime.now().isoformat(),
+        })
+        self.updated_at = datetime.now()
+        self._recalculate_totals()
+
+    def _recalculate_totals(self) -> None:
+        """Recalculate total processing time and cost."""
+        # Total processing time
+        total_seconds = 0.0
+        for timing in self.step_timings.values():
+            if timing.get("duration_seconds"):
+                total_seconds += timing["duration_seconds"]
+        self.total_processing_seconds = total_seconds if total_seconds > 0 else None
+
+        # Total cost
+        total_cost = sum(c.get("cost_usd", 0) for c in self.api_costs)
+        self.total_cost_usd = total_cost if total_cost > 0 else None

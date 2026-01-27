@@ -75,6 +75,7 @@ async def process_job(
     try:
         # ============ Stage 1: Download (10%) ============
         await job_manager.update_status(job, JobStatus.DOWNLOADING, 0.10)
+        job.start_step("download")
 
         # If user chose to skip diarization, try to fetch YouTube subtitles
         fetch_subtitles = job.skip_diarization
@@ -90,6 +91,7 @@ async def process_job(
         job.title = download_result["title"]
         job.duration = download_result["duration"]
         job.channel = download_result["channel"]
+        job.end_step("download")
         job_manager.save_job(job)
 
         # Track if we're using YouTube subtitles (skip Whisper)
@@ -106,6 +108,7 @@ async def process_job(
 
         # ============ Stage 2: Transcribe (30%) ============
         raw_path = transcript_dir / "raw.json"
+        job.start_step("transcribe")
 
         if raw_path.exists():
             logger.info(f"Transcript already exists, skipping transcription: {job_id}")
@@ -132,7 +135,6 @@ async def process_job(
             logger.info(f"Saved YouTube subtitles as transcript: {len(transcript.segments)} segments")
             # Track that we used YouTube subtitles
             job.used_youtube_subtitles = True
-            job_manager.save_job(job)
         else:
             await job_manager.update_status(job, JobStatus.TRANSCRIBING, 0.30)
             transcript = await whisper_worker.transcribe(
@@ -141,6 +143,7 @@ async def process_job(
             await whisper_worker.save_transcript(transcript, raw_path)
 
         job.transcript_raw = str(raw_path)
+        job.end_step("transcribe")
         job_manager.save_job(job)
 
         if check_cancelled():
@@ -150,6 +153,7 @@ async def process_job(
 
         # ============ Stage 3: Diarize (50%) ============
         diarized_path = transcript_dir / "diarized.json"
+        job.start_step("diarize")
 
         if diarized_path.exists():
             logger.info(f"Diarization file already exists, skipping diarization: {job_id}")
@@ -187,6 +191,7 @@ async def process_job(
             )
 
         job.transcript_diarized = str(diarized_path)
+        job.end_step("diarize")
         job_manager.save_job(job)
 
         if check_cancelled():
@@ -203,6 +208,7 @@ async def process_job(
             target_lang_code = job.target_language
 
         translation_path = translation_dir / f"{target_lang_code}.json"
+        job.start_step("translate")
 
         if translation_path.exists():
             logger.info(f"Translation file already exists, skipping translation: {job_id}")
@@ -212,12 +218,14 @@ async def process_job(
             translated_transcript = await translation_worker.translate_transcript(
                 transcript=diarized_transcript,
                 target_language=target_lang_code,
+                job=job,  # Pass job for cost tracking
             )
             await translation_worker.save_translation(
                 translated_transcript, translation_path
             )
 
         job.translation = str(translation_path)
+        job.end_step("translate")
         job_manager.save_job(job)
 
         if check_cancelled():
