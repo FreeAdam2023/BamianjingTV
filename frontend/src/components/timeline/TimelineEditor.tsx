@@ -34,6 +34,9 @@ interface TimelineEditorInnerProps {
   onGenerateWaveform?: (trackType: TrackType) => Promise<void>;
   trackConfigs: TrackConfig[];
   onTrackConfigChange: (trackType: TrackType, config: Partial<TrackConfig>) => void;
+  // Video-level trim (WYSIWYG)
+  trimStart: number;
+  trimEnd: number | null;
 }
 
 function TimelineEditorInner({
@@ -46,6 +49,8 @@ function TimelineEditorInner({
   onGenerateWaveform,
   trackConfigs,
   onTrackConfigChange,
+  trimStart,
+  trimEnd,
 }: TimelineEditorInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -65,6 +70,11 @@ function TimelineEditorInner({
     setSnapEnabled,
     timeToPixels,
   } = useTimelineContext();
+
+  // Calculate trim overlay positions
+  const hasTrim = trimStart > 0 || trimEnd !== null;
+  const trimStartPx = timeToPixels(trimStart);
+  const trimEndPx = trimEnd !== null ? timeToPixels(trimEnd) : timeToPixels(duration);
 
   // Measure container width
   useEffect(() => {
@@ -289,6 +299,46 @@ function TimelineEditorInner({
             />
           </div>
 
+          {/* Trim zone overlays - grayed out areas */}
+          {hasTrim && (
+            <>
+              {/* Start trim zone (before trimStart) */}
+              {trimStart > 0 && (
+                <div
+                  className="absolute top-0 bg-black/50 pointer-events-none z-20"
+                  style={{
+                    left: 96, // Account for track label width
+                    width: trimStartPx,
+                    height: totalHeight,
+                  }}
+                >
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-purple-300 text-xs font-medium bg-black/50 px-2 py-1 rounded">
+                      ✂️ 已裁剪
+                    </span>
+                  </div>
+                </div>
+              )}
+              {/* End trim zone (after trimEnd) */}
+              {trimEnd !== null && (
+                <div
+                  className="absolute top-0 bg-black/50 pointer-events-none z-20"
+                  style={{
+                    left: 96 + trimEndPx, // Account for track label width
+                    width: timeToPixels(duration) - trimEndPx,
+                    height: totalHeight,
+                  }}
+                >
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-purple-300 text-xs font-medium bg-black/50 px-2 py-1 rounded">
+                      ✂️ 已裁剪
+                    </span>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
           {/* Playhead - spans full height */}
           <Playhead
             height={totalHeight}
@@ -312,6 +362,9 @@ interface TimelineEditorProps {
   onTrimChange?: (segmentId: number, trimStart: number, trimEnd: number) => void;
   waveformData?: TrackWaveformData;
   onGenerateWaveform?: (trackType: TrackType) => Promise<void>;
+  // Video-level trim (WYSIWYG)
+  trimStart?: number;
+  trimEnd?: number | null;
 }
 
 export default function TimelineEditor({
@@ -326,6 +379,8 @@ export default function TimelineEditor({
   onTrimChange,
   waveformData,
   onGenerateWaveform,
+  trimStart = 0,
+  trimEnd = null,
 }: TimelineEditorProps) {
   // Track configuration state - all audio tracks hidden by default, show on demand
   const [trackConfigs, setTrackConfigs] = useState<TrackConfig[]>([
@@ -360,6 +415,8 @@ export default function TimelineEditor({
         onGenerateWaveform={onGenerateWaveform}
         trackConfigs={trackConfigs}
         onTrackConfigChange={handleTrackConfigChange}
+        trimStart={trimStart}
+        trimEnd={trimEnd}
       />
     </TimelineProvider>
   );

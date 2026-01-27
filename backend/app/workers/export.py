@@ -284,6 +284,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
+        # Get video-level trim settings
+        trim_start = getattr(timeline, 'video_trim_start', 0.0) or 0.0
+        trim_end = getattr(timeline, 'video_trim_end', None)
+
         # Get video dimensions
         orig_width, orig_height = self._get_video_dimensions(video_path)
         subtitle_ratio = getattr(timeline, 'subtitle_area_ratio', 0.5)
@@ -291,12 +295,26 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         # Calculate video area height (top portion)
         video_area_height = int(orig_height * (1 - subtitle_ratio))
 
+        # Filter segments to only include those within trim range
+        if trim_start > 0 or trim_end is not None:
+            effective_trim_end = trim_end if trim_end is not None else float('inf')
+            trimmed_segments = [
+                seg for seg in timeline.segments
+                if seg.start >= trim_start and seg.end <= effective_trim_end
+            ]
+            # Adjust segment timestamps relative to trim_start
+            time_offset = trim_start
+        else:
+            trimmed_segments = timeline.segments
+            time_offset = 0.0
+
         # Generate ASS subtitle file with WYSIWYG layout
         ass_path = output_path.parent / "subtitles_full.ass"
         await self.generate_ass_with_layout(
-            segments=timeline.segments,
+            segments=trimmed_segments,
             output_path=ass_path,
             use_traditional=timeline.use_traditional_chinese,
+            time_offset=time_offset,
             video_height=orig_height,
             subtitle_area_ratio=subtitle_ratio,
             subtitle_style=subtitle_style,
@@ -338,21 +356,33 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             f"ass={ass_path_escaped}"
         )
 
-        # Build ffmpeg command
-        cmd = [
-            "ffmpeg",
-            "-i", str(video_path),
-            "-vf", vf_filter,
-        ]
+        # Build ffmpeg command with trim support
+        cmd = ["ffmpeg"]
+
+        # Add seek option if trim start is set (faster when placed before -i)
+        if trim_start > 0:
+            cmd.extend(["-ss", str(trim_start)])
+
+        cmd.extend(["-i", str(video_path)])
+
+        # Add duration limit if trim end is set
+        if trim_end is not None:
+            duration = trim_end - trim_start
+            cmd.extend(["-t", str(duration)])
+
+        cmd.extend(["-vf", vf_filter])
 
         if self.use_nvenc:
             cmd.extend(["-c:v", "h264_nvenc", "-preset", "p4"])
         else:
             cmd.extend(["-c:v", "libx264", "-preset", "medium", "-crf", "23"])
 
-        cmd.extend(["-c:a", "copy", "-y", str(output_path)])
+        cmd.extend(["-c:a", "aac", "-b:a", "192k", "-y", str(output_path)])
 
-        logger.info(f"Exporting full video with WYSIWYG layout (ratio={subtitle_ratio}): {output_path}")
+        trim_info = ""
+        if trim_start > 0 or trim_end is not None:
+            trim_info = f", trim={trim_start:.1f}s-{trim_end or 'end'}"
+        logger.info(f"Exporting full video with WYSIWYG layout (ratio={subtitle_ratio}{trim_info}): {output_path}")
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         if result.returncode != 0:
@@ -388,14 +418,21 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Get KEEP segments
+        # Get video-level trim settings
+        trim_start = getattr(timeline, 'video_trim_start', 0.0) or 0.0
+        trim_end = getattr(timeline, 'video_trim_end', None)
+        effective_trim_end = trim_end if trim_end is not None else float('inf')
+
+        # Get KEEP segments that are within the trim range
         keep_segments = [
             seg for seg in timeline.segments
             if seg.state == SegmentState.KEEP
+            and seg.start >= trim_start
+            and seg.end <= effective_trim_end
         ]
 
         if not keep_segments:
-            raise ValueError("No KEEP segments to export")
+            raise ValueError("No KEEP segments within trim range to export")
 
         # Create temp directory for segment clips
         with tempfile.TemporaryDirectory() as temp_dir:

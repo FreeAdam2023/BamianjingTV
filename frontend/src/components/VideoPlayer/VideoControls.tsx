@@ -125,6 +125,10 @@ interface VideoControlsProps {
   isLooping: boolean;
   watermarkUrl: string | null;
   coverFrameTime: number | null;
+  // Video trim (WYSIWYG)
+  trimStart?: number;
+  trimEnd?: number | null;
+  sourceDuration?: number;
   // Chinese conversion
   useTraditional?: boolean;
   converting?: boolean;
@@ -158,6 +162,9 @@ export default function VideoControls({
   isLooping,
   watermarkUrl,
   coverFrameTime,
+  trimStart = 0,
+  trimEnd = null,
+  sourceDuration = 0,
   useTraditional,
   converting,
   segmentCount,
@@ -182,18 +189,30 @@ export default function VideoControls({
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [hoverX, setHoverX] = useState<number>(0);
 
+  // Calculate effective values for WYSIWYG trim display
+  const effectiveSourceDuration = sourceDuration || duration;
+  const actualTrimEnd = trimEnd ?? effectiveSourceDuration;
+  const effectiveDuration = actualTrimEnd - trimStart;
+  const hasTrim = trimStart > 0 || trimEnd !== null;
+
+  // Display time relative to trim start
+  const displayTime = currentTime - trimStart;
+  const displayDuration = effectiveDuration;
+
   const handleProgressClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const ratio = (e.clientX - rect.left) / rect.width;
-    onSeek(ratio * duration);
-  }, [duration, onSeek]);
+    // Seek to actual video time (trimStart + ratio * effectiveDuration)
+    onSeek(trimStart + ratio * effectiveDuration);
+  }, [trimStart, effectiveDuration, onSeek]);
 
   const handleProgressMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    setHoverTime(ratio * duration);
+    // Show hover time relative to trim (display time)
+    setHoverTime(ratio * effectiveDuration);
     setHoverX(e.clientX - rect.left);
-  }, [duration]);
+  }, [effectiveDuration]);
 
   const handleProgressMouseLeave = useCallback(() => {
     setHoverTime(null);
@@ -209,10 +228,10 @@ export default function VideoControls({
         onMouseMove={handleProgressMouseMove}
         onMouseLeave={handleProgressMouseLeave}
       >
-        {/* Progress fill */}
+        {/* Progress fill - based on display time within trimmed range */}
         <div
           className="h-full bg-blue-500 rounded-full pointer-events-none"
-          style={{ width: `${(currentTime / duration) * 100}%` }}
+          style={{ width: `${effectiveDuration > 0 ? (displayTime / effectiveDuration) * 100 : 0}%` }}
         />
         {/* Hover indicator line */}
         {hoverTime !== null && (
@@ -235,9 +254,9 @@ export default function VideoControls({
       {/* Control buttons */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          {/* Rewind 5s */}
+          {/* Rewind 5s - constrained to trim range */}
           <button
-            onClick={() => onSeek(Math.max(0, currentTime - 5))}
+            onClick={() => onSeek(Math.max(trimStart, currentTime - 5))}
             className="text-white hover:text-blue-400 p-1"
             title="Rewind 5s (←)"
           >
@@ -264,9 +283,9 @@ export default function VideoControls({
             )}
           </button>
 
-          {/* Forward 5s */}
+          {/* Forward 5s - constrained to trim range */}
           <button
-            onClick={() => onSeek(Math.min(duration, currentTime + 5))}
+            onClick={() => onSeek(Math.min(actualTrimEnd, currentTime + 5))}
             className="text-white hover:text-blue-400 p-1"
             title="Forward 5s (→)"
           >
@@ -276,9 +295,14 @@ export default function VideoControls({
             </svg>
           </button>
 
-          {/* Time display */}
+          {/* Time display - shows trimmed time if trim is active */}
           <span className="text-white text-sm ml-2">
-            {formatDuration(currentTime)} / {formatDuration(duration)}
+            {formatDuration(Math.max(0, displayTime))} / {formatDuration(displayDuration)}
+            {hasTrim && (
+              <span className="ml-1 text-purple-400 text-xs" title={`裁剪范围: ${formatDuration(trimStart)} - ${formatDuration(actualTrimEnd)}`}>
+                ✂️
+              </span>
+            )}
           </span>
 
           {/* Volume control */}

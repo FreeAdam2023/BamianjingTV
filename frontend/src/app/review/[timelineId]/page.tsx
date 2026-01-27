@@ -327,6 +327,9 @@ export default function ReviewPage() {
               onSegmentChange={setCurrentSegmentId}
               coverFrameTime={coverFrameTime}
               onSetCover={handleSetCover}
+              trimStart={timeline.video_trim_start}
+              trimEnd={timeline.video_trim_end}
+              sourceDuration={timeline.source_duration}
               useTraditional={timeline.use_traditional_chinese}
               converting={converting}
               onConvertChinese={handleConvertChinese}
@@ -355,6 +358,8 @@ export default function ReviewPage() {
               onTrimChange={setSegmentTrim}
               waveformData={waveformData}
               onGenerateWaveform={(trackType: TrackType) => generateWaveform(trackType)}
+              trimStart={timeline.video_trim_start}
+              trimEnd={timeline.video_trim_end}
             />
           </div>
 

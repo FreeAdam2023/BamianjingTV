@@ -18,6 +18,10 @@ interface VideoPlayerProps {
   onSegmentChange?: (segmentId: number) => void;
   coverFrameTime?: number | null;
   onSetCover?: (timestamp: number) => void;
+  // Video trim (WYSIWYG)
+  trimStart?: number;
+  trimEnd?: number | null;
+  sourceDuration?: number;
   // Chinese conversion
   useTraditional?: boolean;
   converting?: boolean;
@@ -51,6 +55,9 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   onSegmentChange,
   coverFrameTime,
   onSetCover,
+  trimStart = 0,
+  trimEnd = null,
+  sourceDuration = 0,
   useTraditional,
   converting,
   onConvertChinese,
@@ -99,6 +106,10 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     }
   }, [subtitleAreaRatio, setSubtitleHeightRatio]);
 
+  // Calculate effective duration (for WYSIWYG trim)
+  const effectiveDuration = (trimEnd ?? sourceDuration) - trimStart;
+  const actualTrimEnd = trimEnd ?? sourceDuration;
+
   // Expose methods via ref
   useImperativeHandle(ref, () => ({
     getVideoElement: () => videoRef.current,
@@ -106,11 +117,13 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     pause: () => videoRef.current?.pause(),
     seekTo: (time: number) => {
       if (videoRef.current) {
-        videoRef.current.currentTime = time;
+        // Constrain seek to trimmed range
+        const constrainedTime = Math.max(trimStart, Math.min(actualTrimEnd, time));
+        videoRef.current.currentTime = constrainedTime;
       }
     },
     getCurrentTime: () => videoRef.current?.currentTime || 0,
-  }), []);
+  }), [trimStart, actualTrimEnd]);
 
   // Find current segment based on time
   const findSegmentAtTime = useCallback(
@@ -119,6 +132,27 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     },
     [segments]
   );
+
+  // Seek to trimStart when video loads (if trimmed)
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || trimStart <= 0) return;
+
+    const handleLoadedMetadata = () => {
+      // Only seek if current time is before trim start
+      if (video.currentTime < trimStart) {
+        video.currentTime = trimStart;
+      }
+    };
+
+    // If already loaded, seek immediately
+    if (video.readyState >= 1 && video.currentTime < trimStart) {
+      video.currentTime = trimStart;
+    }
+
+    video.addEventListener("loadedmetadata", handleLoadedMetadata);
+    return () => video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+  }, [trimStart]);
 
   // Video event handlers
   useEffect(() => {
@@ -136,7 +170,20 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         onSegmentChange?.(segment.id);
       }
 
-      // Handle looping
+      // Handle trim end boundary
+      if (trimEnd !== null && time >= trimEnd) {
+        if (isLooping) {
+          // Loop back to trim start
+          video.currentTime = trimStart;
+        } else {
+          // Pause at trim end
+          video.pause();
+          video.currentTime = trimEnd;
+        }
+        return;
+      }
+
+      // Handle segment looping (only if within trim range)
       if (isLooping && currentSegmentId !== null) {
         const currentSeg = segments.find((s) => s.id === currentSegmentId);
         if (currentSeg && time >= currentSeg.end) {
@@ -170,6 +217,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     setCurrentTime,
     setDuration,
     setIsPlaying,
+    trimStart,
+    trimEnd,
   ]);
 
   // Handle drag to resize subtitle area
@@ -216,9 +265,11 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
 
   const seekTo = useCallback((time: number) => {
     if (videoRef.current) {
-      videoRef.current.currentTime = time;
+      // Constrain seek to trimmed range
+      const constrainedTime = Math.max(trimStart, Math.min(actualTrimEnd, time));
+      videoRef.current.currentTime = constrainedTime;
     }
-  }, []);
+  }, [trimStart, actualTrimEnd]);
 
   const playSegment = useCallback(
     (segmentId: number) => {
@@ -280,19 +331,19 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
           break;
         case "ArrowLeft":
           e.preventDefault();
-          // Shift+← = 10s, ← = 5s
-          seekTo(Math.max(0, currentTime - (e.shiftKey ? 10 : 5)));
+          // Shift+← = 10s, ← = 5s (constrained to trim range)
+          seekTo(Math.max(trimStart, currentTime - (e.shiftKey ? 10 : 5)));
           break;
         case "ArrowRight":
           e.preventDefault();
-          // Shift+→ = 10s, → = 5s
-          seekTo(Math.min(duration, currentTime + (e.shiftKey ? 10 : 5)));
+          // Shift+→ = 10s, → = 5s (constrained to trim range)
+          seekTo(Math.min(actualTrimEnd, currentTime + (e.shiftKey ? 10 : 5)));
           break;
         case "j":
         case "J":
           e.preventDefault();
-          // J = rewind 10s (YouTube style)
-          seekTo(Math.max(0, currentTime - 10));
+          // J = rewind 10s (YouTube style, constrained to trim range)
+          seekTo(Math.max(trimStart, currentTime - 10));
           break;
         case "k":
         case "K":
@@ -306,7 +357,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggle, toggleLoop, playSegment, currentSegmentId, seekTo, currentTime, duration]);
+  }, [toggle, toggleLoop, playSegment, currentSegmentId, seekTo, currentTime, duration, trimStart, actualTrimEnd]);
 
   // Get current segment for subtitle display
   const currentSegment = currentSegmentId !== null
@@ -391,6 +442,9 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         isLooping={isLooping}
         watermarkUrl={watermarkUrl}
         coverFrameTime={coverFrameTime ?? null}
+        trimStart={trimStart}
+        trimEnd={trimEnd}
+        sourceDuration={sourceDuration || duration}
         useTraditional={useTraditional}
         converting={converting}
         segmentCount={segments.length}
