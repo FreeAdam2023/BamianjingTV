@@ -77,9 +77,19 @@ export interface SegmentBatchUpdate {
   state: SegmentState;
 }
 
+export interface SubtitleStyleOptions {
+  en_font_size?: number;
+  zh_font_size?: number;
+  en_color?: string;  // Hex color like "#ffffff"
+  zh_color?: string;  // Hex color like "#facc15"
+  font_weight?: string;  // "400", "500", "600", "700"
+  background_color?: string;  // Hex color like "#1a2744"
+}
+
 export interface ExportRequest {
   profile: ExportProfile;
   use_traditional_chinese: boolean;
+  subtitle_style?: SubtitleStyleOptions;
   upload_to_youtube?: boolean;
   youtube_title?: string;
   youtube_description?: string;

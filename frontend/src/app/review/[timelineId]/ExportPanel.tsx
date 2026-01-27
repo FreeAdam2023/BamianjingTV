@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import type { ExportProfile, ExportRequest, Timeline, TitleCandidate, MetadataDraft } from "@/lib/types";
+import type { ExportProfile, ExportRequest, Timeline, TitleCandidate, MetadataDraft, SubtitleStyleOptions } from "@/lib/types";
 import { generateThumbnail, generateUnifiedMetadata, getMetadataDraft, saveMetadataDraft, formatDuration, setSubtitleAreaRatio } from "@/lib/api";
 import { useToast } from "@/components/ui";
 
@@ -13,6 +13,7 @@ interface ExportPanelProps {
   timeline: Timeline;
   coverFrameUrl: string | null;
   coverFrameTime: number | null;
+  subtitleStyle?: SubtitleStyleOptions;
   onClose: () => void;
   onExport: (request: ExportRequest) => Promise<unknown>;
   onExportStarted?: () => void;
@@ -22,6 +23,7 @@ export default function ExportPanel({
   timeline,
   coverFrameUrl,
   coverFrameTime,
+  subtitleStyle,
   onClose,
   onExport,
   onExportStarted,
@@ -175,12 +177,13 @@ export default function ExportPanel({
   }, [timeline.timeline_id]);
 
   const handleExport = async () => {
-    console.log("[ExportPanel] Starting export...", { profile: exportProfile });
+    console.log("[ExportPanel] Starting export...", { profile: exportProfile, subtitleStyle });
     setExporting(true);
     try {
       const request: ExportRequest = {
         profile: exportProfile,
         use_traditional_chinese: useTraditional,
+        subtitle_style: subtitleStyle,
         upload_to_youtube: false, // Don't upload yet, user will preview first
       };
 

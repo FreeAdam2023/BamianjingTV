@@ -15,8 +15,8 @@ export interface SubtitleStyle {
 
 export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   fontFamily: "system-ui",
-  enFontSize: 24,
-  zhFontSize: 28,
+  enFontSize: 40,
+  zhFontSize: 40,
   enColor: "#ffffff",
   zhColor: "#facc15", // yellow-400
   fontWeight: "500",

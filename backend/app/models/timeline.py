@@ -216,11 +216,25 @@ class TimelineCreate(BaseModel):
     source_duration: float
 
 
+class SubtitleStyleOptions(BaseModel):
+    """Subtitle style options for export."""
+
+    en_font_size: int = 40  # English font size in pixels
+    zh_font_size: int = 40  # Chinese font size in pixels
+    en_color: str = "#ffffff"  # English text color (hex)
+    zh_color: str = "#facc15"  # Chinese text color (hex)
+    font_weight: str = "500"  # Font weight (400, 500, 600, 700)
+    background_color: str = "#1a2744"  # Background color (hex)
+
+
 class TimelineExportRequest(BaseModel):
     """Request model for triggering export."""
 
     profile: ExportProfile = ExportProfile.FULL
     use_traditional_chinese: bool = True
+
+    # Subtitle style options
+    subtitle_style: Optional[SubtitleStyleOptions] = None
 
     # YouTube upload options
     upload_to_youtube: bool = False

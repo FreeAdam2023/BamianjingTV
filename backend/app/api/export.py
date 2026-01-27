@@ -105,6 +105,7 @@ async def trigger_export(
         timeline_id=timeline_id,
         video_path=video_path,
         output_dir=job_dir / "output",
+        subtitle_style=request.subtitle_style,
         upload_to_youtube=request.upload_to_youtube,
         youtube_title=request.youtube_title,
         youtube_description=request.youtube_description,
@@ -127,6 +128,7 @@ async def _run_export(
     timeline_id: str,
     video_path: Path,
     output_dir: Path,
+    subtitle_style=None,
     upload_to_youtube: bool = False,
     youtube_title: Optional[str] = None,
     youtube_description: Optional[str] = None,
@@ -164,6 +166,7 @@ async def _run_export(
             timeline=timeline,
             video_path=video_path,
             output_dir=output_dir,
+            subtitle_style=subtitle_style,
         )
 
         # Update timeline with output paths

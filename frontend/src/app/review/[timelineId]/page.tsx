@@ -4,7 +4,7 @@
  * ReviewPage - Timeline review page with video player, timeline editor, and segment list
  */
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import VideoPlayer, { VideoPlayerRef } from "@/components/VideoPlayer";
@@ -15,7 +15,7 @@ import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useTimelineKeyboard } from "@/hooks/useTimelineKeyboard";
 import { useMultiTrackWaveform, TrackType } from "@/hooks/useMultiTrackWaveform";
 import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress, setSubtitleAreaRatio } from "@/lib/api";
-import type { ExportStatusResponse } from "@/lib/types";
+import type { ExportStatusResponse, SubtitleStyleOptions } from "@/lib/types";
 import { useToast, useConfirm } from "@/components/ui";
 import ReviewHeader from "./ReviewHeader";
 import ExportPanel from "./ExportPanel";
@@ -77,6 +77,28 @@ export default function ReviewPage() {
     dubbing: waveformTracks.dubbing.waveform,
     bgm: waveformTracks.bgm.waveform,
   };
+
+  // Get subtitle style from localStorage for export
+  const getSubtitleStyleForExport = useCallback((): SubtitleStyleOptions | undefined => {
+    if (typeof window === "undefined") return undefined;
+    try {
+      const saved = localStorage.getItem("subtitleStyle");
+      if (saved) {
+        const style = JSON.parse(saved);
+        return {
+          en_font_size: style.enFontSize,
+          zh_font_size: style.zhFontSize,
+          en_color: style.enColor,
+          zh_color: style.zhColor,
+          font_weight: style.fontWeight,
+          background_color: style.backgroundColor,
+        };
+      }
+    } catch (e) {
+      console.error("Failed to parse subtitle style:", e);
+    }
+    return undefined;
+  }, []);
 
   const videoPlayerRef = useRef<VideoPlayerRef>(null);
 
@@ -357,6 +379,7 @@ export default function ReviewPage() {
           timeline={timeline}
           coverFrameUrl={coverFrameUrl}
           coverFrameTime={coverFrameTime}
+          subtitleStyle={getSubtitleStyleForExport()}
           onClose={() => setShowExportPanel(false)}
           onExport={startExport}
           onExportStarted={() => {

@@ -120,6 +120,25 @@ class ExportWorker:
         except Exception:
             return 1920, 1080
 
+    def _hex_to_ass_color(self, hex_color: str, opacity: int = 0) -> str:
+        """Convert hex color (#RRGGBB) to ASS format (&HAABBGGRR).
+
+        Args:
+            hex_color: Hex color string like "#ffffff" or "#facc15"
+            opacity: Opacity value 0-255 (0=opaque, 255=transparent)
+
+        Returns:
+            ASS color string like "&H00FFFFFF"
+        """
+        hex_color = hex_color.lstrip("#")
+        if len(hex_color) == 6:
+            r = int(hex_color[0:2], 16)
+            g = int(hex_color[2:4], 16)
+            b = int(hex_color[4:6], 16)
+            # ASS uses AABBGGRR format (reversed RGB + alpha)
+            return f"&H{opacity:02X}{b:02X}{g:02X}{r:02X}"
+        return "&H00FFFFFF"  # Default white
+
     async def generate_ass_with_layout(
         self,
         segments: List[EditableSegment],
@@ -128,6 +147,7 @@ class ExportWorker:
         time_offset: float = 0.0,
         video_height: int = 1080,
         subtitle_area_ratio: float = 0.5,
+        subtitle_style=None,
     ) -> Path:
         """Generate ASS subtitle file with WYSIWYG layout (video on top, subtitles at bottom).
 
@@ -138,6 +158,7 @@ class ExportWorker:
             time_offset: Time offset for timestamps
             video_height: Total video height
             subtitle_area_ratio: Ratio of subtitle area (0.3-0.7)
+            subtitle_style: Optional subtitle style options (font size, colors, etc.)
 
         Returns:
             Path to ASS file
@@ -148,31 +169,40 @@ class ExportWorker:
         # Calculate subtitle area dimensions
         subtitle_area_height = int(video_height * subtitle_area_ratio)
 
-        # Scale font sizes based on subtitle area height (match review page proportions)
-        # Review page: 24px/28px English/Chinese at ~300px subtitle height
+        # Get style options (from request or defaults)
+        # Default font sizes are 40px (matching frontend default)
+        base_en_size = 40
+        base_zh_size = 40
+        en_color_hex = "#ffffff"
+        zh_color_hex = "#facc15"
+        bg_color_hex = "#1a2744"
+
+        if subtitle_style:
+            base_en_size = getattr(subtitle_style, 'en_font_size', 40) or 40
+            base_zh_size = getattr(subtitle_style, 'zh_font_size', 40) or 40
+            en_color_hex = getattr(subtitle_style, 'en_color', "#ffffff") or "#ffffff"
+            zh_color_hex = getattr(subtitle_style, 'zh_color', "#facc15") or "#facc15"
+            bg_color_hex = getattr(subtitle_style, 'background_color', "#1a2744") or "#1a2744"
+
+        # Scale font sizes based on subtitle area height
+        # Base reference: 40px at 300px subtitle height
         scale_factor = subtitle_area_height / 300
-        english_font_size = max(24, int(24 * scale_factor))
-        chinese_font_size = max(28, int(28 * scale_factor))
+        english_font_size = max(24, int(base_en_size * scale_factor))
+        chinese_font_size = max(24, int(base_zh_size * scale_factor))
 
         # Calculate vertical positions to center both subtitles as a group
-        # Layout: subtitle area has English above Chinese, both centered vertically as a unit
-        # Estimate total text block height: English font + gap + Chinese font
         gap_between = int(20 * scale_factor)  # Gap between English and Chinese
         total_block_height = english_font_size + gap_between + chinese_font_size
 
         # Center the block in subtitle area
-        # MarginV in ASS is distance from bottom of screen
         block_bottom = (subtitle_area_height - total_block_height) // 2
-        chinese_margin_v = max(10, block_bottom)  # Chinese at bottom of block
-        english_margin_v = chinese_margin_v + chinese_font_size + gap_between  # English above
+        chinese_margin_v = max(10, block_bottom)
+        english_margin_v = chinese_margin_v + chinese_font_size + gap_between
 
-        # Colors matching review page (ASS uses AABBGGRR format)
-        # English: white #FFFFFF → &H00FFFFFF
-        # Chinese: yellow #facc15 → &H0015CCFA (BGR reversed)
-        # Background: #1a2744 → &HC0442a1a (with 75% opacity)
-        english_color = "&H00FFFFFF"
-        chinese_color = "&H0015CCFA"  # Yellow #facc15 in BGR
-        background_color = "&HC0442a1a"  # Dark blue #1a2744 with 75% opacity
+        # Convert colors to ASS format
+        english_color = self._hex_to_ass_color(en_color_hex, 0)
+        chinese_color = self._hex_to_ass_color(zh_color_hex, 0)
+        background_color = self._hex_to_ass_color(bg_color_hex, 192)  # 75% opacity (192/255)
 
         # ASS header with calculated positions
         # BorderStyle=3: Opaque box (背景框)
@@ -229,6 +259,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         timeline: Timeline,
         video_path: Path,
         output_path: Path,
+        subtitle_style=None,
     ) -> Path:
         """Export full video with WYSIWYG layout (scaled video + subtitle area).
 
@@ -268,6 +299,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             use_traditional=timeline.use_traditional_chinese,
             video_height=orig_height,
             subtitle_area_ratio=subtitle_ratio,
+            subtitle_style=subtitle_style,
         )
 
         # Escape special characters in path for ffmpeg filter
@@ -334,6 +366,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         timeline: Timeline,
         video_path: Path,
         output_path: Path,
+        subtitle_style=None,
     ) -> Path:
         """Export essence video (only KEEP segments) with subtitles.
 
@@ -433,6 +466,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         timeline: Timeline,
         video_path: Path,
         output_dir: Path,
+        subtitle_style=None,
     ) -> Tuple[Optional[Path], Optional[Path]]:
         """Export video(s) based on timeline export profile.
 
@@ -440,6 +474,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             timeline: Timeline with export settings
             video_path: Source video path
             output_dir: Directory for output files
+            subtitle_style: Optional subtitle style options
 
         Returns:
             Tuple of (full_video_path, essence_video_path)
@@ -454,11 +489,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
         if profile in (ExportProfile.FULL, ExportProfile.BOTH):
             full_path = output_dir / "full_subtitled.mp4"
-            await self.export_full_video(timeline, video_path, full_path)
+            await self.export_full_video(timeline, video_path, full_path, subtitle_style)
 
         if profile in (ExportProfile.ESSENCE, ExportProfile.BOTH):
             essence_path = output_dir / "essence.mp4"
-            await self.export_essence(timeline, video_path, essence_path)
+            await self.export_essence(timeline, video_path, essence_path, subtitle_style)
 
         return full_path, essence_path
 
