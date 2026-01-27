@@ -259,7 +259,8 @@ export default function ExportPanel({
         timeline.timeline_id,
         Object.keys(request).length > 0 ? request : undefined
       );
-      setThumbnailUrl(`${getBaseUrl()}${result.thumbnail_url}`);
+      // Store relative URL, getBaseUrl() will be added when displaying
+      setThumbnailUrl(result.thumbnail_url);
       setShowOriginal(false);
     } catch (err) {
       toast.error("封面生成失败: " + (err instanceof Error ? err.message : "Unknown error"));
@@ -663,7 +664,7 @@ export default function ExportPanel({
             {thumbnailUrl ? (
               <>
                 <img
-                  src={showOriginal && coverFrameUrl ? coverFrameUrl : thumbnailUrl}
+                  src={showOriginal && coverFrameUrl ? coverFrameUrl : `${getBaseUrl()}${thumbnailUrl}`}
                   alt={showOriginal ? "Original cover frame" : "Generated thumbnail"}
                   className="w-full h-full object-cover"
                 />
@@ -692,7 +693,7 @@ export default function ExportPanel({
                   </div>
                 )}
                 <a
-                  href={thumbnailUrl}
+                  href={`${getBaseUrl()}${thumbnailUrl}`}
                   download="thumbnail.png"
                   target="_blank"
                   rel="noopener noreferrer"
