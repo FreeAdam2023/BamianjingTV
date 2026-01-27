@@ -664,7 +664,7 @@ export default function ExportPanel({
             {thumbnailUrl ? (
               <>
                 <img
-                  src={showOriginal && coverFrameUrl ? coverFrameUrl : `${getBaseUrl()}${thumbnailUrl}`}
+                  src={showOriginal && coverFrameUrl ? coverFrameUrl : (thumbnailUrl.startsWith('http') ? thumbnailUrl : `${getBaseUrl()}${thumbnailUrl}`)}
                   alt={showOriginal ? "Original cover frame" : "Generated thumbnail"}
                   className="w-full h-full object-cover"
                 />
@@ -693,7 +693,7 @@ export default function ExportPanel({
                   </div>
                 )}
                 <a
-                  href={`${getBaseUrl()}${thumbnailUrl}`}
+                  href={thumbnailUrl.startsWith('http') ? thumbnailUrl : `${getBaseUrl()}${thumbnailUrl}`}
                   download="thumbnail.png"
                   target="_blank"
                   rel="noopener noreferrer"

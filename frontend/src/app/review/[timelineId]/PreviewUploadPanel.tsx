@@ -162,12 +162,12 @@ export default function PreviewUploadPanel({
               <h3 className="text-sm font-medium text-gray-300 mb-2">封面预览</h3>
               <div className="relative rounded-lg overflow-hidden bg-gray-900 aspect-video" style={{ maxHeight: "200px" }}>
                 <img
-                  src={`${getBaseUrl()}${thumbnailUrl}`}
+                  src={thumbnailUrl.startsWith('http') ? thumbnailUrl : `${getBaseUrl()}${thumbnailUrl}`}
                   alt="Generated thumbnail"
                   className="w-full h-full object-contain"
                 />
                 <a
-                  href={`${getBaseUrl()}${thumbnailUrl}`}
+                  href={thumbnailUrl.startsWith('http') ? thumbnailUrl : `${getBaseUrl()}${thumbnailUrl}`}
                   download="thumbnail.png"
                   target="_blank"
                   rel="noopener noreferrer"
