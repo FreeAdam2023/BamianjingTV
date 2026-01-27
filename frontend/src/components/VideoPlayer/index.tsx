@@ -33,6 +33,9 @@ interface VideoPlayerProps {
   onVideoModeChange?: (mode: VideoMode) => void;
   hasExportFull?: boolean;
   hasExportEssence?: boolean;
+  // Subtitle area ratio (synced with backend)
+  subtitleAreaRatio?: number;
+  onSubtitleAreaRatioChange?: (ratio: number) => void;
 }
 
 export interface VideoPlayerRef {
@@ -61,6 +64,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   onVideoModeChange,
   hasExportFull = false,
   hasExportEssence = false,
+  subtitleAreaRatio,
+  onSubtitleAreaRatioChange,
 }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -90,6 +95,13 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     updateSubtitleStyle,
     resetSubtitleStyle,
   } = useVideoState();
+
+  // Sync subtitle ratio with prop (from backend)
+  useEffect(() => {
+    if (subtitleAreaRatio !== undefined) {
+      setSubtitleHeightRatio(subtitleAreaRatio);
+    }
+  }, [subtitleAreaRatio, setSubtitleHeightRatio]);
 
   // Expose methods via ref
   useImperativeHandle(ref, () => ({
@@ -168,6 +180,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   useEffect(() => {
     if (!isDragging) return;
 
+    let latestRatio = subtitleHeightRatio;
+
     const handleMouseMove = (e: MouseEvent) => {
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
@@ -176,11 +190,16 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
       const controlsHeight = 60;
       const availableHeight = totalHeight - controlsHeight;
       const videoHeight = mouseY;
-      const newSubtitleRatio = 1 - (videoHeight / availableHeight);
-      setSubtitleHeightRatio(Math.max(0.2, Math.min(0.7, newSubtitleRatio)));
+      const newSubtitleRatio = Math.max(0.2, Math.min(0.7, 1 - (videoHeight / availableHeight)));
+      latestRatio = newSubtitleRatio;
+      setSubtitleHeightRatio(newSubtitleRatio);
     };
 
-    const handleMouseUp = () => setIsDragging(false);
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      // Save to backend when drag ends
+      onSubtitleAreaRatioChange?.(latestRatio);
+    };
 
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", handleMouseUp);
@@ -189,7 +208,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, setSubtitleHeightRatio, setIsDragging]);
+  }, [isDragging, subtitleHeightRatio, setSubtitleHeightRatio, setIsDragging, onSubtitleAreaRatioChange]);
 
   // Playback controls
   const play = useCallback(() => videoRef.current?.play(), []);

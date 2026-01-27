@@ -14,7 +14,7 @@ import { useTimeline } from "@/hooks/useTimeline";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useTimelineKeyboard } from "@/hooks/useTimelineKeyboard";
 import { useMultiTrackWaveform, TrackType } from "@/hooks/useMultiTrackWaveform";
-import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress } from "@/lib/api";
+import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress, setSubtitleAreaRatio } from "@/lib/api";
 import type { ExportStatusResponse } from "@/lib/types";
 import { useToast, useConfirm } from "@/components/ui";
 import ReviewHeader from "./ReviewHeader";
@@ -139,6 +139,17 @@ export default function ReviewPage() {
       toast.error("封面设置失败: " + (err instanceof Error ? err.message : "Unknown error"));
     }
   }, [timeline, toast]);
+
+  // Handle subtitle area ratio change (save to backend)
+  const handleSubtitleAreaRatioChange = useCallback(async (ratio: number) => {
+    if (!timeline) return;
+    try {
+      await setSubtitleAreaRatio(timeline.timeline_id, ratio);
+      console.log("[ReviewPage] Subtitle ratio saved:", ratio);
+    } catch (err) {
+      console.error("[ReviewPage] Failed to save subtitle ratio:", err);
+    }
+  }, [timeline]);
 
   // Handle Chinese conversion
   const handleConvertChinese = useCallback(async (toTraditional: boolean) => {
@@ -302,6 +313,8 @@ export default function ReviewPage() {
               onVideoModeChange={setVideoMode}
               hasExportFull={!!timeline.output_full_path}
               hasExportEssence={!!timeline.output_essence_path}
+              subtitleAreaRatio={timeline.subtitle_area_ratio}
+              onSubtitleAreaRatioChange={handleSubtitleAreaRatioChange}
             />
           </div>
 
