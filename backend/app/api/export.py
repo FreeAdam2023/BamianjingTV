@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.models.timeline import ExportStatus, TimelineExportRequest
@@ -251,3 +252,45 @@ async def _run_export(
             message="Export failed",
             error=str(e),
         )
+
+
+@router.get("/{timeline_id}/video/full")
+async def get_export_video_full(timeline_id: str):
+    """Stream the full exported video (with subtitles) for preview."""
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    if not timeline.output_full_path:
+        raise HTTPException(status_code=404, detail="Full video not exported yet. Complete export first.")
+
+    video_path = Path(timeline.output_full_path)
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="Exported video file not found")
+
+    return FileResponse(
+        video_path,
+        media_type="video/mp4",
+    )
+
+
+@router.get("/{timeline_id}/video/essence")
+async def get_export_video_essence(timeline_id: str):
+    """Stream the essence exported video (KEEP segments only) for preview."""
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    if not timeline.output_essence_path:
+        raise HTTPException(status_code=404, detail="Essence video not exported yet. Complete export first.")
+
+    video_path = Path(timeline.output_essence_path)
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="Exported video file not found")
+
+    return FileResponse(
+        video_path,
+        media_type="video/mp4",
+    )

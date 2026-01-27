@@ -90,7 +90,7 @@ export default function PreviewUploadPanel({
   };
 
   const videoUrl = exportStatus.full_video_path
-    ? `${getBaseUrl()}/jobs/${timeline.job_id}/video/export`
+    ? `${getBaseUrl()}/timelines/${timeline.timeline_id}/video/full`
     : null;
 
   return (
