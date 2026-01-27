@@ -200,6 +200,17 @@ async def _run_export(
 
             logger.info(f"Uploading to YouTube: {title}")
 
+            # Progress callback for YouTube upload (75% to 99%)
+            def upload_progress_callback(upload_percent: int):
+                # Map upload progress (0-100) to overall progress (75-99)
+                overall_progress = 75.0 + (upload_percent * 0.24)
+                manager.update_export_status(
+                    timeline_id,
+                    status=ExportStatus.UPLOADING,
+                    progress=overall_progress,
+                    message=f"Uploading to YouTube: {upload_percent}%",
+                )
+
             try:
                 upload_result = await youtube_worker.upload(
                     video_path=full_path,
@@ -207,6 +218,7 @@ async def _run_export(
                     description=description,
                     tags=tags,
                     privacy_status=youtube_privacy,
+                    progress_callback=upload_progress_callback,
                 )
 
                 # Update timeline with YouTube info

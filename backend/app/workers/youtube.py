@@ -122,6 +122,7 @@ class YouTubeWorker:
         publish_at: Optional[datetime] = None,
         default_language: str = "zh",
         made_for_kids: bool = False,
+        progress_callback: Optional[callable] = None,
     ) -> dict:
         """
         Upload a video to YouTube.
@@ -137,6 +138,7 @@ class YouTubeWorker:
             publish_at: Scheduled publish time (requires private status)
             default_language: Default language code
             made_for_kids: Whether video is made for kids
+            progress_callback: Optional callback(progress: float) called during upload
 
         Returns:
             Dict with video_id and URL
@@ -196,6 +198,11 @@ class YouTubeWorker:
             if status:
                 progress = int(status.progress() * 100)
                 logger.debug(f"Upload progress: {progress}%")
+                if progress_callback:
+                    try:
+                        progress_callback(progress)
+                    except Exception as e:
+                        logger.warning(f"Progress callback failed: {e}")
 
         video_id = response["id"]
         logger.info(f"Video uploaded: {video_id}")
