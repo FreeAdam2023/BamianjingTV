@@ -147,16 +147,27 @@ class ExportWorker:
 
         # Calculate subtitle area dimensions
         subtitle_area_height = int(video_height * subtitle_area_ratio)
-        # English at ~70% height of subtitle area, Chinese at ~30%
-        english_margin_v = int(subtitle_area_height * 0.55)  # From bottom of screen
-        chinese_margin_v = int(subtitle_area_height * 0.15)  # From bottom of screen
+        # English at ~65% height of subtitle area, Chinese at ~25%
+        english_margin_v = int(subtitle_area_height * 0.50)  # From bottom of screen
+        chinese_margin_v = int(subtitle_area_height * 0.12)  # From bottom of screen
 
-        # Scale font sizes based on subtitle area
-        base_scale = subtitle_area_ratio / 0.5  # Normalize to default 0.5
-        english_font_size = int(40 * base_scale)
-        chinese_font_size = int(48 * base_scale)
+        # Scale font sizes based on video height (match review page proportions)
+        # Review page: 24px/28px at ~600px height → scale to video height
+        scale_factor = video_height / 600
+        english_font_size = int(24 * scale_factor * 0.9)  # Slightly smaller for readability
+        chinese_font_size = int(28 * scale_factor * 0.9)
+
+        # Colors matching review page (ASS uses AABBGGRR format)
+        # English: white #FFFFFF → &H00FFFFFF
+        # Chinese: yellow #facc15 → &H0015CCFA (BGR reversed)
+        # Background: #1a2744 → &HC0442a1a (with 75% opacity)
+        english_color = "&H00FFFFFF"
+        chinese_color = "&H0015CCFA"  # Yellow #facc15 in BGR
+        background_color = "&HC0442a1a"  # Dark blue #1a2744 with 75% opacity
 
         # ASS header with calculated positions
+        # BorderStyle=3: Opaque box (背景框)
+        # Outline=12: Padding around text
         ass_header = f"""[Script Info]
 Title: Hardcore Player Bilingual Subtitles
 ScriptType: v4.00+
@@ -166,8 +177,8 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: English,Arial,{english_font_size},&H00FFFFFF,&H000000FF,&H00404040,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,20,20,{english_margin_v},1
-Style: Chinese,Microsoft YaHei,{chinese_font_size},&H0000FFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,1,2,20,20,{chinese_margin_v},1
+Style: English,Arial,{english_font_size},{english_color},&H000000FF,{background_color},{background_color},0,0,0,0,100,100,0,0,3,12,0,2,40,40,{english_margin_v},1
+Style: Chinese,Microsoft YaHei,{chinese_font_size},{chinese_color},&H000000FF,{background_color},{background_color},-1,0,0,0,100,100,0,0,3,12,0,2,40,40,{chinese_margin_v},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
