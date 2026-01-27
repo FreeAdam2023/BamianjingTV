@@ -10,8 +10,6 @@ import { useVideoState } from "./useVideoState";
 import SubtitleOverlay from "./SubtitleOverlay";
 import VideoControls from "./VideoControls";
 
-export type VideoMode = "source" | "export_full" | "export_essence";
-
 interface VideoPlayerProps {
   jobId: string;
   segments: EditableSegment[];
@@ -28,11 +26,10 @@ interface VideoPlayerProps {
   regenerating?: boolean;
   regenerateProgress?: { current: number; total: number } | null;
   onRegenerateTranslation?: () => void;
-  // Video mode for preview
-  videoMode?: VideoMode;
-  onVideoModeChange?: (mode: VideoMode) => void;
+  // Export preview
   hasExportFull?: boolean;
   hasExportEssence?: boolean;
+  onPreviewExport?: (type: "full" | "essence") => void;
   // Subtitle area ratio (synced with backend)
   subtitleAreaRatio?: number;
   onSubtitleAreaRatioChange?: (ratio: number) => void;
@@ -60,10 +57,9 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   regenerating,
   regenerateProgress,
   onRegenerateTranslation,
-  videoMode = "source",
-  onVideoModeChange,
   hasExportFull = false,
   hasExportEssence = false,
+  onPreviewExport,
   subtitleAreaRatio,
   onSubtitleAreaRatioChange,
 }, ref) {
@@ -317,26 +313,10 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     ? segments.find((s) => s.id === currentSegmentId)
     : findSegmentAtTime(currentTime);
 
-  // Video source URL based on mode
-  const getVideoUrl = () => {
-    if (typeof window !== "undefined") {
-      const { protocol, hostname } = window.location;
-      const base = `${protocol}//${hostname}:8000`;
-      switch (videoMode) {
-        case "export_full":
-          return `${base}/jobs/${jobId}/video/preview/full`;
-        case "export_essence":
-          return `${base}/jobs/${jobId}/video/preview/essence`;
-        default:
-          return `${base}/jobs/${jobId}/video`;
-      }
-    }
-    return `/api/jobs/${jobId}/video`;
-  };
-  const videoUrl = getVideoUrl();
-
-  // Check if we're in preview mode (showing exported video)
-  const isPreviewMode = videoMode !== "source";
+  // Video source URL (always source video, export preview in modal)
+  const videoUrl = typeof window !== "undefined"
+    ? `${window.location.protocol}//${window.location.hostname}:8000/jobs/${jobId}/video`
+    : `/api/jobs/${jobId}/video`;
 
   // Dark blue color matching subtitle area and export
   const containerBgColor = "#1a2744";
@@ -365,16 +345,6 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
           onClick={toggle}
           playsInline
         />
-        {/* Preview mode indicator */}
-        {isPreviewMode && (
-          <div className={`absolute top-3 right-3 px-2 py-1 rounded text-xs font-medium ${
-            videoMode === "export_full"
-              ? "bg-green-600 text-white"
-              : "bg-purple-600 text-white"
-          }`}>
-            {videoMode === "export_full" ? "Preview: Full Export" : "Preview: Essence"}
-          </div>
-        )}
         {/* Watermark overlay */}
         {watermarkUrl && (
           <div className="absolute top-3 left-3 pointer-events-none">
@@ -428,10 +398,9 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         regenerating={regenerating}
         regenerateProgress={regenerateProgress}
         onRegenerateTranslation={onRegenerateTranslation}
-        videoMode={videoMode}
-        onVideoModeChange={onVideoModeChange}
         hasExportFull={hasExportFull}
         hasExportEssence={hasExportEssence}
+        onPreviewExport={onPreviewExport}
         onTogglePlay={toggle}
         onSeek={seekTo}
         onVolumeChange={handleVolumeChange}

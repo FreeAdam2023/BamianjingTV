@@ -116,8 +116,6 @@ function ChineseLanguageSelector({
   );
 }
 
-type VideoMode = "source" | "export_full" | "export_essence";
-
 interface VideoControlsProps {
   isPlaying: boolean;
   currentTime: number;
@@ -136,11 +134,10 @@ interface VideoControlsProps {
   regenerating?: boolean;
   regenerateProgress?: { current: number; total: number } | null;
   onRegenerateTranslation?: () => void;
-  // Video mode for preview
-  videoMode?: VideoMode;
-  onVideoModeChange?: (mode: VideoMode) => void;
+  // Export preview
   hasExportFull?: boolean;
   hasExportEssence?: boolean;
+  onPreviewExport?: (type: "full" | "essence") => void;
   // Handlers
   onTogglePlay: () => void;
   onSeek: (time: number) => void;
@@ -168,10 +165,9 @@ export default function VideoControls({
   regenerating,
   regenerateProgress,
   onRegenerateTranslation,
-  videoMode = "source",
-  onVideoModeChange,
   hasExportFull = false,
   hasExportEssence = false,
+  onPreviewExport,
   onTogglePlay,
   onSeek,
   onVolumeChange,
@@ -370,44 +366,31 @@ export default function VideoControls({
             </button>
           )}
 
-          {/* Video Mode Selector - Preview exported videos */}
-          {(hasExportFull || hasExportEssence) && onVideoModeChange && (
-            <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-0.5">
-              <button
-                onClick={() => onVideoModeChange("source")}
-                className={`text-xs px-2 py-1 rounded transition-colors ${
-                  videoMode === "source"
-                    ? "bg-gray-600 text-white"
-                    : "text-gray-400 hover:text-white"
-                }`}
-                title="View source video"
-              >
-                Source
-              </button>
+          {/* Export Preview Buttons */}
+          {(hasExportFull || hasExportEssence) && onPreviewExport && (
+            <div className="flex items-center gap-1">
               {hasExportFull && (
                 <button
-                  onClick={() => onVideoModeChange("export_full")}
-                  className={`text-xs px-2 py-1 rounded transition-colors ${
-                    videoMode === "export_full"
-                      ? "bg-green-600 text-white"
-                      : "text-gray-400 hover:text-white"
-                  }`}
+                  onClick={() => onPreviewExport("full")}
+                  className="text-xs px-2 py-1 rounded bg-green-600 hover:bg-green-700 text-white flex items-center gap-1"
                   title="Preview full export with subtitles"
                 >
-                  Full
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  预览导出
                 </button>
               )}
               {hasExportEssence && (
                 <button
-                  onClick={() => onVideoModeChange("export_essence")}
-                  className={`text-xs px-2 py-1 rounded transition-colors ${
-                    videoMode === "export_essence"
-                      ? "bg-purple-600 text-white"
-                      : "text-gray-400 hover:text-white"
-                  }`}
+                  onClick={() => onPreviewExport("essence")}
+                  className="text-xs px-2 py-1 rounded bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1"
                   title="Preview essence export (KEEP segments only)"
                 >
-                  Essence
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  预览精华
                 </button>
               )}
             </div>

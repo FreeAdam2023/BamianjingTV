@@ -7,7 +7,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import VideoPlayer, { VideoPlayerRef, VideoMode } from "@/components/VideoPlayer";
+import VideoPlayer, { VideoPlayerRef } from "@/components/VideoPlayer";
 import SegmentList from "@/components/SegmentList";
 import { TimelineEditor } from "@/components/timeline";
 import { useTimeline } from "@/hooks/useTimeline";
@@ -20,6 +20,7 @@ import { useToast, useConfirm } from "@/components/ui";
 import ReviewHeader from "./ReviewHeader";
 import ExportPanel from "./ExportPanel";
 import PreviewUploadPanel from "./PreviewUploadPanel";
+import ExportPreviewModal from "./ExportPreviewModal";
 import KeyboardHelp from "./KeyboardHelp";
 import BulkActions from "./BulkActions";
 
@@ -58,7 +59,7 @@ export default function ReviewPage() {
   const [currentVideoTime, setCurrentVideoTime] = useState(0);
   const [coverFrameTime, setCoverFrameTime] = useState<number | null>(null);
   const [coverFrameUrl, setCoverFrameUrl] = useState<string | null>(null);
-  const [videoMode, setVideoMode] = useState<VideoMode>("source");
+  const [exportPreviewType, setExportPreviewType] = useState<"full" | "essence" | null>(null);
 
   // Waveform data for timeline
   const { tracks: waveformTracks, generateTrack: generateWaveform } = useMultiTrackWaveform(timelineId);
@@ -309,10 +310,9 @@ export default function ReviewPage() {
               regenerating={regenerating}
               regenerateProgress={regenerateProgress}
               onRegenerateTranslation={handleRegenerateTranslation}
-              videoMode={videoMode}
-              onVideoModeChange={setVideoMode}
               hasExportFull={!!timeline.output_full_path}
               hasExportEssence={!!timeline.output_essence_path}
+              onPreviewExport={setExportPreviewType}
               subtitleAreaRatio={timeline.subtitle_area_ratio}
               onSubtitleAreaRatioChange={handleSubtitleAreaRatioChange}
             />
@@ -379,6 +379,15 @@ export default function ReviewPage() {
           onUploadStarted={() => {
             refresh(); // Refresh to update export_status
           }}
+        />
+      )}
+
+      {/* Export Preview Modal */}
+      {exportPreviewType && (
+        <ExportPreviewModal
+          jobId={timeline.job_id}
+          type={exportPreviewType}
+          onClose={() => setExportPreviewType(null)}
         />
       )}
     </main>
