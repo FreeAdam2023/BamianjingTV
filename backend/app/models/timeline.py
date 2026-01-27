@@ -117,6 +117,8 @@ class Timeline(BaseModel):
     draft_youtube_tags: Optional[List[str]] = None
     draft_thumbnail_candidates: Optional[List[dict]] = None  # List of {main, sub, style}
     draft_instruction: Optional[str] = None  # User's AI instruction
+    draft_selected_title: Optional[dict] = None  # User's selected title {index, main, sub, style}
+    draft_thumbnail_url: Optional[str] = None  # Generated thumbnail URL
 
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.now)

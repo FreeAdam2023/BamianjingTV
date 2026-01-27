@@ -244,6 +244,8 @@ async def get_metadata_draft(timeline_id: str):
         timeline.draft_youtube_description,
         timeline.draft_youtube_tags,
         timeline.draft_thumbnail_candidates,
+        timeline.draft_selected_title,
+        timeline.draft_thumbnail_url,
     ])
 
     # Convert thumbnail candidates to TitleCandidate format
@@ -259,12 +261,24 @@ async def get_metadata_draft(timeline_id: str):
             for i, c in enumerate(timeline.draft_thumbnail_candidates)
         ]
 
+    # Convert selected title to TitleCandidate format
+    selected_title = None
+    if timeline.draft_selected_title:
+        selected_title = TitleCandidate(
+            index=timeline.draft_selected_title.get("index", -1),
+            main=timeline.draft_selected_title.get("main", ""),
+            sub=timeline.draft_selected_title.get("sub", ""),
+            style=timeline.draft_selected_title.get("style", ""),
+        )
+
     draft = MetadataDraft(
         youtube_title=timeline.draft_youtube_title,
         youtube_description=timeline.draft_youtube_description,
         youtube_tags=timeline.draft_youtube_tags,
         thumbnail_candidates=candidates,
         instruction=timeline.draft_instruction,
+        selected_title=selected_title,
+        thumbnail_url=timeline.draft_thumbnail_url,
     )
 
     logger.info(f"Retrieved metadata draft for timeline {timeline_id}: has_draft={has_draft}")
@@ -304,6 +318,15 @@ async def save_metadata_draft(timeline_id: str, draft: MetadataDraft):
         ]
     if draft.instruction is not None:
         timeline.draft_instruction = draft.instruction
+    if draft.selected_title is not None:
+        timeline.draft_selected_title = {
+            "index": draft.selected_title.index,
+            "main": draft.selected_title.main,
+            "sub": draft.selected_title.sub,
+            "style": draft.selected_title.style,
+        }
+    if draft.thumbnail_url is not None:
+        timeline.draft_thumbnail_url = draft.thumbnail_url
 
     # Save to storage
     manager.save_timeline(timeline)
@@ -334,6 +357,8 @@ async def delete_metadata_draft(timeline_id: str):
     timeline.draft_youtube_tags = None
     timeline.draft_thumbnail_candidates = None
     timeline.draft_instruction = None
+    timeline.draft_selected_title = None
+    timeline.draft_thumbnail_url = None
 
     manager.save_timeline(timeline)
 
