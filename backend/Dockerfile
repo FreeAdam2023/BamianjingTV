@@ -14,10 +14,15 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     git \
     curl \
+    unzip \
     fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/bin/python3.11 /usr/bin/python3 \
     && ln -sf /usr/bin/python3.11 /usr/bin/python
+
+# Install deno (required by yt-dlp for YouTube extraction)
+RUN curl -fsSL https://deno.land/install.sh | sh \
+    && ln -s /root/.deno/bin/deno /usr/local/bin/deno
 
 # Install pip for Python 3.11
 RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11

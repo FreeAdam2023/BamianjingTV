@@ -123,34 +123,70 @@ class DownloadWorker:
 
     async def _get_video_info(self, url: str) -> Dict[str, Any]:
         """Get video metadata without downloading."""
-        cmd = [
-            "yt-dlp",
-            "--dump-json",
-            "--no-download",
-            url,
+        # Try different player clients for metadata extraction
+        client_options = [
+            [],  # Default
+            ["--extractor-args", "youtube:player_client=ios"],
         ]
 
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, check=True
-        )
+        for extra_args in client_options:
+            cmd = [
+                "yt-dlp",
+                "--dump-json",
+                "--no-download",
+            ] + extra_args + [url]
 
-        import json
-        return json.loads(result.stdout)
+            result = subprocess.run(cmd, capture_output=True, text=True)
+
+            if result.returncode == 0:
+                return json.loads(result.stdout)
+
+            # If 403/SABR error, try next client
+            if "403" in result.stderr or "SABR" in result.stderr:
+                continue
+
+        # If all clients fail, raise with last error
+        raise RuntimeError(f"yt-dlp info extraction failed: {result.stderr}")
 
     async def _download_video(self, url: str, output_path: Path) -> None:
         """Download video to specified path."""
-        cmd = [
+        # Base command with format selection
+        # Using format that works better with YouTube's SABR streaming restrictions
+        base_cmd = [
             "yt-dlp",
-            "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+            "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best",
             "--merge-output-format", "mp4",
             "-o", str(output_path),
             "--no-playlist",
-            url,
         ]
 
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            raise RuntimeError(f"yt-dlp failed: {result.stderr}")
+        # Try different player clients if the default fails
+        # iOS/Android clients often work when web clients fail due to SABR
+        client_options = [
+            [],  # Default (uses deno JS runtime if available)
+            ["--extractor-args", "youtube:player_client=ios"],
+            ["--extractor-args", "youtube:player_client=android"],
+            ["--extractor-args", "youtube:player_client=tv"],
+        ]
+
+        last_error = None
+        for extra_args in client_options:
+            cmd = base_cmd + extra_args + [url]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+
+            if result.returncode == 0 and output_path.exists():
+                return  # Success
+
+            last_error = result.stderr
+            # Check if it's a format/SABR error worth retrying with different client
+            if "403" in result.stderr or "SABR" in result.stderr:
+                logger.warning(f"yt-dlp failed with client args {extra_args}, trying next...")
+                continue
+            else:
+                # Other error, don't retry
+                break
+
+        raise RuntimeError(f"yt-dlp failed: {last_error}")
 
         if not output_path.exists():
             raise RuntimeError("Download completed but video file not found")

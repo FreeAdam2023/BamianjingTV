@@ -4,7 +4,8 @@ uvicorn[standard]>=0.27.0
 python-multipart>=0.0.6
 
 # Video download
-yt-dlp>=2024.1.0
+# NOTE: yt-dlp 2025+ requires deno for YouTube extraction (see Dockerfile)
+yt-dlp>=2025.1.0
 
 # ASR (Speech Recognition)
 openai-whisper>=20231117
