@@ -12,8 +12,9 @@ from app.models.timeline import EditableSegment, ExportProfile, SegmentState, Ti
 
 # ASS subtitle template with bilingual style (both at bottom, English above Chinese)
 # Alignment: 2 = bottom center
-# English: smaller font (44), white text, gray outline, positioned higher (MarginV=120)
-# Chinese: larger font (52), yellow text, positioned lower (MarginV=30)
+# In ASS bottom alignment, SMALLER MarginV = closer to bottom edge = lower on screen
+# English: smaller font (44), white text, gray outline, positioned higher (MarginV=30 = higher position)
+# Chinese: larger font (52), yellow text, positioned lower (MarginV=120 = lower position)
 ASS_HEADER = """[Script Info]
 Title: Hardcore Player Bilingual Subtitles
 ScriptType: v4.00+
@@ -23,8 +24,8 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: English,Arial,44,&H00FFFFFF,&H000000FF,&H00404040,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,20,20,120,1
-Style: Chinese,Microsoft YaHei,52,&H0000FFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,1,2,20,20,30,1
+Style: English,Arial,44,&H00FFFFFF,&H000000FF,&H00404040,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,20,20,30,1
+Style: Chinese,Microsoft YaHei,52,&H0000FFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,1,2,20,20,120,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -191,13 +192,23 @@ class ExportWorker:
         chinese_font_size = max(24, int(base_zh_size * scale_factor))
 
         # Calculate vertical positions to center both subtitles as a group
+        # Layout from top to bottom: English (white) -> gap -> Chinese (yellow)
+        # In ASS with Alignment=2 (bottom), MarginV is distance from bottom
+        # HIGHER MarginV = closer to top of subtitle area
         gap_between = int(20 * scale_factor)  # Gap between English and Chinese
         total_block_height = english_font_size + gap_between + chinese_font_size
 
         # Center the block in subtitle area
         block_bottom = (subtitle_area_height - total_block_height) // 2
+        # Chinese at bottom (smaller margin = closer to bottom edge)
         chinese_margin_v = max(10, block_bottom)
+        # English above Chinese (larger margin = further from bottom edge = higher on screen)
         english_margin_v = chinese_margin_v + chinese_font_size + gap_between
+
+        # IMPORTANT: Swap margins to match frontend preview
+        # Frontend renders English on top, Chinese on bottom
+        # But ASS MarginV with bottom alignment works inversely
+        english_margin_v, chinese_margin_v = chinese_margin_v, english_margin_v
 
         # Convert colors to ASS format
         english_color = self._hex_to_ass_color(en_color_hex, 0)
