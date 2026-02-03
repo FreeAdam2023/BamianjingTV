@@ -44,6 +44,7 @@ from app.api import (
     queue_router,
     cleanup_router,
     channels_router,
+    scenemind_router,
     # Setup functions
     set_source_manager,
     set_item_manager,
@@ -60,6 +61,8 @@ from app.api import (
     set_webhook_service,
     set_queue_job_queue,
     get_connection_manager,
+    set_scenemind_session_manager,
+    set_frame_capture_worker,
 )
 
 
@@ -108,6 +111,17 @@ async def lifespan(app: FastAPI):
     set_jobs_dir(settings.jobs_dir)
 
     logger.info(f"Initialized timeline manager: {timeline_manager.get_stats()['total']} timelines")
+
+    # ========== SceneMind: Initialize session manager ==========
+    from app.services.scenemind import SceneMindSessionManager
+    from app.workers.scenemind import FrameCaptureWorker
+
+    scenemind_session_manager = SceneMindSessionManager()
+    set_scenemind_session_manager(scenemind_session_manager)
+    frame_capture_worker = FrameCaptureWorker()
+    set_frame_capture_worker(frame_capture_worker)
+
+    logger.info(f"Initialized SceneMind: {scenemind_session_manager.get_stats()['total']} sessions")
 
     # v2: Get WebSocket connection manager
     ws_manager = get_connection_manager()
@@ -223,6 +237,7 @@ app.include_router(jobs_router)
 app.include_router(queue_router)
 app.include_router(cleanup_router)
 app.include_router(channels_router)
+app.include_router(scenemind_router)
 
 
 # ============ Root Endpoints ============

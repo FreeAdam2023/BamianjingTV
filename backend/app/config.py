@@ -38,6 +38,21 @@ class Settings(BaseSettings):
         """Path to timelines directory."""
         return self.data_dir / "timelines"
 
+    @property
+    def scenemind_dir(self) -> Path:
+        """SceneMind data directory."""
+        return self.data_dir / "scenemind"
+
+    @property
+    def scenemind_sessions_dir(self) -> Path:
+        """SceneMind sessions directory."""
+        return self.scenemind_dir / "sessions"
+
+    @property
+    def scenemind_frames_dir(self) -> Path:
+        """SceneMind frames directory."""
+        return self.scenemind_dir / "frames"
+
     # Whisper settings
     whisper_model: str = "large-v3"
     whisper_device: str = "cuda"
@@ -134,3 +149,5 @@ settings.data_dir.mkdir(parents=True, exist_ok=True)
 settings.items_dir.mkdir(parents=True, exist_ok=True)
 settings.timelines_dir.mkdir(parents=True, exist_ok=True)
 settings.models_cache_dir.mkdir(parents=True, exist_ok=True)
+settings.scenemind_sessions_dir.mkdir(parents=True, exist_ok=True)
+settings.scenemind_frames_dir.mkdir(parents=True, exist_ok=True)

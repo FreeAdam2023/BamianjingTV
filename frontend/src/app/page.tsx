@@ -130,6 +130,14 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-3">
             <Link
+              href="/scenemind"
+              className="btn btn-secondary flex items-center gap-2"
+              title="SceneMind - Watch & Learn"
+            >
+              <span className="text-lg">🧠</span>
+              SceneMind
+            </Link>
+            <Link
               href="/channels"
               className="btn btn-secondary flex items-center gap-2"
               title="Manage publishing channels"

@@ -26,6 +26,11 @@ from .segments import router as segments_router
 from .export import router as export_router
 from .media import router as media_router
 from .channels import router as channels_router
+from .scenemind import (
+    router as scenemind_router,
+    set_session_manager as set_scenemind_session_manager,
+    set_frame_capture_worker,
+)
 
 __all__ = [
     # v2 Routers
@@ -43,6 +48,8 @@ __all__ = [
     "queue_router",
     "cleanup_router",
     "channels_router",
+    # SceneMind Router
+    "scenemind_router",
     # v2 Setup functions
     "set_source_manager",
     "set_item_manager",
@@ -61,4 +68,7 @@ __all__ = [
     "set_job_queue",
     "set_webhook_service",
     "set_queue_job_queue",
+    # SceneMind Setup functions
+    "set_scenemind_session_manager",
+    "set_frame_capture_worker",
 ]
