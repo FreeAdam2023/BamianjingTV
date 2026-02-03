@@ -693,6 +693,14 @@ export interface DubbingStatus {
   error: string | null;
 }
 
+export interface LipSyncStatus {
+  status: "pending" | "detecting_faces" | "processing" | "completed" | "failed" | "skipped";
+  progress: number;
+  current_step: string | null;
+  faces_detected: number;
+  error: string | null;
+}
+
 export interface PreviewRequest {
   segment_id: number;
   text?: string;

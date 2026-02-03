@@ -64,6 +64,7 @@ import type {
   SpeakerVoiceUpdate,
   SeparationStatus,
   DubbingStatus,
+  LipSyncStatus,
   PreviewRequest,
   PreviewResponse,
 } from "./types";
@@ -1063,4 +1064,22 @@ export function getDubbingPreviewUrl(timelineId: string, segmentId: number): str
 
 export function getDubbedVideoUrl(timelineId: string): string {
   return `${getApiBase()}/timelines/${timelineId}/dubbing/output`;
+}
+
+// ============ Lip Sync API ============
+
+export async function getLipSyncStatus(timelineId: string): Promise<LipSyncStatus> {
+  return fetchAPI<LipSyncStatus>(`/timelines/${timelineId}/dubbing/lip-sync/status`);
+}
+
+export async function triggerLipSync(
+  timelineId: string
+): Promise<{ message: string; status: string }> {
+  return fetchAPI(`/timelines/${timelineId}/dubbing/lip-sync`, {
+    method: "POST",
+  });
+}
+
+export function getLipSyncedVideoUrl(timelineId: string): string {
+  return `${getApiBase()}/timelines/${timelineId}/dubbing/lip-sync/output`;
 }

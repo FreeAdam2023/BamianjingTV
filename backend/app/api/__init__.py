@@ -50,6 +50,7 @@ from .dubbing import (
     set_audio_separation_worker,
     set_voice_clone_worker,
     set_audio_mixer_worker,
+    set_lip_sync_worker,
 )
 
 __all__ = [
@@ -109,4 +110,5 @@ __all__ = [
     "set_audio_separation_worker",
     "set_voice_clone_worker",
     "set_audio_mixer_worker",
+    "set_lip_sync_worker",
 ]

@@ -21,6 +21,7 @@ _timeline_manager = None
 _audio_separation_worker = None
 _voice_clone_worker = None
 _audio_mixer_worker = None
+_lip_sync_worker = None
 
 
 def set_timeline_manager(manager):
@@ -41,6 +42,11 @@ def set_voice_clone_worker(worker):
 def set_audio_mixer_worker(worker):
     global _audio_mixer_worker
     _audio_mixer_worker = worker
+
+
+def set_lip_sync_worker(worker):
+    global _lip_sync_worker
+    _lip_sync_worker = worker
 
 
 def _get_timeline(timeline_id: str) -> Timeline:
@@ -126,12 +132,22 @@ class PreviewResponse(BaseModel):
     duration: float
 
 
+class LipSyncStatus(BaseModel):
+    """Status of lip sync processing."""
+    status: str  # pending, detecting_faces, processing, completed, failed, skipped
+    progress: float = 0  # 0-100
+    current_step: Optional[str] = None
+    faces_detected: int = 0
+    error: Optional[str] = None
+
+
 # ============ In-memory state for dubbing jobs ============
 
 _dubbing_configs: Dict[str, DubbingConfig] = {}
 _dubbing_status: Dict[str, DubbingStatus] = {}
 _separation_status: Dict[str, SeparationStatus] = {}
 _speaker_configs: Dict[str, Dict[str, SpeakerVoiceConfig]] = {}
+_lip_sync_status: Dict[str, LipSyncStatus] = {}
 
 
 # ============ Config Endpoints ============
@@ -594,3 +610,149 @@ async def get_dubbed_video(timeline_id: str):
         raise HTTPException(status_code=404, detail="Dubbed video not ready")
 
     return FileResponse(output_path, media_type="video/mp4")
+
+
+# ============ Lip Sync Endpoints ============
+
+
+@router.get("/lip-sync/status", response_model=LipSyncStatus)
+async def get_lip_sync_status(timeline_id: str):
+    """Get lip sync processing status."""
+    _get_timeline(timeline_id)
+
+    if timeline_id not in _lip_sync_status:
+        return LipSyncStatus(status="pending")
+
+    return _lip_sync_status[timeline_id]
+
+
+@router.post("/lip-sync")
+async def trigger_lip_sync(timeline_id: str, background_tasks: BackgroundTasks):
+    """
+    Apply lip sync to dubbed video using Wav2Lip.
+
+    Prerequisites:
+    - Dubbing must be completed first (dubbed_video.mp4 exists)
+    """
+    timeline = _get_timeline(timeline_id)
+
+    if _lip_sync_worker is None:
+        raise HTTPException(status_code=503, detail="Lip sync worker not initialized")
+
+    # Check if dubbing is complete
+    dubbing_dir = _get_dubbing_dir(timeline_id)
+    dubbed_video = dubbing_dir / "dubbed_video.mp4"
+
+    if not dubbed_video.exists():
+        raise HTTPException(
+            status_code=400,
+            detail="Dubbed video not found. Run 'generate' first to create dubbed video."
+        )
+
+    # Check if already processing
+    if timeline_id in _lip_sync_status:
+        status = _lip_sync_status[timeline_id]
+        if status.status in ("detecting_faces", "processing"):
+            return {"message": "Lip sync already in progress", "status": status.status}
+
+    # Initialize status
+    _lip_sync_status[timeline_id] = LipSyncStatus(
+        status="detecting_faces",
+        current_step="Detecting faces in video",
+    )
+
+    # Run lip sync in background
+    background_tasks.add_task(_run_lip_sync, timeline_id)
+
+    return {"message": "Lip sync started", "status": "detecting_faces"}
+
+
+async def _run_lip_sync(timeline_id: str):
+    """Background task to run lip sync."""
+    try:
+        dubbing_dir = _get_dubbing_dir(timeline_id)
+        dubbed_video = dubbing_dir / "dubbed_video.mp4"
+        mixed_audio = dubbing_dir / "mixed.wav"
+
+        # Step 1: Detect faces
+        _lip_sync_status[timeline_id].current_step = "Detecting faces"
+        _lip_sync_status[timeline_id].progress = 10
+
+        faces = await _lip_sync_worker.detect_faces_in_video(dubbed_video)
+        _lip_sync_status[timeline_id].faces_detected = len(faces)
+
+        if not faces:
+            logger.info(f"No faces detected in timeline {timeline_id}, skipping lip sync")
+            _lip_sync_status[timeline_id] = LipSyncStatus(
+                status="skipped",
+                progress=100,
+                faces_detected=0,
+                current_step="No faces detected - skipped",
+            )
+            return
+
+        # Step 2: Track faces
+        _lip_sync_status[timeline_id].status = "processing"
+        _lip_sync_status[timeline_id].current_step = "Tracking faces"
+        _lip_sync_status[timeline_id].progress = 30
+
+        tracks = await _lip_sync_worker.track_faces(faces)
+        logger.info(f"Found {len(tracks)} face tracks in timeline {timeline_id}")
+
+        # Step 3: Apply lip sync
+        _lip_sync_status[timeline_id].current_step = "Applying lip sync (Wav2Lip)"
+        _lip_sync_status[timeline_id].progress = 50
+
+        output_path = dubbing_dir / "lip_synced_video.mp4"
+
+        await _lip_sync_worker.lip_sync_video(
+            video_path=dubbed_video,
+            audio_path=mixed_audio,
+            output_path=output_path,
+            progress_callback=lambda cur, total, msg: _update_lip_sync_progress(
+                timeline_id, cur, total, msg
+            ),
+        )
+
+        _lip_sync_status[timeline_id] = LipSyncStatus(
+            status="completed",
+            progress=100,
+            faces_detected=len(faces),
+            current_step="Complete",
+        )
+
+        logger.info(f"Lip sync completed for timeline {timeline_id}")
+
+    except Exception as e:
+        logger.error(f"Lip sync failed for {timeline_id}: {e}")
+        _lip_sync_status[timeline_id] = LipSyncStatus(
+            status="failed",
+            error=str(e),
+        )
+
+
+def _update_lip_sync_progress(timeline_id: str, current: int, total: int, message: str):
+    """Update lip sync progress."""
+    if timeline_id in _lip_sync_status:
+        # Map to 50-100% range (first 50% is face detection/tracking)
+        progress = 50 + int((current / max(total, 1)) * 50)
+        _lip_sync_status[timeline_id].progress = progress
+        _lip_sync_status[timeline_id].current_step = message
+
+
+@router.get("/lip-sync/output")
+async def get_lip_synced_video(timeline_id: str):
+    """Get the lip-synced video."""
+    _get_timeline(timeline_id)
+    dubbing_dir = _get_dubbing_dir(timeline_id)
+
+    # Prefer lip-synced video, fall back to dubbed video
+    lip_synced_path = dubbing_dir / "lip_synced_video.mp4"
+    dubbed_path = dubbing_dir / "dubbed_video.mp4"
+
+    if lip_synced_path.exists():
+        return FileResponse(lip_synced_path, media_type="video/mp4")
+    elif dubbed_path.exists():
+        return FileResponse(dubbed_path, media_type="video/mp4")
+    else:
+        raise HTTPException(status_code=404, detail="No dubbed video available")

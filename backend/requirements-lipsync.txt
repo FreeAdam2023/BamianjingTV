@@ -1,0 +1,16 @@
+# Optional dependencies for Lip Sync (Phase 3)
+# Install with: pip install -r requirements-lipsync.txt
+
+# Face detection
+mediapipe>=0.10.0
+opencv-python>=4.8.0
+
+# Note: Wav2Lip requires manual setup:
+# 1. Clone Wav2Lip repo: git clone https://github.com/Rudrabha/Wav2Lip.git
+# 2. Download pretrained models:
+#    - wav2lip.pth (recommended)
+#    - wav2lip_gan.pth (higher quality, slower)
+#    Put them in Wav2Lip/checkpoints/
+# 3. Install Wav2Lip dependencies:
+#    cd Wav2Lip && pip install -r requirements.txt
+# 4. Configure LipSyncWorker with wav2lip_path and model_path

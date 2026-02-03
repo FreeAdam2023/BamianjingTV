@@ -80,6 +80,7 @@ from app.api import (
     set_audio_separation_worker,
     set_voice_clone_worker,
     set_audio_mixer_worker,
+    set_lip_sync_worker,
 )
 
 
@@ -180,17 +181,21 @@ async def lifespan(app: FastAPI):
     from app.workers.audio_separation import AudioSeparationWorker, DEMUCS_AVAILABLE
     from app.workers.voice_clone import VoiceCloneWorker, TTS_AVAILABLE
     from app.workers.audio_mixer import AudioMixerWorker
+    from app.workers.lip_sync import LipSyncWorker
 
     # Initialize workers (they handle missing dependencies gracefully)
     audio_separation_worker = AudioSeparationWorker()
     voice_clone_worker = VoiceCloneWorker() if TTS_AVAILABLE else None
     audio_mixer_worker = AudioMixerWorker()
+    lip_sync_worker = LipSyncWorker()
 
     set_dubbing_timeline_manager(timeline_manager)
     set_audio_separation_worker(audio_separation_worker)
     set_audio_mixer_worker(audio_mixer_worker)
     if voice_clone_worker:
         set_voice_clone_worker(voice_clone_worker)
+    if lip_sync_worker.is_available:
+        set_lip_sync_worker(lip_sync_worker)
 
     dubbing_features = []
     if DEMUCS_AVAILABLE:
@@ -198,6 +203,10 @@ async def lifespan(app: FastAPI):
     if TTS_AVAILABLE:
         dubbing_features.append("voice_clone")
     dubbing_features.append("audio_mixing")
+    if lip_sync_worker.is_available:
+        dubbing_features.append("lip_sync")
+        if lip_sync_worker.wav2lip_available:
+            dubbing_features.append("wav2lip")
 
     logger.info(f"Initialized Dubbing: features={dubbing_features}")
 

@@ -23,7 +23,7 @@ import {
   triggerSeparation,
   generateDubbing,
 } from "@/lib/api";
-import { VoiceConfig, DubbedPreview } from "@/components/Dubbing";
+import { VoiceConfig, DubbedPreview, LipSyncPreview } from "@/components/Dubbing";
 
 export default function DubbingPage() {
   const params = useParams();
@@ -261,12 +261,20 @@ export default function DubbingPage() {
           </div>
 
           {/* Right column - Preview */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 space-y-6">
             <DubbedPreview
               timelineId={timelineId}
               separationStatus={separationStatus}
               dubbingStatus={dubbingStatus}
             />
+
+            {/* Lip Sync (optional, shown after dubbing is complete) */}
+            {dubbingStatus.status === "completed" && (
+              <LipSyncPreview
+                timelineId={timelineId}
+                dubbingStatus={dubbingStatus}
+              />
+            )}
           </div>
         </div>
       </main>
