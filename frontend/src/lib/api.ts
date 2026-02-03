@@ -57,6 +57,15 @@ import type {
   MemoryItemUpdate,
   MemoryItemType,
   MemoryItemExistsResponse,
+  // Dubbing
+  DubbingConfig,
+  DubbingConfigUpdate,
+  SpeakerVoiceConfig,
+  SpeakerVoiceUpdate,
+  SeparationStatus,
+  DubbingStatus,
+  PreviewRequest,
+  PreviewResponse,
 } from "./types";
 
 // Get API URL: use env var or derive from current host with port 8000
@@ -974,4 +983,84 @@ export function getMemoryItemTypeIcon(type: MemoryItemType): string {
     observation: "📸",
   };
   return icons[type] || "📌";
+}
+
+// ============ Dubbing API ============
+
+export async function getDubbingConfig(timelineId: string): Promise<DubbingConfig> {
+  return fetchAPI<DubbingConfig>(`/timelines/${timelineId}/dubbing/config`);
+}
+
+export async function updateDubbingConfig(
+  timelineId: string,
+  update: DubbingConfigUpdate
+): Promise<DubbingConfig> {
+  return fetchAPI<DubbingConfig>(`/timelines/${timelineId}/dubbing/config`, {
+    method: "PATCH",
+    body: JSON.stringify(update),
+  });
+}
+
+export async function getDubbingSpeakers(timelineId: string): Promise<SpeakerVoiceConfig[]> {
+  return fetchAPI<SpeakerVoiceConfig[]>(`/timelines/${timelineId}/dubbing/speakers`);
+}
+
+export async function updateDubbingSpeaker(
+  timelineId: string,
+  speakerId: string,
+  update: SpeakerVoiceUpdate
+): Promise<SpeakerVoiceConfig> {
+  return fetchAPI<SpeakerVoiceConfig>(
+    `/timelines/${timelineId}/dubbing/speakers/${speakerId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(update),
+    }
+  );
+}
+
+export async function getSeparationStatus(timelineId: string): Promise<SeparationStatus> {
+  return fetchAPI<SeparationStatus>(`/timelines/${timelineId}/dubbing/separation/status`);
+}
+
+export async function triggerSeparation(
+  timelineId: string
+): Promise<{ message: string; status: string }> {
+  return fetchAPI(`/timelines/${timelineId}/dubbing/separate`, {
+    method: "POST",
+  });
+}
+
+export async function getDubbingStatus(timelineId: string): Promise<DubbingStatus> {
+  return fetchAPI<DubbingStatus>(`/timelines/${timelineId}/dubbing/status`);
+}
+
+export async function generateDubbing(
+  timelineId: string
+): Promise<{ message: string; status: string }> {
+  return fetchAPI(`/timelines/${timelineId}/dubbing/generate`, {
+    method: "POST",
+  });
+}
+
+export async function previewDubbedSegment(
+  timelineId: string,
+  request: PreviewRequest
+): Promise<PreviewResponse> {
+  return fetchAPI<PreviewResponse>(`/timelines/${timelineId}/dubbing/preview`, {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
+}
+
+export function getDubbingAudioUrl(timelineId: string, audioType: string): string {
+  return `${getApiBase()}/timelines/${timelineId}/dubbing/audio/${audioType}`;
+}
+
+export function getDubbingPreviewUrl(timelineId: string, segmentId: number): string {
+  return `${getApiBase()}/timelines/${timelineId}/dubbing/preview/${segmentId}`;
+}
+
+export function getDubbedVideoUrl(timelineId: string): string {
+  return `${getApiBase()}/timelines/${timelineId}/dubbing/output`;
 }

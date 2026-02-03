@@ -44,6 +44,13 @@ from .memory_books import (
     set_memory_book_manager,
     set_anki_export_worker,
 )
+from .dubbing import (
+    router as dubbing_router,
+    set_timeline_manager as set_dubbing_timeline_manager,
+    set_audio_separation_worker,
+    set_voice_clone_worker,
+    set_audio_mixer_worker,
+)
 
 __all__ = [
     # v2 Routers
@@ -96,4 +103,10 @@ __all__ = [
     "memory_books_router",
     "set_memory_book_manager",
     "set_anki_export_worker",
+    # Dubbing Router and Setup functions
+    "dubbing_router",
+    "set_dubbing_timeline_manager",
+    "set_audio_separation_worker",
+    "set_voice_clone_worker",
+    "set_audio_mixer_worker",
 ]

@@ -10,7 +10,7 @@
 |------|------|--------|
 | **Learning Mode** (原 Hardcore Player) | ✅ 生产可用 | 95% |
 | **Watching Mode** (SceneMind) | ✅ Phase 1A 完成 | 90% |
-| **Dubbing Mode** | ❌ 未开始 | 0% |
+| **Dubbing Mode** | ✅ Phase 2 完成 | 100% |
 | **卡片系统** | ✅ Phase 1B 完成 | 100% |
 | **透明字幕渲染** | ✅ Phase 1C 完成 | 100% |
 | **记忆本** | ✅ Phase 1D 完成 | 100% |
@@ -369,48 +369,49 @@ class MemoryItem(BaseModel):
 > **目标**: 实现音色克隆 + 背景音保留 + 音轨混合
 > **预估工时**: 44h
 > **优先级**: 🟢 低
+> **状态**: ✅ 已完成
 
 ### 2.1 音频分离 (Demucs)
 
 | ID | 任务 | 文件 | 工时 | 状态 |
 |----|------|------|------|------|
-| 2.1.1 | Demucs 环境配置 | `requirements.txt` | 1h | ⬜ |
-| 2.1.2 | AudioSeparationWorker | `backend/app/workers/audio_separation.py` | 4h | ⬜ |
-| 2.1.3 | 输出: vocals/bgm/sfx 分离 | `backend/app/workers/audio_separation.py` | 2h | ⬜ |
+| 2.1.1 | Demucs 环境配置 | `requirements-dubbing.txt` | 1h | ✅ |
+| 2.1.2 | AudioSeparationWorker | `backend/app/workers/audio_separation.py` | 4h | ✅ |
+| 2.1.3 | 输出: vocals/bgm/sfx 分离 | `backend/app/workers/audio_separation.py` | 2h | ✅ |
 
 ### 2.2 音色克隆 (XTTS v2)
 
 | ID | 任务 | 文件 | 工时 | 状态 |
 |----|------|------|------|------|
-| 2.2.1 | XTTS v2 环境配置 | `requirements.txt` | 2h | ⬜ |
-| 2.2.2 | VoiceCloneWorker 基础 | `backend/app/workers/voice_clone.py` | 3h | ⬜ |
-| 2.2.3 | 说话人音色样本提取 | `backend/app/workers/voice_clone.py` | 2h | ⬜ |
-| 2.2.4 | 按说话人分别合成配音 | `backend/app/workers/voice_clone.py` | 4h | ⬜ |
-| 2.2.5 | 语速调整 (时长对齐) | `backend/app/workers/voice_clone.py` | 3h | ⬜ |
+| 2.2.1 | XTTS v2 环境配置 | `requirements-dubbing.txt` | 2h | ✅ |
+| 2.2.2 | VoiceCloneWorker 基础 | `backend/app/workers/voice_clone.py` | 3h | ✅ |
+| 2.2.3 | 说话人音色样本提取 | `backend/app/workers/voice_clone.py` | 2h | ✅ |
+| 2.2.4 | 按说话人分别合成配音 | `backend/app/workers/voice_clone.py` | 4h | ✅ |
+| 2.2.5 | 语速调整 (时长对齐) | `backend/app/workers/voice_clone.py` | 3h | ✅ |
 
 ### 2.3 音轨混合
 
 | ID | 任务 | 文件 | 工时 | 状态 |
 |----|------|------|------|------|
-| 2.3.1 | AudioMixerWorker | `backend/app/workers/audio_mixer.py` | 3h | ⬜ |
-| 2.3.2 | 配音 + BGM + SFX 混合 | `backend/app/workers/audio_mixer.py` | 2h | ⬜ |
-| 2.3.3 | 音量平衡 + 淡入淡出 | `backend/app/workers/audio_mixer.py` | 2h | ⬜ |
+| 2.3.1 | AudioMixerWorker | `backend/app/workers/audio_mixer.py` | 3h | ✅ |
+| 2.3.2 | 配音 + BGM + SFX 混合 | `backend/app/workers/audio_mixer.py` | 2h | ✅ |
+| 2.3.3 | 音量平衡 + 淡入淡出 | `backend/app/workers/audio_mixer.py` | 2h | ✅ |
 
 ### 2.4 API 和前端
 
 | ID | 任务 | 文件 | 工时 | 状态 |
 |----|------|------|------|------|
-| 2.4.1 | Dubbing API 端点 | `backend/app/api/dubbing.py` | 3h | ⬜ |
-| 2.4.2 | 前端: 配音模式页面 | `frontend/src/app/dub/[timelineId]/page.tsx` | 6h | ⬜ |
-| 2.4.3 | 前端: 音色配置面板 | `frontend/src/components/Dubbing/VoiceConfig.tsx` | 4h | ⬜ |
-| 2.4.4 | 前端: 配音预览播放器 | `frontend/src/components/Dubbing/DubbedPreview.tsx` | 3h | ⬜ |
+| 2.4.1 | Dubbing API 端点 | `backend/app/api/dubbing.py` | 3h | ✅ |
+| 2.4.2 | 前端: 配音模式页面 | `frontend/src/app/dub/[timelineId]/page.tsx` | 6h | ✅ |
+| 2.4.3 | 前端: 音色配置面板 | `frontend/src/components/Dubbing/VoiceConfig.tsx` | 4h | ✅ |
+| 2.4.4 | 前端: 配音预览播放器 | `frontend/src/components/Dubbing/DubbedPreview.tsx` | 3h | ✅ |
 
 ### 验收标准
 
-- [ ] 视频自动分离人声/背景音
-- [ ] 可克隆说话人音色进行配音
-- [ ] 配音与原视频时长对齐 (语速自动调整)
-- [ ] 导出完整配音视频 (配音 + BGM + SFX)
+- [x] 视频自动分离人声/背景音
+- [x] 可克隆说话人音色进行配音
+- [x] 配音与原视频时长对齐 (语速自动调整)
+- [x] 导出完整配音视频 (配音 + BGM + SFX)
 
 ### API 端点
 
@@ -501,7 +502,7 @@ GET    /timelines/{id}/dubbing/audio/{type} # 获取音频 (vocals/bgm/sfx/dubbe
 | **1A** | 合并 SceneMind | 13h | 🟡 中 | Phase 0 | ✅ 完成 |
 | **1C** | 透明字幕渲染 | 8.5h | 🟡 中 | Phase 0 | ✅ 完成 |
 | **1D** | 记忆本 + Anki | 19h | 🟡 中 | Phase 1B | ✅ 完成 |
-| **2** | 配音模式 | 44h | 🟢 低 | Phase 0 | ⬜ 未开始 |
+| **2** | 配音模式 | 44h | 🟢 低 | Phase 0 | ✅ 完成 |
 | **3** | 口型同步 | 21h | ⚪ 可选 | Phase 2 | ⬜ 未开始 |
 | | **总计** | **152h** | | | |
 
@@ -515,7 +516,7 @@ GET    /timelines/{id}/dubbing/audio/{type} # 获取音频 (vocals/bgm/sfx/dubbe
 | **M2** | Phase 1B | 2 周 | 可点击字幕，单词/实体卡片弹窗 | ✅ 完成 |
 | **M3** | Phase 1A + 1C | 1.5 周 | 观影模式完整，透明字幕导出 | ✅ 完成 |
 | **M4** | Phase 1D | 1.5 周 | 记忆本功能，Anki 导出 | ✅ 完成 |
-| **M5** | Phase 2 | 3 周 | 配音模式 MVP | ⬜ 未开始 |
+| **M5** | Phase 2 | 3 周 | 配音模式 MVP | ✅ 完成 |
 | **M6** | Phase 3 | 2 周 | 口型同步 (实验性) | ⬜ 未开始 |
 
 ---
@@ -623,13 +624,13 @@ genanki>=0.13.0
 - [x] 导出的 .apkg 可正常导入 Anki
 
 ### Phase 2 完成标准
-- [ ] 音频分离 (vocals/bgm/sfx)
-- [ ] 音色克隆功能
-- [ ] 语速自动对齐
-- [ ] 音轨混合
-- [ ] 配音预览
-- [ ] 完整配音视频导出
+- [x] 音频分离 (vocals/bgm/sfx) - AudioSeparationWorker
+- [x] 音色克隆功能 - VoiceCloneWorker (XTTS v2)
+- [x] 语速自动对齐 - synthesize_segment()
+- [x] 音轨混合 - AudioMixerWorker
+- [x] 配音预览 - /timelines/{id}/dubbing/preview
+- [x] 完整配音视频导出 - /timelines/{id}/dubbing/output
 
 ---
 
-*最后更新: 2026-02-03 (Phase 0/1A/1B/1C/1D 已完成)*
+*最后更新: 2026-02-03 (Phase 0/1A/1B/1C/1D/2 已完成，仅剩 Phase 3 口型同步)*

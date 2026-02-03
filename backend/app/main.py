@@ -74,6 +74,12 @@ from app.api import (
     # Memory Books setup functions
     set_memory_book_manager,
     set_anki_export_worker,
+    # Dubbing setup functions
+    dubbing_router,
+    set_dubbing_timeline_manager,
+    set_audio_separation_worker,
+    set_voice_clone_worker,
+    set_audio_mixer_worker,
 )
 
 
@@ -169,6 +175,31 @@ async def lifespan(app: FastAPI):
         logger.info(f"Initialized Memory Books: {len(memory_book_manager.list_books())} books, Anki export enabled")
     else:
         logger.warning("Initialized Memory Books: Anki export disabled (genanki not installed)")
+
+    # ========== Dubbing: Initialize dubbing workers ==========
+    from app.workers.audio_separation import AudioSeparationWorker, DEMUCS_AVAILABLE
+    from app.workers.voice_clone import VoiceCloneWorker, TTS_AVAILABLE
+    from app.workers.audio_mixer import AudioMixerWorker
+
+    # Initialize workers (they handle missing dependencies gracefully)
+    audio_separation_worker = AudioSeparationWorker()
+    voice_clone_worker = VoiceCloneWorker() if TTS_AVAILABLE else None
+    audio_mixer_worker = AudioMixerWorker()
+
+    set_dubbing_timeline_manager(timeline_manager)
+    set_audio_separation_worker(audio_separation_worker)
+    set_audio_mixer_worker(audio_mixer_worker)
+    if voice_clone_worker:
+        set_voice_clone_worker(voice_clone_worker)
+
+    dubbing_features = []
+    if DEMUCS_AVAILABLE:
+        dubbing_features.append("audio_separation")
+    if TTS_AVAILABLE:
+        dubbing_features.append("voice_clone")
+    dubbing_features.append("audio_mixing")
+
+    logger.info(f"Initialized Dubbing: features={dubbing_features}")
 
     # v2: Get WebSocket connection manager
     ws_manager = get_connection_manager()
@@ -288,6 +319,7 @@ app.include_router(channels_router)
 app.include_router(scenemind_router)
 app.include_router(cards_router)
 app.include_router(memory_books_router)
+app.include_router(dubbing_router)
 
 
 # ============ Root Endpoints ============

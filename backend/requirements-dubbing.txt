@@ -1,0 +1,19 @@
+# Dubbing Mode Dependencies (Optional)
+# Install with: pip install -r requirements-dubbing.txt
+#
+# Note: These dependencies are large and require GPU for best performance.
+# Dubbing mode will work without them using FFmpeg fallbacks where possible.
+
+# Audio Separation (Demucs)
+# Demucs is Facebook's audio source separation model
+# Supports htdemucs (hybrid transformer) for best quality
+demucs>=4.0.0
+
+# Voice Cloning (Coqui TTS with XTTS v2)
+# XTTS v2 is a multilingual voice cloning model
+# Can clone any voice from ~6 seconds of audio
+TTS>=0.22.0
+
+# Note: PyTorch and torchaudio are already required by pyannote.audio
+# but TTS may need specific versions. If you have issues, try:
+# pip install torch==2.1.0 torchaudio==2.1.0

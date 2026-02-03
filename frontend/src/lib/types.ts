@@ -643,3 +643,63 @@ export interface MemoryItemExistsResponse {
   exists: boolean;
   item_id: string | null;
 }
+
+// ============ Dubbing Types ============
+
+export interface DubbingConfig {
+  bgm_volume: number;
+  sfx_volume: number;
+  vocal_volume: number;
+  target_language: string;
+  keep_bgm: boolean;
+  keep_sfx: boolean;
+}
+
+export interface DubbingConfigUpdate {
+  bgm_volume?: number;
+  sfx_volume?: number;
+  vocal_volume?: number;
+  target_language?: string;
+  keep_bgm?: boolean;
+  keep_sfx?: boolean;
+}
+
+export interface SpeakerVoiceConfig {
+  speaker_id: string;
+  display_name: string;
+  voice_sample_path: string | null;
+  is_enabled: boolean;
+}
+
+export interface SpeakerVoiceUpdate {
+  display_name?: string;
+  is_enabled?: boolean;
+}
+
+export interface SeparationStatus {
+  status: "pending" | "processing" | "completed" | "failed";
+  vocals_path: string | null;
+  bgm_path: string | null;
+  sfx_path: string | null;
+  error: string | null;
+}
+
+export interface DubbingStatus {
+  status: "pending" | "separating" | "extracting_samples" | "synthesizing" | "mixing" | "completed" | "failed";
+  progress: number;
+  current_step: string | null;
+  dubbed_segments: number;
+  total_segments: number;
+  error: string | null;
+}
+
+export interface PreviewRequest {
+  segment_id: number;
+  text?: string;
+}
+
+export interface PreviewResponse {
+  segment_id: number;
+  audio_url: string;
+  duration: number;
+}
