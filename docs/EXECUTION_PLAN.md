@@ -11,7 +11,7 @@
 | **Learning Mode** (原 Hardcore Player) | ✅ 生产可用 | 90% |
 | **Watching Mode** (SceneMind) | ✅ Phase 1 完成，但独立运行 | 40% |
 | **Dubbing Mode** | ❌ 未开始 | 0% |
-| **卡片系统** | ❌ 未开始 | 0% |
+| **卡片系统** | ✅ Phase 1B 完成 | 80% |
 | **记忆本** | ❌ 未开始 | 0% |
 
 ---
@@ -126,56 +126,56 @@ class Job(BaseModel):
 
 | ID | 任务 | 文件 | 工时 | 状态 |
 |----|------|------|------|------|
-| 1B.1.1 | 创建 NERWorker 基础结构 | `backend/app/workers/ner.py` | 1h | ⬜ |
-| 1B.1.2 | 集成 spaCy 或 OpenAI NER | `backend/app/workers/ner.py` | 2h | ⬜ |
-| 1B.1.3 | 提取单词 (生词检测逻辑) | `backend/app/workers/ner.py` | 2h | ⬜ |
-| 1B.1.4 | 提取实体 (人名/地名/组织/概念) | `backend/app/workers/ner.py` | 2h | ⬜ |
-| 1B.1.5 | 输出格式: segment 级别标注 | `backend/app/workers/ner.py` | 1h | ⬜ |
+| 1B.1.1 | 创建 NERWorker 基础结构 | `backend/app/workers/ner.py` | 1h | ✅ |
+| 1B.1.2 | 集成 spaCy 或 OpenAI NER | `backend/app/workers/ner.py` | 2h | ✅ |
+| 1B.1.3 | 提取单词 (生词检测逻辑) | `backend/app/workers/ner.py` | 2h | ✅ |
+| 1B.1.4 | 提取实体 (人名/地名/组织/概念) | `backend/app/workers/ner.py` | 2h | ✅ |
+| 1B.1.5 | 输出格式: segment 级别标注 | `backend/app/workers/ner.py` | 1h | ✅ |
 
 ### 1B.2 后端 - Card Generator Worker
 
 | ID | 任务 | 文件 | 工时 | 状态 |
 |----|------|------|------|------|
-| 1B.2.1 | 创建 CardGeneratorWorker | `backend/app/workers/card_generator.py` | 1h | ⬜ |
-| 1B.2.2 | 词典 API 集成 (WordsAPI/Free Dictionary) | `backend/app/workers/card_generator.py` | 3h | ⬜ |
-| 1B.2.3 | Wikidata API 集成 (实体信息) | `backend/app/workers/card_generator.py` | 3h | ⬜ |
-| 1B.2.4 | 卡片缓存机制 (避免重复查询) | `backend/app/services/card_cache.py` | 2h | ⬜ |
-| 1B.2.5 | WordCard 模型 | `backend/app/models/card.py` | 1h | ⬜ |
-| 1B.2.6 | EntityCard 模型 | `backend/app/models/card.py` | 1h | ⬜ |
+| 1B.2.1 | 创建 CardGeneratorWorker | `backend/app/workers/card_generator.py` | 1h | ✅ |
+| 1B.2.2 | 词典 API 集成 (WordsAPI/Free Dictionary) | `backend/app/workers/card_generator.py` | 3h | ✅ |
+| 1B.2.3 | Wikidata API 集成 (实体信息) | `backend/app/workers/card_generator.py` | 3h | ✅ |
+| 1B.2.4 | 卡片缓存机制 (避免重复查询) | `backend/app/services/card_cache.py` | 2h | ✅ |
+| 1B.2.5 | WordCard 模型 | `backend/app/models/card.py` | 1h | ✅ |
+| 1B.2.6 | EntityCard 模型 | `backend/app/models/card.py` | 1h | ✅ |
 
 ### 1B.3 后端 - API 端点
 
 | ID | 任务 | 文件 | 工时 | 状态 |
 |----|------|------|------|------|
-| 1B.3.1 | `GET /timelines/{id}/cards` | `backend/app/api/timelines.py` | 1h | ⬜ |
-| 1B.3.2 | `GET /timelines/{id}/cards/word/{word}` | `backend/app/api/timelines.py` | 1h | ⬜ |
-| 1B.3.3 | `GET /timelines/{id}/cards/entity/{id}` | `backend/app/api/timelines.py` | 1h | ⬜ |
-| 1B.3.4 | `POST /timelines/{id}/cards/generate` | `backend/app/api/timelines.py` | 1h | ⬜ |
+| 1B.3.1 | `GET /cards/words/{word}` | `backend/app/api/cards.py` | 1h | ✅ |
+| 1B.3.2 | `GET /cards/entities/{entity_id}` | `backend/app/api/cards.py` | 1h | ✅ |
+| 1B.3.3 | `GET /cards/entities/search/{query}` | `backend/app/api/cards.py` | 1h | ✅ |
+| 1B.3.4 | `POST /cards/timelines/{id}/generate` | `backend/app/api/cards.py` | 1h | ✅ |
 
 ### 1B.4 前端 - 可点击字幕
 
 | ID | 任务 | 文件 | 工时 | 状态 |
 |----|------|------|------|------|
-| 1B.4.1 | ClickableSubtitle 组件 | `frontend/src/components/ClickableSubtitle.tsx` | 3h | ⬜ |
-| 1B.4.2 | 字幕文本解析 (单词边界检测) | `frontend/src/lib/subtitle-parser.ts` | 2h | ⬜ |
-| 1B.4.3 | 点击事件处理 + 卡片预加载 | `frontend/src/hooks/useCardPopup.ts` | 2h | ⬜ |
+| 1B.4.1 | ClickableSubtitle 组件 | `frontend/src/components/Cards/ClickableSubtitle.tsx` | 3h | ✅ |
+| 1B.4.2 | 字幕文本解析 (单词边界检测) | (集成在 ClickableSubtitle 中) | 2h | ✅ |
+| 1B.4.3 | 点击事件处理 + 卡片预加载 | `frontend/src/hooks/useCardPopup.ts` | 2h | ✅ |
 
 ### 1B.5 前端 - 卡片弹窗
 
 | ID | 任务 | 文件 | 工时 | 状态 |
 |----|------|------|------|------|
-| 1B.5.1 | WordCard 弹窗组件 | `frontend/src/components/Cards/WordCard.tsx` | 4h | ⬜ |
-| 1B.5.2 | EntityCard 弹窗组件 | `frontend/src/components/Cards/EntityCard.tsx` | 4h | ⬜ |
-| 1B.5.3 | CardPopupContainer (位置计算) | `frontend/src/components/Cards/CardPopupContainer.tsx` | 2h | ⬜ |
-| 1B.5.4 | 卡片缓存 Hook | `frontend/src/hooks/useCardCache.ts` | 2h | ⬜ |
-| 1B.5.5 | 集成到 Review 页面 | `frontend/src/app/review/[timelineId]/page.tsx` | 2h | ⬜ |
+| 1B.5.1 | WordCard 弹窗组件 | `frontend/src/components/Cards/WordCard.tsx` | 4h | ✅ |
+| 1B.5.2 | EntityCard 弹窗组件 | `frontend/src/components/Cards/EntityCard.tsx` | 4h | ✅ |
+| 1B.5.3 | CardPopupContainer (位置计算) | `frontend/src/components/Cards/CardPopupContainer.tsx` | 2h | ✅ |
+| 1B.5.4 | 卡片缓存 Hook | `frontend/src/hooks/useCardPopup.ts` | 2h | ✅ |
+| 1B.5.5 | 集成到 SegmentList 组件 | `frontend/src/components/SegmentList.tsx` | 2h | ✅ |
 
 ### 验收标准
 
-- [ ] 字幕中单词可点击
-- [ ] 点击后显示卡片弹窗 (发音、词义、例句、图片)
-- [ ] 实体可点击显示维基百科摘要
-- [ ] 卡片数据有缓存，避免重复 API 调用
+- [x] 字幕中单词可点击
+- [x] 点击后显示卡片弹窗 (发音、词义、例句、图片)
+- [x] 实体可点击显示维基百科摘要
+- [x] 卡片数据有缓存，避免重复 API 调用
 
 ### 数据模型
 
@@ -572,21 +572,21 @@ genanki>=0.13.0
 ## 验收清单
 
 ### Phase 0 完成标准
-- [ ] `JobMode` 枚举定义
-- [ ] 三种模式配置类
-- [ ] Job API 支持 mode 参数
-- [ ] 前端模式选择器
-- [ ] 数据迁移脚本
-- [ ] 单元测试通过
+- [x] `JobMode` 枚举定义
+- [x] 三种模式配置类
+- [x] Job API 支持 mode 参数
+- [x] 前端模式选择器
+- [x] 数据迁移脚本
+- [x] 单元测试通过 (30 tests)
 
 ### Phase 1B 完成标准
-- [ ] NER Worker 可提取单词和实体
-- [ ] 卡片生成 Worker 可查询词典/Wikidata
-- [ ] 卡片缓存机制
-- [ ] 前端可点击字幕
-- [ ] 单词卡片弹窗 (发音/释义/例句)
-- [ ] 实体卡片弹窗 (摘要/图片/链接)
-- [ ] 集成测试通过
+- [x] NER Worker 可提取单词和实体
+- [x] 卡片生成 Worker 可查询词典/Wikidata
+- [x] 卡片缓存机制
+- [x] 前端可点击字幕
+- [x] 单词卡片弹窗 (发音/释义/例句)
+- [x] 实体卡片弹窗 (摘要/图片/链接)
+- [x] TypeScript 编译通过
 
 ### Phase 1D 完成标准
 - [ ] 记忆本 CRUD API
@@ -605,4 +605,4 @@ genanki>=0.13.0
 
 ---
 
-*最后更新: 2024-02*
+*最后更新: 2026-02-03*

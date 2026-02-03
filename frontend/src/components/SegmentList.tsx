@@ -1,8 +1,10 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import type { EditableSegment, SegmentState } from "@/lib/types";
 import { formatDuration } from "@/lib/api";
+import { ClickableSubtitle, CardPopupContainer } from "@/components/Cards";
+import { useCardPopup } from "@/hooks/useCardPopup";
 
 interface SegmentListProps {
   segments: EditableSegment[];
@@ -24,6 +26,14 @@ export default function SegmentList({
   const [editEn, setEditEn] = useState("");
   const [editZh, setEditZh] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Card popup state
+  const { state: cardState, openWordCard, close: closeCard } = useCardPopup();
+
+  // Handle word click in subtitle
+  const handleWordClick = useCallback((word: string, position: { x: number; y: number }) => {
+    openWordCard(word, position);
+  }, [openWordCard]);
 
   // Auto-scroll to current segment
   useEffect(() => {
@@ -87,6 +97,7 @@ export default function SegmentList({
   };
 
   return (
+    <>
     <div ref={listRef} className="h-full overflow-y-auto space-y-2 p-2">
       {segments.map((segment) => (
         <div
@@ -184,9 +195,12 @@ export default function SegmentList({
               onDoubleClick={(e) => handleDoubleClick(segment, e)}
               title="Double-click to edit"
             >
-              {/* English text */}
+              {/* English text - clickable words for dictionary lookup */}
               <div className="text-white text-sm mb-1 group-hover:bg-gray-700/50 rounded px-1 -mx-1 transition">
-                {segment.en}
+                <ClickableSubtitle
+                  text={segment.en}
+                  onWordClick={handleWordClick}
+                />
               </div>
               {/* Chinese text */}
               <div className="text-yellow-400 text-sm mb-2 group-hover:bg-gray-700/50 rounded px-1 -mx-1 transition">
@@ -245,5 +259,12 @@ export default function SegmentList({
         </div>
       ))}
     </div>
+
+    {/* Card popup for word definitions */}
+    <CardPopupContainer
+      state={cardState}
+      onClose={closeCard}
+    />
+    </>
   );
 }

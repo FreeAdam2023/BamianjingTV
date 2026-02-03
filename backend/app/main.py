@@ -45,6 +45,7 @@ from app.api import (
     cleanup_router,
     channels_router,
     scenemind_router,
+    cards_router,
     # Setup functions
     set_source_manager,
     set_item_manager,
@@ -63,6 +64,11 @@ from app.api import (
     get_connection_manager,
     set_scenemind_session_manager,
     set_frame_capture_worker,
+    # Cards setup functions
+    set_card_cache,
+    set_card_generator,
+    set_ner_worker,
+    set_cards_timeline_manager,
 )
 
 
@@ -122,6 +128,22 @@ async def lifespan(app: FastAPI):
     set_frame_capture_worker(frame_capture_worker)
 
     logger.info(f"Initialized SceneMind: {scenemind_session_manager.get_stats()['total']} sessions")
+
+    # ========== Cards: Initialize card cache and workers ==========
+    from app.services.card_cache import CardCache
+    from app.workers.card_generator import CardGeneratorWorker
+    from app.workers.ner import NERWorker
+
+    card_cache = CardCache()
+    card_generator = CardGeneratorWorker(card_cache=card_cache)
+    ner_worker = NERWorker(use_spacy=False)  # Start with rule-based, can enable spaCy later
+
+    set_card_cache(card_cache)
+    set_card_generator(card_generator)
+    set_ner_worker(ner_worker)
+    set_cards_timeline_manager(timeline_manager)
+
+    logger.info(f"Initialized Cards: {card_cache.get_stats()['total_cached']} cached cards")
 
     # v2: Get WebSocket connection manager
     ws_manager = get_connection_manager()
@@ -202,6 +224,7 @@ async def lifespan(app: FastAPI):
             pass
     await job_queue.stop()
     await webhook_service.close()
+    await card_generator.close()
     logger.info("Shutting down Hardcore Player")
 
 
@@ -238,6 +261,7 @@ app.include_router(queue_router)
 app.include_router(cleanup_router)
 app.include_router(channels_router)
 app.include_router(scenemind_router)
+app.include_router(cards_router)
 
 
 # ============ Root Endpoints ============

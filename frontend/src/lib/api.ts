@@ -39,6 +39,10 @@ import type {
   GenerateMetadataForChannelResponse,
   OAuthStartResponse,
   OAuthStatusResponse,
+  // Cards
+  WordCardResponse,
+  EntityCardResponse,
+  CardGenerateResponse,
 } from "./types";
 
 // Get API URL: use env var or derive from current host with port 8000
@@ -675,4 +679,44 @@ export function getStateColor(state: SegmentState): string {
     default:
       return "bg-gray-400";
   }
+}
+
+// ============ Cards API ============
+
+export async function getWordCard(word: string): Promise<WordCardResponse> {
+  return fetchAPI<WordCardResponse>(`/cards/words/${encodeURIComponent(word)}`);
+}
+
+export async function getEntityCard(entityId: string): Promise<EntityCardResponse> {
+  return fetchAPI<EntityCardResponse>(`/cards/entities/${encodeURIComponent(entityId)}`);
+}
+
+export async function searchEntity(query: string, lang: string = "en"): Promise<{
+  query: string;
+  found: boolean;
+  entity_id: string | null;
+}> {
+  return fetchAPI(`/cards/entities/search/${encodeURIComponent(query)}?lang=${lang}`);
+}
+
+export async function generateCardsForTimeline(
+  timelineId: string,
+  options?: {
+    word_limit?: number;
+    entity_limit?: number;
+  }
+): Promise<CardGenerateResponse> {
+  return fetchAPI<CardGenerateResponse>(`/cards/timelines/${timelineId}/generate`, {
+    method: "POST",
+    body: JSON.stringify(options || {}),
+  });
+}
+
+export async function getCardCacheStats(): Promise<{
+  words_cached: number;
+  entities_cached: number;
+  total_cached: number;
+  cache_dir: string;
+}> {
+  return fetchAPI(`/cards/cache/stats`);
 }

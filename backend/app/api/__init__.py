@@ -31,6 +31,13 @@ from .scenemind import (
     set_session_manager as set_scenemind_session_manager,
     set_frame_capture_worker,
 )
+from .cards import (
+    router as cards_router,
+    set_card_cache,
+    set_card_generator,
+    set_ner_worker,
+    set_timeline_manager as set_cards_timeline_manager,
+)
 
 __all__ = [
     # v2 Routers
@@ -50,6 +57,8 @@ __all__ = [
     "channels_router",
     # SceneMind Router
     "scenemind_router",
+    # Cards Router
+    "cards_router",
     # v2 Setup functions
     "set_source_manager",
     "set_item_manager",
@@ -71,4 +80,9 @@ __all__ = [
     # SceneMind Setup functions
     "set_scenemind_session_manager",
     "set_frame_capture_worker",
+    # Cards Setup functions
+    "set_card_cache",
+    "set_card_generator",
+    "set_ner_worker",
+    "set_cards_timeline_manager",
 ]

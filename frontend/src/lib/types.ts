@@ -461,3 +461,81 @@ export interface GenerateMetadataForChannelResponse {
   thumbnail_candidates: TitleCandidate[];
   message: string;
 }
+
+// ============ Card System Types ============
+
+export interface Pronunciation {
+  ipa: string;
+  audio_url: string | null;
+  region: string;
+}
+
+export interface WordSense {
+  part_of_speech: string;
+  definition: string;
+  definition_zh: string | null;
+  examples: string[];
+  examples_zh: string[];
+  synonyms: string[];
+  antonyms: string[];
+}
+
+export interface WordCard {
+  word: string;
+  lemma: string;
+  pronunciations: Pronunciation[];
+  senses: WordSense[];
+  images: string[];
+  frequency_rank: number | null;
+  cefr_level: string | null;
+  source: string;
+  fetched_at: string;
+}
+
+export interface EntityLocalization {
+  name: string;
+  description: string | null;
+  aliases: string[];
+}
+
+export interface EntityCard {
+  entity_id: string;
+  entity_type: string;
+  name: string;
+  description: string;
+  wikipedia_url: string | null;
+  wikidata_url: string | null;
+  official_website: string | null;
+  image_url: string | null;
+  birth_date: string | null;
+  death_date: string | null;
+  nationality: string | null;
+  location: string | null;
+  coordinates: { lat: number; lon: number } | null;
+  founded_date: string | null;
+  localizations: Record<string, EntityLocalization>;
+  source: string;
+  fetched_at: string;
+}
+
+export interface WordCardResponse {
+  word: string;
+  found: boolean;
+  card: WordCard | null;
+  error: string | null;
+}
+
+export interface EntityCardResponse {
+  entity_id: string;
+  found: boolean;
+  card: EntityCard | null;
+  error: string | null;
+}
+
+export interface CardGenerateResponse {
+  timeline_id: string;
+  words_extracted: number;
+  entities_extracted: number;
+  cards_generated: number;
+  message: string;
+}
