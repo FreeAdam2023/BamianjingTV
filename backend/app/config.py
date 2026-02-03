@@ -7,11 +7,17 @@ import json
 from pathlib import Path
 from typing import List, Union
 from pydantic import field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Application settings."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     # Paths
     jobs_dir: Path = Path("jobs")
@@ -135,13 +141,18 @@ class Settings(BaseSettings):
                 return [origin.strip() for origin in v.split(",")]
         return v
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "ignore"
 
 
 settings = Settings()
+
+
+def get_config() -> Settings:
+    """Get the application settings.
+
+    This function allows for dependency injection in tests.
+    """
+    return settings
+
 
 # Ensure directories exist
 settings.jobs_dir.mkdir(parents=True, exist_ok=True)

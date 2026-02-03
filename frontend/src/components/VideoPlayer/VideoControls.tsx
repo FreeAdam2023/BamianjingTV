@@ -44,7 +44,7 @@ function ChineseLanguageSelector({
     <div className="flex items-center gap-1">
       {/* Current status indicator */}
       <span className="text-xs text-gray-400">
-        字幕:
+        Subtitles:
       </span>
 
       {/* Dropdown */}
@@ -54,8 +54,8 @@ function ChineseLanguageSelector({
         disabled={converting || regenerating}
         className="bg-gray-700 text-white text-sm px-2 py-1 rounded border-none outline-none cursor-pointer disabled:opacity-50"
       >
-        <option value="simplified">简体中文</option>
-        <option value="traditional">繁體中文</option>
+        <option value="simplified">Simplified Chinese</option>
+        <option value="traditional">Traditional Chinese</option>
       </select>
 
       {/* Confirm button - only show when selection differs */}
@@ -71,10 +71,10 @@ function ChineseLanguageSelector({
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              {segmentCount}条
+              {segmentCount} items
             </>
           ) : (
-            "确定"
+            "Apply"
           )}
         </button>
       )}
@@ -90,7 +90,7 @@ function ChineseLanguageSelector({
           onClick={onRegenerateTranslation}
           disabled={regenerating || converting}
           className="px-2 py-1 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded disabled:opacity-50 flex items-center gap-1 ml-1"
-          title="重新生成翻译字幕"
+          title="Regenerate translation"
         >
           {regenerating ? (
             <>
@@ -100,14 +100,14 @@ function ChineseLanguageSelector({
               </svg>
               {regenerateProgress
                 ? `${regenerateProgress.current}/${regenerateProgress.total}`
-                : "翻译中..."}
+                : "Translating..."}
             </>
           ) : (
             <>
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              重新翻译
+              Retranslate
             </>
           )}
         </button>
@@ -259,6 +259,7 @@ export default function VideoControls({
             onClick={() => onSeek(Math.max(trimStart, currentTime - 5))}
             className="text-white hover:text-blue-400 p-1"
             title="Rewind 5s (←)"
+            aria-label="Rewind 5 seconds"
           >
             <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
@@ -271,6 +272,7 @@ export default function VideoControls({
             onClick={onTogglePlay}
             className="text-white hover:text-blue-400"
             title="Space to toggle"
+            aria-label={isPlaying ? "Pause" : "Play"}
           >
             {isPlaying ? (
               <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
@@ -288,6 +290,7 @@ export default function VideoControls({
             onClick={() => onSeek(Math.min(actualTrimEnd, currentTime + 5))}
             className="text-white hover:text-blue-400 p-1"
             title="Forward 5s (→)"
+            aria-label="Forward 5 seconds"
           >
             <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/>
@@ -299,7 +302,7 @@ export default function VideoControls({
           <span className="text-white text-sm ml-2">
             {formatDuration(Math.max(0, displayTime))} / {formatDuration(displayDuration)}
             {hasTrim && (
-              <span className="ml-1 text-purple-400 text-xs" title={`裁剪范围: ${formatDuration(trimStart)} - ${formatDuration(actualTrimEnd)}`}>
+              <span className="ml-1 text-purple-400 text-xs" title={`Trim range: ${formatDuration(trimStart)} - ${formatDuration(actualTrimEnd)}`}>
                 ✂️
               </span>
             )}
@@ -311,6 +314,7 @@ export default function VideoControls({
               onClick={onToggleMute}
               className="text-white hover:text-blue-400"
               title={isMuted ? "Unmute" : "Mute"}
+              aria-label={isMuted ? "Unmute" : "Mute"}
             >
               {isMuted || volume === 0 ? (
                 <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -355,6 +359,7 @@ export default function VideoControls({
                 onClick={onWatermarkRemove}
                 className="text-xs text-red-400 hover:text-red-300"
                 title="Remove watermark"
+                aria-label="Remove watermark"
               >
                 ✕
               </button>
@@ -402,7 +407,7 @@ export default function VideoControls({
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
-                  预览导出
+                  Preview Full
                 </button>
               )}
               {hasExportEssence && (
@@ -414,7 +419,7 @@ export default function VideoControls({
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
-                  预览精华
+                  Preview Essence
                 </button>
               )}
             </div>

@@ -7,6 +7,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useCallback, Suspense } from "react";
+import PageHeader from "@/components/ui/PageHeader";
 import { useSearchParams } from "next/navigation";
 import {
   listChannels,
@@ -100,28 +101,28 @@ function ChannelsPageContent() {
       window.location.href = result.auth_url;
     } catch (error) {
       console.error("[ChannelsPage] Failed to start OAuth:", error);
-      toast.error("授权启动失败: " + (error as Error).message);
+      toast.error("Authorization failed: " + (error as Error).message);
       setAuthorizingChannel(null);
     }
   };
 
   const handleRevokeAuth = async (channelId: string, channelName: string) => {
     const confirmed = await confirm({
-      title: "撤销授权",
-      message: `确定要撤销 "${channelName}" 的授权吗？之后需要重新授权才能发布。`,
+      title: "Revoke Authorization",
+      message: `Are you sure you want to revoke authorization for "${channelName}"? You'll need to re-authorize to publish.`,
       type: "warning",
-      confirmText: "撤销",
+      confirmText: "Revoke",
     });
     if (!confirmed) return;
 
     try {
       console.log("[ChannelsPage] Revoking OAuth for channel:", channelId);
       await revokeChannelOAuth(channelId);
-      toast.success("授权已撤销");
+      toast.success("Authorization revoked");
       loadChannels();
     } catch (error) {
       console.error("[ChannelsPage] Failed to revoke OAuth:", error);
-      toast.error("撤销失败: " + (error as Error).message);
+      toast.error("Revoke failed: " + (error as Error).message);
     }
   };
 
@@ -176,7 +177,7 @@ function ChannelsPageContent() {
       loadChannels();
     } catch (error) {
       console.error("[ChannelsPage] Failed to create channel:", error);
-      toast.error("创建频道失败: " + (error as Error).message);
+      toast.error("Failed to create channel: " + (error as Error).message);
     } finally {
       setCreating(false);
     }
@@ -184,10 +185,10 @@ function ChannelsPageContent() {
 
   const handleDeleteChannel = async (channelId: string, channelName: string) => {
     const confirmed = await confirm({
-      title: "删除频道",
-      message: `确定要删除 "${channelName}" 吗？此操作不可撤销。`,
+      title: "Delete Channel",
+      message: `Are you sure you want to delete "${channelName}"? This action cannot be undone.`,
       type: "danger",
-      confirmText: "删除",
+      confirmText: "Delete",
     });
     if (!confirmed) return;
 
@@ -197,11 +198,11 @@ function ChannelsPageContent() {
       if (selectedChannel === channelId) {
         setSelectedChannel(null);
       }
-      toast.success("频道已删除");
+      toast.success("Channel deleted");
       loadChannels();
     } catch (error) {
       console.error("[ChannelsPage] Failed to delete channel:", error);
-      toast.error("删除失败: " + (error as Error).message);
+      toast.error("Delete failed: " + (error as Error).message);
     }
   };
 
@@ -280,43 +281,19 @@ function ChannelsPageContent() {
 
   return (
     <main className="min-h-screen">
-      {/* Header */}
-      <header className="border-b border-[var(--border)] bg-[var(--card)]/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="text-gray-400 hover:text-white transition-colors"
-            >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                />
-              </svg>
-            </Link>
-            <div>
-              <h1 className="text-xl font-bold">Publishing Channels</h1>
-              <p className="text-xs text-gray-500">
-                Manage YouTube channels and publication history
-              </p>
-            </div>
-          </div>
+      <PageHeader
+        title="Publishing Channels"
+        subtitle="Manage YouTube channels and publication history"
+        backHref="/"
+        actions={
           <button
             onClick={() => setShowCreateModal(true)}
             className="btn btn-primary"
           >
             + Add Channel
           </button>
-        </div>
-      </header>
+        }
+      />
 
       <div className="max-w-6xl mx-auto px-6 py-8">
         {/* OAuth Status Message */}
@@ -422,6 +399,7 @@ function ChannelsPageContent() {
                             }}
                             className="p-1 text-gray-500 hover:text-red-400 transition-colors"
                             title="Delete channel"
+                            aria-label="Delete channel"
                           >
                             <svg
                               className="w-4 h-4"
@@ -568,6 +546,7 @@ function ChannelsPageContent() {
                           href={`/review/${pub.timeline_id}`}
                           className="text-gray-400 hover:text-white"
                           title="View timeline"
+                          aria-label="View timeline"
                         >
                           <svg
                             className="w-5 h-5"

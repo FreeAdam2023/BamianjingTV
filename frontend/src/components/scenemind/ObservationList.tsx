@@ -95,6 +95,7 @@ export default function ObservationList({
               }}
               className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors flex-shrink-0"
               title="Delete observation"
+              aria-label="Delete observation"
             >
               <svg
                 className="w-4 h-4"

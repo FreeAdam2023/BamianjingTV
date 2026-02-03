@@ -418,7 +418,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         {/* Percentage indicator shown during drag */}
         {isDragging && (
           <div className="absolute left-1/2 -translate-x-1/2 -top-8 px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded shadow-lg whitespace-nowrap">
-            字幕区域: {Math.round(subtitleHeightRatio * 100)}%
+            Subtitle area: {Math.round(subtitleHeightRatio * 100)}%
           </div>
         )}
       </div>

@@ -99,7 +99,7 @@ export default function ExportPreviewModal({
               {type === "full" ? "Full Export" : "Essence Export"}
             </span>
             <span className="text-gray-400 text-sm">
-              导出视频预览
+              Export Preview
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -111,12 +111,13 @@ export default function ExportPreviewModal({
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
-              下载
+              Download
             </a>
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-white p-1"
               title="Close (Esc)"
+              aria-label="Close preview"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -176,7 +177,7 @@ export default function ExportPreviewModal({
             </div>
 
             <div className="text-sm text-gray-400">
-              按 Space 播放/暂停，Esc 关闭
+              Press Space to play/pause, Esc to close
             </div>
           </div>
         </div>

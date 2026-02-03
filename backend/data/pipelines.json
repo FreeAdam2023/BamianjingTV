@@ -1,0 +1,102 @@
+{
+  "pipelines": [
+    {
+      "pipeline_id": "default_zh",
+      "pipeline_type": "full_dub",
+      "display_name": "Chinese Dubbing + Bilingual Subtitles",
+      "target_language": "zh",
+      "steps": [
+        "download",
+        "transcribe",
+        "diarize",
+        "translate",
+        "tts",
+        "export"
+      ],
+      "enable_dubbing": true,
+      "keep_original_audio": false,
+      "original_audio_volume": 0.1,
+      "subtitle_style": "bilingual",
+      "use_traditional_chinese": true,
+      "burn_subtitles": true,
+      "generate_thumbnail": true,
+      "generate_content": true,
+      "target": {
+        "target_type": "local",
+        "target_id": "output",
+        "display_name": "Local Output",
+        "privacy_status": "private",
+        "playlist_id": null,
+        "auto_publish": false,
+        "config": {}
+      },
+      "enabled": true,
+      "created_at": "2026-02-03T08:46:42.574123"
+    },
+    {
+      "pipeline_id": "subtitle_only",
+      "pipeline_type": "subtitle",
+      "display_name": "Subtitles Only (Keep Original Audio)",
+      "target_language": "zh",
+      "steps": [
+        "download",
+        "transcribe",
+        "diarize",
+        "translate",
+        "export"
+      ],
+      "enable_dubbing": false,
+      "keep_original_audio": true,
+      "original_audio_volume": 1.0,
+      "subtitle_style": "bilingual",
+      "use_traditional_chinese": true,
+      "burn_subtitles": true,
+      "generate_thumbnail": true,
+      "generate_content": true,
+      "target": {
+        "target_type": "local",
+        "target_id": "output",
+        "display_name": "Local Output",
+        "privacy_status": "private",
+        "playlist_id": null,
+        "auto_publish": false,
+        "config": {}
+      },
+      "enabled": true,
+      "created_at": "2026-02-03T08:46:42.574138"
+    },
+    {
+      "pipeline_id": "dub_with_bg",
+      "pipeline_type": "full_dub",
+      "display_name": "Dubbing + Background Audio",
+      "target_language": "zh",
+      "steps": [
+        "download",
+        "transcribe",
+        "diarize",
+        "translate",
+        "tts",
+        "export"
+      ],
+      "enable_dubbing": true,
+      "keep_original_audio": true,
+      "original_audio_volume": 0.15,
+      "subtitle_style": "bilingual",
+      "use_traditional_chinese": true,
+      "burn_subtitles": true,
+      "generate_thumbnail": true,
+      "generate_content": true,
+      "target": {
+        "target_type": "local",
+        "target_id": "output",
+        "display_name": "Local Output",
+        "privacy_status": "private",
+        "playlist_id": null,
+        "auto_publish": false,
+        "config": {}
+      },
+      "enabled": true,
+      "created_at": "2026-02-03T08:46:42.574142"
+    }
+  ]
+}

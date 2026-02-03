@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
+import PageHeader from "@/components/ui/PageHeader";
 import { listJobs, createJob, deleteJob, cancelJob, formatDuration, getVideoUrl, getExportVideoUrl } from "@/lib/api";
 import { useToast, useConfirm } from "@/components/ui";
 import type { Job, JobCreate, JobMode } from "@/lib/types";
@@ -28,16 +29,16 @@ export default function JobsPage() {
 
   // Mode options
   const JOB_MODES: { value: JobMode; label: string; description: string }[] = [
-    { value: "learning", label: "学习模式", description: "原音 + 双语字幕 + 单词卡片" },
-    { value: "watching", label: "观影模式", description: "原音 + 透明字幕 + 场景截图" },
-    { value: "dubbing", label: "配音模式", description: "克隆配音 + 口型同步 (实验性)" },
+    { value: "learning", label: "Learning Mode", description: "Original audio + Bilingual subtitles + Word cards" },
+    { value: "watching", label: "Watching Mode", description: "Original audio + Transparent subtitles + Scene capture" },
+    { value: "dubbing", label: "Dubbing Mode", description: "Voice cloning + Lip sync (experimental)" },
   ];
 
   // Supported target languages (Chinese variants merged into dropdown)
   const SUPPORTED_LANGUAGES = [
-    { code: "zh-TW", name: "中文 (繁體)" },
-    { code: "zh-CN", name: "中文 (简体)" },
-    { code: "ja", name: "日本語 (Japanese)" },
+    { code: "zh-TW", name: "Chinese (Traditional)" },
+    { code: "zh-CN", name: "Chinese (Simplified)" },
+    { code: "ja", name: "Japanese" },
     { code: "ko", name: "한국어 (Korean)" },
     { code: "es", name: "Español (Spanish)" },
     { code: "fr", name: "Français (French)" },
@@ -112,21 +113,21 @@ export default function JobsPage() {
 
   async function handleDelete(jobId: string, title: string) {
     const confirmed = await confirm({
-      title: "删除 Job",
-      message: `确定要删除 "${title || jobId}" 吗？这将删除所有相关文件。`,
+      title: "Delete Job",
+      message: `Are you sure you want to delete "${title || jobId}"? This will remove all related files.`,
       type: "danger",
-      confirmText: "删除",
+      confirmText: "Delete",
     });
     if (!confirmed) return;
 
     setDeletingId(jobId);
     try {
       await deleteJob(jobId);
-      toast.success("Job 已删除");
+      toast.success("Job deleted");
       loadJobs(false);
     } catch (err) {
       console.error("Failed to delete job:", err);
-      toast.error("删除失败: " + (err instanceof Error ? err.message : "Unknown error"));
+      toast.error("Delete failed: " + (err instanceof Error ? err.message : "Unknown error"));
     } finally {
       setDeletingId(null);
     }
@@ -134,21 +135,21 @@ export default function JobsPage() {
 
   async function handleCancel(jobId: string, title: string) {
     const confirmed = await confirm({
-      title: "取消 Job",
-      message: `确定要取消 "${title || jobId}" 吗？Job 将在当前阶段完成后停止。`,
+      title: "Cancel Job",
+      message: `Are you sure you want to cancel "${title || jobId}"? The job will stop after completing the current stage.`,
       type: "warning",
-      confirmText: "取消 Job",
+      confirmText: "Cancel Job",
     });
     if (!confirmed) return;
 
     setCancellingId(jobId);
     try {
       await cancelJob(jobId);
-      toast.success("Job 已取消");
+      toast.success("Job cancelled");
       loadJobs(false);
     } catch (err) {
       console.error("Failed to cancel job:", err);
-      toast.error("取消失败: " + (err instanceof Error ? err.message : "Unknown error"));
+      toast.error("Cancel failed: " + (err instanceof Error ? err.message : "Unknown error"));
     } finally {
       setCancellingId(null);
     }
@@ -188,13 +189,13 @@ export default function JobsPage() {
   function getModeBadge(mode: JobMode | undefined) {
     switch (mode) {
       case "learning":
-        return <span className="badge bg-blue-600 text-white text-xs">学习</span>;
+        return <span className="badge bg-blue-600 text-white text-xs">Learn</span>;
       case "watching":
-        return <span className="badge bg-purple-600 text-white text-xs">观影</span>;
+        return <span className="badge bg-purple-600 text-white text-xs">Watch</span>;
       case "dubbing":
-        return <span className="badge bg-orange-600 text-white text-xs">配音</span>;
+        return <span className="badge bg-orange-600 text-white text-xs">Dub</span>;
       default:
-        return <span className="badge bg-blue-600 text-white text-xs">学习</span>;
+        return <span className="badge bg-blue-600 text-white text-xs">Learn</span>;
     }
   }
 
@@ -212,21 +213,14 @@ export default function JobsPage() {
 
   return (
     <main className="min-h-screen">
-      {/* Header */}
-      <header className="border-b border-[var(--border)] bg-[var(--card)]/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xl">
-                🎬
-              </div>
-              <div>
-                <h1 className="text-xl font-bold">Job Queue</h1>
-                <p className="text-xs text-gray-500">Video Processing Tasks</p>
-              </div>
-            </Link>
-          </div>
-          <div className="flex items-center gap-3">
+      <PageHeader
+        title="Job Queue"
+        subtitle="Video Processing Tasks"
+        icon="🎬"
+        iconGradient="from-blue-500 to-purple-600"
+        backHref="/"
+        actions={
+          <>
             {refreshing && (
               <span className="text-gray-500 text-sm flex items-center gap-2">
                 <span className="spinner w-4 h-4" />
@@ -239,9 +233,9 @@ export default function JobsPage() {
             <Link href="/" className="btn btn-secondary">
               ← Home
             </Link>
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <div className="max-w-6xl mx-auto px-6 py-8">
         {/* Global Error */}
@@ -318,6 +312,7 @@ export default function JobsPage() {
                           disabled={cancellingId === job.id}
                           className="btn btn-warning text-sm py-1.5"
                           title="Cancel Job"
+                          aria-label="Cancel job"
                         >
                           {cancellingId === job.id ? (
                             <span className="spinner" />
@@ -331,6 +326,7 @@ export default function JobsPage() {
                         disabled={deletingId === job.id}
                         className="btn btn-danger text-sm py-1.5"
                         title="Delete Job"
+                        aria-label="Delete job"
                       >
                         {deletingId === job.id ? (
                           <span className="spinner" />
@@ -478,7 +474,7 @@ export default function JobsPage() {
               {/* Mode Selection */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-300 mb-3">
-                  处理模式
+                  Processing Mode
                 </label>
                 <div className="grid grid-cols-1 gap-2">
                   {JOB_MODES.map((mode) => (
@@ -513,7 +509,7 @@ export default function JobsPage() {
               {/* Options */}
               <div className="mb-6 space-y-4">
                 <label className="block text-sm font-medium text-gray-300 mb-3">
-                  处理选项
+                  Processing Options
                 </label>
 
                 {/* Target Language */}
@@ -552,8 +548,8 @@ export default function JobsPage() {
                     disabled={submitting}
                   />
                   <div>
-                    <span className="text-white">识别说话人</span>
-                    <p className="text-gray-500 text-xs">多人对话时自动区分不同说话人，可在后续标注姓名</p>
+                    <span className="text-white">Enable Speaker Diarization</span>
+                    <p className="text-gray-500 text-xs">Automatically distinguish different speakers in multi-person conversations, names can be labeled later</p>
                   </div>
                 </label>
               </div>

@@ -22,6 +22,7 @@ const ConfirmContext = createContext<ConfirmContextType | null>(null);
 
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
   const [options, setOptions] = useState<ConfirmOptions | null>(null);
   const resolveRef = useRef<((value: boolean) => void) | null>(null);
 
@@ -30,6 +31,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
       typeof opts === "string" ? { message: opts } : opts;
 
     setOptions(normalizedOptions);
+    setIsExiting(false);
     setIsOpen(true);
 
     return new Promise((resolve) => {
@@ -37,21 +39,28 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const handleConfirm = useCallback(() => {
-    setIsOpen(false);
-    resolveRef.current?.(true);
-    resolveRef.current = null;
+  const closeWithAnimation = useCallback((result: boolean) => {
+    setIsExiting(true);
+    // Wait for animation to complete before closing
+    setTimeout(() => {
+      setIsOpen(false);
+      setIsExiting(false);
+      resolveRef.current?.(result);
+      resolveRef.current = null;
+    }, 150); // Match animation duration
   }, []);
 
+  const handleConfirm = useCallback(() => {
+    closeWithAnimation(true);
+  }, [closeWithAnimation]);
+
   const handleCancel = useCallback(() => {
-    setIsOpen(false);
-    resolveRef.current?.(false);
-    resolveRef.current = null;
-  }, []);
+    closeWithAnimation(false);
+  }, [closeWithAnimation]);
 
   // Handle escape key
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isExiting) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -63,7 +72,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, handleCancel, handleConfirm]);
+  }, [isOpen, isExiting, handleCancel, handleConfirm]);
 
   return (
     <ConfirmContext.Provider value={{ confirm }}>
@@ -73,6 +82,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           options={options}
           onConfirm={handleConfirm}
           onCancel={handleCancel}
+          isExiting={isExiting}
         />
       )}
     </ConfirmContext.Provider>
@@ -118,10 +128,12 @@ function ConfirmDialog({
   options,
   onConfirm,
   onCancel,
+  isExiting,
 }: {
   options: ConfirmOptions;
   onConfirm: () => void;
   onCancel: () => void;
+  isExiting: boolean;
 }) {
   const {
     title = "Confirm",
@@ -137,12 +149,16 @@ function ConfirmDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className={`absolute inset-0 bg-black/60 backdrop-blur-sm ${
+          isExiting ? "animate-fade-out" : "animate-fade-in-fast"
+        }`}
         onClick={onCancel}
       />
 
       {/* Dialog */}
-      <div className="relative bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl max-w-md w-full mx-4 animate-scale-in">
+      <div className={`relative bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl max-w-md w-full mx-4 ${
+        isExiting ? "animate-scale-out" : "animate-scale-in"
+      }`}>
         <div className="p-6">
           <div className="flex items-start gap-4">
             <div className="flex-shrink-0">{style.icon}</div>

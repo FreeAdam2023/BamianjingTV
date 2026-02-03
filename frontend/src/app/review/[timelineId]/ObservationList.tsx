@@ -87,6 +87,7 @@ export default function ObservationList({
                 onClick={() => setExpandedId(expandedId === obs.id ? null : obs.id)}
                 className="p-1.5 rounded hover:bg-gray-700 text-gray-500 hover:text-gray-300 transition-colors"
                 title="View frame"
+                aria-label="View frame"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -99,6 +100,7 @@ export default function ObservationList({
                 disabled={deletingId === obs.id}
                 className="p-1.5 rounded hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-colors disabled:opacity-50"
                 title="Delete"
+                aria-label="Delete observation"
               >
                 {deletingId === obs.id ? (
                   <span className="inline-block w-4 h-4 border-2 border-gray-500/30 border-t-gray-500 rounded-full animate-spin" />

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
+import PageHeader from "@/components/ui/PageHeader";
 import {
   listSessions,
   createSession,
@@ -141,41 +142,21 @@ export default function SceneMindPage() {
 
   return (
     <main className="min-h-screen">
-      {/* Header */}
-      <header className="border-b border-[var(--border)] bg-[var(--card)]/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="text-gray-400 hover:text-white">
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-            </Link>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center text-xl">
-              🧠
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">SceneMind</h1>
-              <p className="text-xs text-gray-500">Watch & Learn</p>
-            </div>
-          </div>
+      <PageHeader
+        title="SceneMind"
+        subtitle="Watch & Learn"
+        icon="🧠"
+        iconGradient="from-purple-500 to-pink-600"
+        backHref="/"
+        actions={
           <button
             onClick={() => setShowCreateModal(true)}
             className="btn btn-primary"
           >
             + New Session
           </button>
-        </div>
-      </header>
+        }
+      />
 
       <div className="max-w-6xl mx-auto px-6 py-8">
         {/* Stats */}

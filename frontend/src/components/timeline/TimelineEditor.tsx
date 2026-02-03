@@ -158,6 +158,7 @@ function TimelineEditorInner({
               onClick={zoomOut}
               className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-700 text-gray-400 hover:text-white"
               title="Zoom Out"
+              aria-label="Zoom out"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
@@ -168,6 +169,7 @@ function TimelineEditorInner({
               onClick={zoomIn}
               className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-700 text-gray-400 hover:text-white"
               title="Zoom In"
+              aria-label="Zoom in"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -314,7 +316,7 @@ function TimelineEditorInner({
                 >
                   <div className="absolute inset-0 flex items-center justify-center">
                     <span className="text-purple-300 text-xs font-medium bg-black/50 px-2 py-1 rounded">
-                      ✂️ 已裁剪
+                      ✂️ Trimmed
                     </span>
                   </div>
                 </div>
@@ -331,7 +333,7 @@ function TimelineEditorInner({
                 >
                   <div className="absolute inset-0 flex items-center justify-center">
                     <span className="text-purple-300 text-xs font-medium bg-black/50 px-2 py-1 rounded">
-                      ✂️ 已裁剪
+                      ✂️ Trimmed
                     </span>
                   </div>
                 </div>

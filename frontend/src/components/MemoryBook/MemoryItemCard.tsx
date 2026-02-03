@@ -137,6 +137,7 @@ export default function MemoryItemCard({
           disabled={isDeleting}
           className="p-1 rounded hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-colors disabled:opacity-50"
           title="Delete"
+          aria-label="Delete item"
         >
           {isDeleting ? (
             <span className="inline-block w-4 h-4 border-2 border-gray-500/30 border-t-gray-500 rounded-full animate-spin" />

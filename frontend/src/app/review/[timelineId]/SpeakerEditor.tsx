@@ -45,7 +45,7 @@ export default function SpeakerEditor({ timelineId, onSpeakerNamesChange }: Spea
       onSpeakerNamesChange?.(names);
     } catch (err) {
       console.error("Failed to save speaker names:", err);
-      toast.error("保存说话人名称失败");
+      toast.error("Failed to save speaker names");
     } finally {
       setSaving(false);
     }
@@ -65,7 +65,7 @@ export default function SpeakerEditor({ timelineId, onSpeakerNamesChange }: Spea
       }
     }
     saveSpeakerNames(validNames);
-    toast.success("说话人名称已保存");
+    toast.success("Speaker names saved");
   };
 
   // Don't show if only one speaker or loading
@@ -81,8 +81,8 @@ export default function SpeakerEditor({ timelineId, onSpeakerNamesChange }: Spea
       >
         <div className="flex items-center gap-2">
           <span className="text-gray-400">👥</span>
-          <span className="text-gray-300">说话人标注</span>
-          <span className="text-xs text-gray-500">({speakers.length} 人)</span>
+          <span className="text-gray-300">Speaker Labels</span>
+          <span className="text-xs text-gray-500">({speakers.length} speakers)</span>
         </div>
         <svg
           className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
@@ -97,7 +97,7 @@ export default function SpeakerEditor({ timelineId, onSpeakerNamesChange }: Spea
       {isExpanded && (
         <div className="px-4 py-3 bg-gray-800/30 space-y-3">
           <p className="text-xs text-gray-500 mb-2">
-            为每个说话人设置显示名称，将在字幕中显示
+            Set display names for each speaker, shown in subtitles
           </p>
 
           {speakers.map((speaker) => (
@@ -109,11 +109,11 @@ export default function SpeakerEditor({ timelineId, onSpeakerNamesChange }: Spea
                 type="text"
                 value={speakerNames[speaker.speaker_id] || ""}
                 onChange={(e) => handleNameChange(speaker.speaker_id, e.target.value)}
-                placeholder={`说话人名称...`}
+                placeholder={`Speaker name...`}
                 className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
               />
               <span className="text-xs text-gray-500 whitespace-nowrap">
-                {speaker.segment_count} 句
+                {speaker.segment_count} lines
               </span>
             </div>
           ))}
@@ -130,10 +130,10 @@ export default function SpeakerEditor({ timelineId, onSpeakerNamesChange }: Spea
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  保存中...
+                  Saving...
                 </>
               ) : (
-                "保存名称"
+                "Save Names"
               )}
             </button>
           </div>

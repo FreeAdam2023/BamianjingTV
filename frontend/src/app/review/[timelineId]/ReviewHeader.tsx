@@ -93,7 +93,8 @@ export default function ReviewHeader({
         <button
           onClick={onDelete}
           className="px-3 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm"
-          title="删除此 Job"
+          title="Delete this job"
+          aria-label="Delete job"
         >
           🗑️
         </button>
