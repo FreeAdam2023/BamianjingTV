@@ -4,3 +4,4 @@ export { default as TimeRuler } from "./TimeRuler";
 export { default as Playhead } from "./Playhead";
 export { default as SubtitleTrack } from "./SubtitleTrack";
 export { default as AudioTrack } from "./AudioTrack";
+export { default as ObservationMarkers } from "./ObservationMarkers";

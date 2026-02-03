@@ -8,10 +8,11 @@
 
 | 模块 | 状态 | 完成度 |
 |------|------|--------|
-| **Learning Mode** (原 Hardcore Player) | ✅ 生产可用 | 90% |
-| **Watching Mode** (SceneMind) | ✅ Phase 1 完成，但独立运行 | 40% |
+| **Learning Mode** (原 Hardcore Player) | ✅ 生产可用 | 95% |
+| **Watching Mode** (SceneMind) | ✅ Phase 1A 后端完成，前端待集成 | 70% |
 | **Dubbing Mode** | ❌ 未开始 | 0% |
-| **卡片系统** | ✅ Phase 1B 完成 | 80% |
+| **卡片系统** | ✅ Phase 1B 完成 | 100% |
+| **透明字幕渲染** | ✅ Phase 1C 完成 | 100% |
 | **记忆本** | ❌ 未开始 | 0% |
 
 ---
@@ -229,14 +230,16 @@ class EntityCard(BaseModel):
 | 1A.4 | 合并 SceneMind API 到 Timeline API | `backend/app/api/timelines.py` | 2h | ✅ |
 | 1A.5 | 迁移 FrameCaptureWorker 到通用 workers | `backend/app/workers/frame_capture.py` | 1h | ✅ |
 | 1A.6 | 前端: types + API 函数 | `frontend/src/lib/types.ts, api.ts` | 1h | ✅ |
-| 1A.7 | 前端: ObservationPanel 集成到 Review | `frontend/src/app/review/[timelineId]/page.tsx` | 3h | ⬜ |
-| 1A.8 | 前端: ObservationMarkers 时间轴组件 | `frontend/src/components/Timeline/ObservationMarkers.tsx` | 2h | ⬜ |
+| 1A.7 | 前端: ObservationCapture + ObservationList | `frontend/src/app/review/[timelineId]/` | 3h | ✅ |
+| 1A.8 | 前端: ObservationMarkers 时间轴组件 | `frontend/src/components/timeline/ObservationMarkers.tsx` | 2h | ✅ |
+| 1A.9 | 前端: Review 页面集成 | `frontend/src/app/review/[timelineId]/page.tsx` | 1h | ✅ |
 
 ### 验收标准
 
 - [x] WATCHING 模式 Timeline 可添加 observations (API ready)
-- [ ] Review 页面支持截图功能 (快捷键 S)
-- [ ] 时间轴上显示观察点标记
+- [x] Review 页面支持截图功能 (快捷键 S)
+- [x] Observation 列表显示在侧边栏
+- [ ] 时间轴上显示观察点标记 (组件已创建，待集成到 TimelineEditor)
 - [ ] 旧 SceneMind 数据可迁移
 
 ### API 变更
@@ -260,21 +263,25 @@ GET    /timelines/{id}/observations/{obs_id}/frame  # 获取截图
 > **目标**: 支持 WATCHING 模式的透明悬浮字幕样式
 > **预估工时**: 8.5h
 > **优先级**: 🟡 中
+> **状态**: ✅ 已完成
 
 ### 任务列表
 
 | ID | 任务 | 文件 | 工时 | 状态 |
 |----|------|------|------|------|
-| 1C.1 | 字幕样式枚举 `SubtitleStyle` | `backend/app/models/timeline.py` | 0.5h | ⬜ |
-| 1C.2 | ExportWorker 支持透明字幕渲染 | `backend/app/workers/export.py` | 4h | ⬜ |
-| 1C.3 | FFmpeg ASS 样式模板 (透明背景) | `backend/app/workers/subtitle_styles.py` | 2h | ⬜ |
-| 1C.4 | 前端: 字幕样式选择器 | `frontend/src/components/ExportDialog.tsx` | 2h | ⬜ |
+| 1C.1 | 字幕样式枚举 `SubtitleStyleMode` | `backend/app/models/timeline.py` | 0.5h | ✅ |
+| 1C.2 | ExportWorker 支持透明字幕渲染 | `backend/app/workers/export.py` | 4h | ✅ |
+| 1C.3 | FFmpeg ASS 样式模板 (透明背景) | `backend/app/workers/subtitle_styles.py` | 2h | ✅ |
+| 1C.4 | 后端: subtitle-style-mode API | `backend/app/api/timelines.py` | 0.5h | ✅ |
+| 1C.5 | 前端: types + API 函数 | `frontend/src/lib/types.ts, api.ts` | 1h | ✅ |
+| 1C.6 | 前端: 字幕样式选择器 UI | `frontend/src/components/ExportDialog.tsx` | 2h | ⬜ |
 
 ### 验收标准
 
-- [ ] 导出时可选字幕样式: `half_screen` (学习) / `floating` (观影)
-- [ ] 透明字幕不遮挡画面
-- [ ] 字幕位置可配置 (顶部/底部)
+- [x] 导出时可选字幕样式: `half_screen` (学习) / `floating` (观影) / `none` (配音)
+- [x] 透明字幕不遮挡画面 (floating 模式使用文字描边而非背景框)
+- [x] API 支持设置和获取字幕样式模式
+- [ ] 前端 UI 选择器 (可通过 API 调用，UI 待完成)
 
 ### 字幕样式对比
 
@@ -485,29 +492,29 @@ GET    /timelines/{id}/dubbing/audio/{type} # 获取音频 (vocals/bgm/sfx/dubbe
 
 ## 工时汇总
 
-| Phase | 描述 | 工时 | 优先级 | 依赖 |
-|-------|------|------|--------|------|
-| **0** | 统一基础设施 | 6.5h | 🔴 必须 | - |
-| **1B** | 卡片系统 | 40h | 🔴 高 | Phase 0 |
-| **1A** | 合并 SceneMind | 13h | 🟡 中 | Phase 0 |
-| **1C** | 透明字幕渲染 | 8.5h | 🟡 中 | Phase 0 |
-| **1D** | 记忆本 + Anki | 19h | 🟡 中 | Phase 1B |
-| **2** | 配音模式 | 44h | 🟢 低 | Phase 0 |
-| **3** | 口型同步 | 21h | ⚪ 可选 | Phase 2 |
-| | **总计** | **152h** | | |
+| Phase | 描述 | 工时 | 优先级 | 依赖 | 状态 |
+|-------|------|------|--------|------|------|
+| **0** | 统一基础设施 | 6.5h | 🔴 必须 | - | ✅ 完成 |
+| **1B** | 卡片系统 | 40h | 🔴 高 | Phase 0 | ✅ 完成 |
+| **1A** | 合并 SceneMind | 13h | 🟡 中 | Phase 0 | ⚠️ 后端完成，前端待完成 |
+| **1C** | 透明字幕渲染 | 8.5h | 🟡 中 | Phase 0 | ✅ 完成 |
+| **1D** | 记忆本 + Anki | 19h | 🟡 中 | Phase 1B | ⬜ 未开始 |
+| **2** | 配音模式 | 44h | 🟢 低 | Phase 0 | ⬜ 未开始 |
+| **3** | 口型同步 | 21h | ⚪ 可选 | Phase 2 | ⬜ 未开始 |
+| | **总计** | **152h** | | | |
 
 ---
 
 ## 里程碑规划
 
-| 里程碑 | 包含 Phase | 预计周期 | 交付物 |
-|--------|-----------|----------|--------|
-| **M1** | Phase 0 | 1 周 | 统一数据模型，Job/Timeline 支持 mode |
-| **M2** | Phase 1B | 2 周 | 可点击字幕，单词/实体卡片弹窗 |
-| **M3** | Phase 1A + 1C | 1.5 周 | 观影模式完整，透明字幕导出 |
-| **M4** | Phase 1D | 1.5 周 | 记忆本功能，Anki 导出 |
-| **M5** | Phase 2 | 3 周 | 配音模式 MVP |
-| **M6** | Phase 3 | 2 周 | 口型同步 (实验性) |
+| 里程碑 | 包含 Phase | 预计周期 | 交付物 | 状态 |
+|--------|-----------|----------|--------|------|
+| **M1** | Phase 0 | 1 周 | 统一数据模型，Job/Timeline 支持 mode | ✅ 完成 |
+| **M2** | Phase 1B | 2 周 | 可点击字幕，单词/实体卡片弹窗 | ✅ 完成 |
+| **M3** | Phase 1A + 1C | 1.5 周 | 观影模式完整，透明字幕导出 | ⚠️ 后端完成，前端待完成 |
+| **M4** | Phase 1D | 1.5 周 | 记忆本功能，Anki 导出 | ⬜ 未开始 |
+| **M5** | Phase 2 | 3 周 | 配音模式 MVP | ⬜ 未开始 |
+| **M6** | Phase 3 | 2 周 | 口型同步 (实验性) | ⬜ 未开始 |
 
 ---
 
@@ -588,6 +595,22 @@ genanki>=0.13.0
 - [x] 实体卡片弹窗 (摘要/图片/链接)
 - [x] TypeScript 编译通过
 
+### Phase 1A 完成标准 (后端 ✅ / 前端 ⚠️)
+- [x] Timeline 模型添加 observations 字段
+- [x] Timeline API 支持 observation CRUD
+- [x] FrameCaptureWorker 截图功能
+- [x] 前端 types + API 函数
+- [ ] Review 页面截图功能 (快捷键 S)
+- [ ] 时间轴观察点标记组件
+
+### Phase 1C 完成标准
+- [x] SubtitleStyleMode 枚举 (half_screen/floating/none)
+- [x] ExportWorker 支持三种字幕渲染模式
+- [x] subtitle_styles.py ASS 样式生成器
+- [x] GET/POST /timelines/{id}/subtitle-style-mode API
+- [x] 前端 types + API 函数
+- [ ] 前端字幕样式选择器 UI
+
 ### Phase 1D 完成标准
 - [ ] 记忆本 CRUD API
 - [ ] 卡片收藏功能
@@ -605,4 +628,4 @@ genanki>=0.13.0
 
 ---
 
-*最后更新: 2026-02-03*
+*最后更新: 2026-02-03 (Phase 0/1A后端/1B/1C 已完成)*
