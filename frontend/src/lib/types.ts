@@ -575,3 +575,71 @@ export interface CardGenerateResponse {
   cards_generated: number;
   message: string;
 }
+
+// ============ Memory Book Types ============
+
+export type MemoryItemType = "word" | "entity" | "observation";
+
+export interface MemoryItem {
+  item_id: string;
+  book_id: string;
+  target_type: MemoryItemType;
+  target_id: string;
+  source_timeline_id: string | null;
+  source_timecode: number | null;
+  source_segment_text: string | null;
+  user_notes: string;
+  tags: string[];
+  card_data: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface MemoryBook {
+  book_id: string;
+  name: string;
+  description: string;
+  item_count: number;
+  items: MemoryItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemoryBookSummary {
+  book_id: string;
+  name: string;
+  description: string;
+  item_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemoryBookCreate {
+  name: string;
+  description?: string;
+}
+
+export interface MemoryBookUpdate {
+  name?: string;
+  description?: string;
+}
+
+export interface MemoryItemCreate {
+  target_type: MemoryItemType;
+  target_id: string;
+  source_timeline_id?: string;
+  source_timecode?: number;
+  source_segment_text?: string;
+  user_notes?: string;
+  tags?: string[];
+  card_data?: Record<string, unknown>;
+}
+
+export interface MemoryItemUpdate {
+  user_notes?: string;
+  tags?: string[];
+}
+
+export interface MemoryItemExistsResponse {
+  exists: boolean;
+  item_id: string | null;
+}

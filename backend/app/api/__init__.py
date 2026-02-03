@@ -39,6 +39,11 @@ from .cards import (
     set_ner_worker,
     set_timeline_manager as set_cards_timeline_manager,
 )
+from .memory_books import (
+    router as memory_books_router,
+    set_memory_book_manager,
+    set_anki_export_worker,
+)
 
 __all__ = [
     # v2 Routers
@@ -87,4 +92,8 @@ __all__ = [
     "set_card_generator",
     "set_ner_worker",
     "set_cards_timeline_manager",
+    # Memory Books Router and Setup functions
+    "memory_books_router",
+    "set_memory_book_manager",
+    "set_anki_export_worker",
 ]

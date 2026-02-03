@@ -1,11 +1,15 @@
 "use client";
 
 import type { EntityCard as EntityCardType } from "@/lib/types";
+import { CollectButton } from "@/components/MemoryBook";
 
 interface EntityCardProps {
   card: EntityCardType;
   onClose: () => void;
   onAddToMemory?: (entityId: string) => void;
+  sourceTimelineId?: string;
+  sourceTimecode?: number;
+  sourceSegmentText?: string;
 }
 
 const entityTypeLabels: Record<string, { label: string; color: string }> = {
@@ -19,7 +23,14 @@ const entityTypeLabels: Record<string, { label: string; color: string }> = {
   other: { label: "Other", color: "bg-gray-600" },
 };
 
-export default function EntityCard({ card, onClose, onAddToMemory }: EntityCardProps) {
+export default function EntityCard({
+  card,
+  onClose,
+  onAddToMemory,
+  sourceTimelineId,
+  sourceTimecode,
+  sourceSegmentText,
+}: EntityCardProps) {
   const typeInfo = entityTypeLabels[card.entity_type] || entityTypeLabels.other;
 
   // Get Chinese localization if available
@@ -179,17 +190,28 @@ export default function EntityCard({ card, onClose, onAddToMemory }: EntityCardP
           {card.entity_id} | {card.source}
         </span>
 
-        {onAddToMemory && (
-          <button
-            onClick={() => onAddToMemory(card.entity_id)}
-            className="btn btn-sm btn-primary flex items-center gap-1.5"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add to Memory
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <CollectButton
+            targetType="entity"
+            targetId={card.entity_id}
+            cardData={card}
+            sourceTimelineId={sourceTimelineId}
+            sourceTimecode={sourceTimecode}
+            sourceSegmentText={sourceSegmentText}
+            size="md"
+          />
+          {onAddToMemory && (
+            <button
+              onClick={() => onAddToMemory(card.entity_id)}
+              className="btn btn-sm btn-primary flex items-center gap-1.5"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add to Memory
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

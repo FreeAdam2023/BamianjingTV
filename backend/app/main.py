@@ -46,6 +46,7 @@ from app.api import (
     channels_router,
     scenemind_router,
     cards_router,
+    memory_books_router,
     # Setup functions
     set_source_manager,
     set_item_manager,
@@ -70,6 +71,9 @@ from app.api import (
     set_card_generator,
     set_ner_worker,
     set_cards_timeline_manager,
+    # Memory Books setup functions
+    set_memory_book_manager,
+    set_anki_export_worker,
 )
 
 
@@ -151,6 +155,20 @@ async def lifespan(app: FastAPI):
     set_cards_timeline_manager(timeline_manager)
 
     logger.info(f"Initialized Cards: {card_cache.get_stats()['total_cached']} cached cards")
+
+    # ========== Memory Books: Initialize memory book manager and Anki export ==========
+    from app.services.memory_book_manager import MemoryBookManager
+    from app.workers.anki_export import AnkiExportWorker, GENANKI_AVAILABLE
+
+    memory_book_manager = MemoryBookManager()
+    set_memory_book_manager(memory_book_manager)
+
+    if GENANKI_AVAILABLE:
+        anki_export_worker = AnkiExportWorker()
+        set_anki_export_worker(anki_export_worker)
+        logger.info(f"Initialized Memory Books: {len(memory_book_manager.list_books())} books, Anki export enabled")
+    else:
+        logger.warning("Initialized Memory Books: Anki export disabled (genanki not installed)")
 
     # v2: Get WebSocket connection manager
     ws_manager = get_connection_manager()
@@ -269,6 +287,7 @@ app.include_router(cleanup_router)
 app.include_router(channels_router)
 app.include_router(scenemind_router)
 app.include_router(cards_router)
+app.include_router(memory_books_router)
 
 
 # ============ Root Endpoints ============

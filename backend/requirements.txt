@@ -47,6 +47,9 @@ scipy>=1.11.0
 # Chinese text processing
 opencc-python-reimplemented>=0.1.7  # Simplified <-> Traditional Chinese conversion
 
+# Anki export
+genanki>=0.13.0  # Generate Anki flashcard decks
+
 # Testing
 pytest>=7.4.0
 pytest-asyncio>=0.23.0

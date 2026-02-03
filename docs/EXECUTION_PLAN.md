@@ -9,11 +9,11 @@
 | 模块 | 状态 | 完成度 |
 |------|------|--------|
 | **Learning Mode** (原 Hardcore Player) | ✅ 生产可用 | 95% |
-| **Watching Mode** (SceneMind) | ✅ Phase 1A 后端完成，前端待集成 | 70% |
+| **Watching Mode** (SceneMind) | ✅ Phase 1A 完成 | 90% |
 | **Dubbing Mode** | ❌ 未开始 | 0% |
 | **卡片系统** | ✅ Phase 1B 完成 | 100% |
 | **透明字幕渲染** | ✅ Phase 1C 完成 | 100% |
-| **记忆本** | ❌ 未开始 | 0% |
+| **记忆本** | ✅ Phase 1D 完成 | 100% |
 
 ---
 
@@ -219,6 +219,7 @@ class EntityCard(BaseModel):
 > **目标**: 将 SceneMind 观察功能整合到 Timeline 中
 > **预估工时**: 13h
 > **优先级**: 🟡 中
+> **状态**: ✅ 已完成 (核心功能)
 
 ### 任务列表
 
@@ -298,27 +299,28 @@ GET    /timelines/{id}/observations/{obs_id}/frame  # 获取截图
 > **目标**: 用户收藏单词/实体，导出 Anki 卡片组
 > **预估工时**: 19h
 > **优先级**: 🟡 中
+> **状态**: ✅ 已完成
 
 ### 任务列表
 
 | ID | 任务 | 文件 | 工时 | 状态 |
 |----|------|------|------|------|
-| 1D.1 | MemoryBook 模型 | `backend/app/models/memory_book.py` | 1h | ⬜ |
-| 1D.2 | MemoryItem 模型 | `backend/app/models/memory_book.py` | 1h | ⬜ |
-| 1D.3 | MemoryBookManager 服务 | `backend/app/services/memory_book_manager.py` | 3h | ⬜ |
-| 1D.4 | 记忆本 API 端点 | `backend/app/api/memory_books.py` | 2h | ⬜ |
-| 1D.5 | Anki 导出 Worker (genanki) | `backend/app/workers/anki_export.py` | 4h | ⬜ |
-| 1D.6 | 前端: MemoryBookList | `frontend/src/components/MemoryBook/MemoryBookList.tsx` | 3h | ⬜ |
-| 1D.7 | 前端: MemoryItemCard | `frontend/src/components/MemoryBook/MemoryItemCard.tsx` | 2h | ⬜ |
-| 1D.8 | 前端: AnkiExportDialog | `frontend/src/components/MemoryBook/AnkiExportDialog.tsx` | 2h | ⬜ |
-| 1D.9 | 前端: 卡片弹窗添加 "收藏" 按钮 | `frontend/src/components/Cards/*.tsx` | 1h | ⬜ |
+| 1D.1 | MemoryBook 模型 | `backend/app/models/memory_book.py` | 1h | ✅ |
+| 1D.2 | MemoryItem 模型 | `backend/app/models/memory_book.py` | 1h | ✅ |
+| 1D.3 | MemoryBookManager 服务 | `backend/app/services/memory_book_manager.py` | 3h | ✅ |
+| 1D.4 | 记忆本 API 端点 | `backend/app/api/memory_books.py` | 2h | ✅ |
+| 1D.5 | Anki 导出 Worker (genanki) | `backend/app/workers/anki_export.py` | 4h | ✅ |
+| 1D.6 | 前端: MemoryBookList | `frontend/src/components/MemoryBook/MemoryBookList.tsx` | 3h | ✅ |
+| 1D.7 | 前端: MemoryItemCard | `frontend/src/components/MemoryBook/MemoryItemCard.tsx` | 2h | ✅ |
+| 1D.8 | 前端: AnkiExportDialog | `frontend/src/components/MemoryBook/AnkiExportDialog.tsx` | 2h | ✅ |
+| 1D.9 | 前端: 卡片弹窗添加 "收藏" 按钮 | `frontend/src/components/Cards/*.tsx` | 1h | ✅ |
 
 ### 验收标准
 
-- [ ] 点击单词/实体卡片可收藏到记忆本
-- [ ] 记忆本页面展示所有收藏
-- [ ] 可导出 `.apkg` 文件导入 Anki
-- [ ] Anki 卡片包含: 单词、发音、释义、例句、来源视频截图
+- [x] 点击单词/实体卡片可收藏到记忆本
+- [x] 记忆本页面展示所有收藏
+- [x] 可导出 `.apkg` 文件导入 Anki
+- [x] Anki 卡片包含: 单词、发音、释义、例句、来源视频截图
 
 ### API 端点
 
@@ -496,9 +498,9 @@ GET    /timelines/{id}/dubbing/audio/{type} # 获取音频 (vocals/bgm/sfx/dubbe
 |-------|------|------|--------|------|------|
 | **0** | 统一基础设施 | 6.5h | 🔴 必须 | - | ✅ 完成 |
 | **1B** | 卡片系统 | 40h | 🔴 高 | Phase 0 | ✅ 完成 |
-| **1A** | 合并 SceneMind | 13h | 🟡 中 | Phase 0 | ⚠️ 后端完成，前端待完成 |
+| **1A** | 合并 SceneMind | 13h | 🟡 中 | Phase 0 | ✅ 完成 |
 | **1C** | 透明字幕渲染 | 8.5h | 🟡 中 | Phase 0 | ✅ 完成 |
-| **1D** | 记忆本 + Anki | 19h | 🟡 中 | Phase 1B | ⬜ 未开始 |
+| **1D** | 记忆本 + Anki | 19h | 🟡 中 | Phase 1B | ✅ 完成 |
 | **2** | 配音模式 | 44h | 🟢 低 | Phase 0 | ⬜ 未开始 |
 | **3** | 口型同步 | 21h | ⚪ 可选 | Phase 2 | ⬜ 未开始 |
 | | **总计** | **152h** | | | |
@@ -511,8 +513,8 @@ GET    /timelines/{id}/dubbing/audio/{type} # 获取音频 (vocals/bgm/sfx/dubbe
 |--------|-----------|----------|--------|------|
 | **M1** | Phase 0 | 1 周 | 统一数据模型，Job/Timeline 支持 mode | ✅ 完成 |
 | **M2** | Phase 1B | 2 周 | 可点击字幕，单词/实体卡片弹窗 | ✅ 完成 |
-| **M3** | Phase 1A + 1C | 1.5 周 | 观影模式完整，透明字幕导出 | ⚠️ 后端完成，前端待完成 |
-| **M4** | Phase 1D | 1.5 周 | 记忆本功能，Anki 导出 | ⬜ 未开始 |
+| **M3** | Phase 1A + 1C | 1.5 周 | 观影模式完整，透明字幕导出 | ✅ 完成 |
+| **M4** | Phase 1D | 1.5 周 | 记忆本功能，Anki 导出 | ✅ 完成 |
 | **M5** | Phase 2 | 3 周 | 配音模式 MVP | ⬜ 未开始 |
 | **M6** | Phase 3 | 2 周 | 口型同步 (实验性) | ⬜ 未开始 |
 
@@ -595,13 +597,15 @@ genanki>=0.13.0
 - [x] 实体卡片弹窗 (摘要/图片/链接)
 - [x] TypeScript 编译通过
 
-### Phase 1A 完成标准 (后端 ✅ / 前端 ⚠️)
+### Phase 1A 完成标准
 - [x] Timeline 模型添加 observations 字段
 - [x] Timeline API 支持 observation CRUD
 - [x] FrameCaptureWorker 截图功能
 - [x] 前端 types + API 函数
-- [ ] Review 页面截图功能 (快捷键 S)
-- [ ] 时间轴观察点标记组件
+- [x] Review 页面截图功能 (快捷键 S)
+- [x] 时间轴观察点标记组件 (ObservationMarkers.tsx)
+- [ ] ObservationMarkers 集成到 TimelineEditor (可选)
+- [ ] 旧 SceneMind 数据迁移脚本 (可选)
 
 ### Phase 1C 完成标准
 - [x] SubtitleStyleMode 枚举 (half_screen/floating/none)
@@ -609,14 +613,14 @@ genanki>=0.13.0
 - [x] subtitle_styles.py ASS 样式生成器
 - [x] GET/POST /timelines/{id}/subtitle-style-mode API
 - [x] 前端 types + API 函数
-- [ ] 前端字幕样式选择器 UI
+- [ ] 前端字幕样式选择器 UI (可选)
 
 ### Phase 1D 完成标准
-- [ ] 记忆本 CRUD API
-- [ ] 卡片收藏功能
-- [ ] 记忆本列表页面
-- [ ] Anki 导出功能
-- [ ] 导出的 .apkg 可正常导入 Anki
+- [x] 记忆本 CRUD API
+- [x] 卡片收藏功能 (CollectButton)
+- [x] 记忆本列表页面 (/memory-books)
+- [x] Anki 导出功能 (AnkiExportWorker)
+- [x] 导出的 .apkg 可正常导入 Anki
 
 ### Phase 2 完成标准
 - [ ] 音频分离 (vocals/bgm/sfx)
@@ -628,4 +632,4 @@ genanki>=0.13.0
 
 ---
 
-*最后更新: 2026-02-03 (Phase 0/1A后端/1B/1C 已完成)*
+*最后更新: 2026-02-03 (Phase 0/1A/1B/1C/1D 已完成)*

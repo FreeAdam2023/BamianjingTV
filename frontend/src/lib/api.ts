@@ -47,6 +47,16 @@ import type {
   Observation,
   ObservationCreate,
   ObservationType,
+  // Memory Books
+  MemoryBook,
+  MemoryBookSummary,
+  MemoryBookCreate,
+  MemoryBookUpdate,
+  MemoryItem,
+  MemoryItemCreate,
+  MemoryItemUpdate,
+  MemoryItemType,
+  MemoryItemExistsResponse,
 } from "./types";
 
 // Get API URL: use env var or derive from current host with port 8000
@@ -838,4 +848,130 @@ export function getObservationTagColor(tag: ObservationType): string {
     general: "bg-gray-500",
   };
   return colors[tag] || "bg-gray-500";
+}
+
+// ============ Memory Books API ============
+
+export async function listMemoryBooks(): Promise<MemoryBookSummary[]> {
+  return fetchAPI<MemoryBookSummary[]>("/memory-books");
+}
+
+export async function createMemoryBook(data: MemoryBookCreate): Promise<MemoryBook> {
+  return fetchAPI<MemoryBook>("/memory-books", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getDefaultMemoryBook(): Promise<MemoryBook> {
+  return fetchAPI<MemoryBook>("/memory-books/default");
+}
+
+export async function getMemoryBook(bookId: string): Promise<MemoryBook> {
+  return fetchAPI<MemoryBook>(`/memory-books/${bookId}`);
+}
+
+export async function updateMemoryBook(
+  bookId: string,
+  data: MemoryBookUpdate
+): Promise<MemoryBook> {
+  return fetchAPI<MemoryBook>(`/memory-books/${bookId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteMemoryBook(bookId: string): Promise<{ status: string; book_id: string }> {
+  return fetchAPI(`/memory-books/${bookId}`, {
+    method: "DELETE",
+  });
+}
+
+// Memory Items
+
+export async function listMemoryItems(bookId: string): Promise<MemoryItem[]> {
+  return fetchAPI<MemoryItem[]>(`/memory-books/${bookId}/items`);
+}
+
+export async function addMemoryItem(
+  bookId: string,
+  data: MemoryItemCreate
+): Promise<MemoryItem> {
+  return fetchAPI<MemoryItem>(`/memory-books/${bookId}/items`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getMemoryItem(
+  bookId: string,
+  itemId: string
+): Promise<MemoryItem> {
+  return fetchAPI<MemoryItem>(`/memory-books/${bookId}/items/${itemId}`);
+}
+
+export async function updateMemoryItem(
+  bookId: string,
+  itemId: string,
+  data: MemoryItemUpdate
+): Promise<MemoryItem> {
+  return fetchAPI<MemoryItem>(`/memory-books/${bookId}/items/${itemId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteMemoryItem(
+  bookId: string,
+  itemId: string
+): Promise<{ status: string; item_id: string }> {
+  return fetchAPI(`/memory-books/${bookId}/items/${itemId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function checkMemoryItemExists(
+  bookId: string,
+  targetType: MemoryItemType,
+  targetId: string
+): Promise<MemoryItemExistsResponse> {
+  return fetchAPI<MemoryItemExistsResponse>(
+    `/memory-books/${bookId}/items/check/${targetType}/${encodeURIComponent(targetId)}`
+  );
+}
+
+// Anki Export
+
+export function getAnkiExportUrl(bookId: string): string {
+  return `${getApiBase()}/memory-books/${bookId}/export/anki`;
+}
+
+export async function exportMemoryBookToAnki(bookId: string): Promise<Blob> {
+  const response = await fetch(getAnkiExportUrl(bookId));
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(error.detail || "Export failed");
+  }
+  return response.blob();
+}
+
+// Memory item type helpers
+export const MEMORY_ITEM_TYPES: MemoryItemType[] = ["word", "entity", "observation"];
+
+export function getMemoryItemTypeLabel(type: MemoryItemType): string {
+  const labels: Record<MemoryItemType, string> = {
+    word: "Word",
+    entity: "Entity",
+    observation: "Observation",
+  };
+  return labels[type] || type;
+}
+
+export function getMemoryItemTypeIcon(type: MemoryItemType): string {
+  const icons: Record<MemoryItemType, string> = {
+    word: "📝",
+    entity: "🏷️",
+    observation: "📸",
+  };
+  return icons[type] || "📌";
 }
