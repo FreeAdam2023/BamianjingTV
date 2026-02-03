@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.config import settings
-from app.models.job import Job, JobCreate, JobStatus
+from app.models.job import Job, JobCreate, JobStatus, JobMode
 
 
 router = APIRouter(tags=["jobs"])
@@ -48,6 +48,7 @@ def set_webhook_service(service):
 class BatchJobCreate(BaseModel):
     """Request model for creating batch jobs."""
     urls: List[str]
+    mode: JobMode = JobMode.LEARNING
     target_language: str = "zh"
     priority: int = 0
     callback_url: Optional[str] = None
@@ -104,6 +105,12 @@ async def create_job(
         pipeline_id=job_create.pipeline_id,
     )
 
+    # Set mode and mode-specific config
+    job.mode = job_create.mode
+    job.learning_config = job_create.learning_config
+    job.watching_config = job_create.watching_config
+    job.dubbing_config = job_create.dubbing_config
+
     # Hardcore Player options
     job.use_traditional_chinese = job_create.use_traditional_chinese
     job.skip_diarization = job_create.skip_diarization
@@ -131,6 +138,7 @@ async def create_batch_jobs(batch: BatchJobCreate):
             url=url,
             target_language=batch.target_language,
         )
+        job.mode = batch.mode
         job.use_traditional_chinese = batch.use_traditional_chinese
         _job_manager.save_job(job)
         job_ids.append(job.id)

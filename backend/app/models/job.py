@@ -10,6 +10,14 @@ import uuid
 from app.models.source import SourceType
 
 
+class JobMode(str, Enum):
+    """Video processing mode."""
+
+    LEARNING = "learning"    # 学习模式: 原音 + 双语字幕
+    WATCHING = "watching"    # 观影模式: 原音 + 透明字幕 + 截图
+    DUBBING = "dubbing"      # 配音模式: 克隆配音 + 口型同步
+
+
 class JobStatus(str, Enum):
     """Job status enum.
 
@@ -29,6 +37,46 @@ class JobStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"  # User cancelled the job
+
+
+# ========== Mode-specific Configurations ==========
+
+class LearningConfig(BaseModel):
+    """Learning mode configuration."""
+
+    subtitle_style: str = "half_screen"  # half_screen, floating
+    generate_cards: bool = True  # Generate word/entity cards
+    card_types: List[str] = Field(default_factory=lambda: ["word", "entity"])
+
+
+class WatchingConfig(BaseModel):
+    """Watching mode configuration."""
+
+    subtitle_style: str = "floating"  # floating, none
+    enable_observations: bool = True  # Enable scene capture
+
+
+class DubbingConfig(BaseModel):
+    """Dubbing mode configuration."""
+
+    # Voice settings
+    voice_clone: bool = True  # Clone original voice
+    voice_model: str = "xtts_v2"  # xtts_v2, gpt_sovits, preset
+    voice_preset: Optional[str] = None  # Preset voice ID if not cloning
+    voice_similarity: float = 0.8  # Voice similarity (0-1, lower = safer)
+
+    # Lip sync
+    lip_sync: bool = False  # Enable lip sync
+    lip_sync_model: str = "wav2lip"  # wav2lip, sadtalker
+
+    # Audio mixing
+    keep_bgm: bool = True  # Keep background music
+    keep_sfx: bool = True  # Keep sound effects
+    bgm_volume: float = 0.3  # Background volume (0-1)
+
+    # Subtitles
+    subtitle_style: str = "none"  # none, floating, half_screen
+    subtitle_language: str = "target"  # source, target, both
 
 
 def infer_source_type_from_url(url: str) -> SourceType:
@@ -53,6 +101,7 @@ class JobCreate(BaseModel):
     """
 
     url: str = Field(..., description="Video URL")
+    mode: JobMode = Field(default=JobMode.LEARNING, description="Processing mode")
     target_language: str = Field(default="zh-TW", description="Target language code (zh-TW, zh-CN, ja, ko, etc.)")
     use_traditional_chinese: bool = Field(
         default=True, description="Use Traditional Chinese for subtitles (derived from target_language)"
@@ -60,6 +109,11 @@ class JobCreate(BaseModel):
     skip_diarization: bool = Field(
         default=False, description="Skip speaker diarization step"
     )
+
+    # Mode-specific configurations
+    learning_config: Optional[LearningConfig] = None
+    watching_config: Optional[WatchingConfig] = None
+    dubbing_config: Optional[DubbingConfig] = None
 
     # v2 fields - auto-populated if not provided
     source_type: Optional[SourceType] = Field(default=None, description="Source type")
@@ -96,6 +150,14 @@ class JobCreate(BaseModel):
         if self.pipeline_id is None:
             self.pipeline_id = "default_zh"
 
+        # Initialize default mode config if not provided
+        if self.mode == JobMode.LEARNING and self.learning_config is None:
+            self.learning_config = LearningConfig()
+        elif self.mode == JobMode.WATCHING and self.watching_config is None:
+            self.watching_config = WatchingConfig()
+        elif self.mode == JobMode.DUBBING and self.dubbing_config is None:
+            self.dubbing_config = DubbingConfig()
+
         return self
 
 
@@ -107,12 +169,18 @@ class Job(BaseModel):
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
     url: str
+    mode: JobMode = JobMode.LEARNING
     target_language: str = "zh"
     status: JobStatus = JobStatus.PENDING
     progress: float = 0.0
     error: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+    # ========== Mode-specific Configurations ==========
+    learning_config: Optional[LearningConfig] = None
+    watching_config: Optional[WatchingConfig] = None
+    dubbing_config: Optional[DubbingConfig] = None
 
     # ========== v2: Source tracking ==========
     # These fields are auto-populated for backward compatibility with v1 jobs
@@ -136,6 +204,14 @@ class Job(BaseModel):
 
         if self.pipeline_id is None:
             self.pipeline_id = "default_zh"
+
+        # Initialize default mode config if not provided (for v1 jobs)
+        if self.mode == JobMode.LEARNING and self.learning_config is None:
+            self.learning_config = LearningConfig()
+        elif self.mode == JobMode.WATCHING and self.watching_config is None:
+            self.watching_config = WatchingConfig()
+        elif self.mode == JobMode.DUBBING and self.dubbing_config is None:
+            self.dubbing_config = DubbingConfig()
 
         return self
 

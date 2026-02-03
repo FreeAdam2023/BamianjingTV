@@ -2,9 +2,36 @@
  * API types for Hardcore Player
  */
 
+export type JobMode = "learning" | "watching" | "dubbing";
 export type SegmentState = "keep" | "drop" | "undecided";
 export type ExportProfile = "full" | "essence" | "both";
 export type ExportStatus = "idle" | "exporting" | "uploading" | "completed" | "failed";
+
+// Mode-specific configurations
+export interface LearningConfig {
+  subtitle_style: string;  // half_screen, floating
+  generate_cards: boolean;
+  card_types: string[];
+}
+
+export interface WatchingConfig {
+  subtitle_style: string;  // floating, none
+  enable_observations: boolean;
+}
+
+export interface DubbingConfig {
+  voice_clone: boolean;
+  voice_model: string;  // xtts_v2, gpt_sovits, preset
+  voice_preset: string | null;
+  voice_similarity: number;
+  lip_sync: boolean;
+  lip_sync_model: string;  // wav2lip, sadtalker
+  keep_bgm: boolean;
+  keep_sfx: boolean;
+  bgm_volume: number;
+  subtitle_style: string;  // none, floating, half_screen
+  subtitle_language: string;  // source, target, both
+}
 
 export interface EditableSegment {
   id: number;
@@ -21,6 +48,7 @@ export interface EditableSegment {
 export interface Timeline {
   timeline_id: string;
   job_id: string;
+  mode: JobMode;
   source_url: string;
   source_title: string;
   source_duration: number;
@@ -52,6 +80,7 @@ export interface Timeline {
 export interface TimelineSummary {
   timeline_id: string;
   job_id: string;
+  mode: JobMode;
   source_title: string;
   source_duration: number;
   total_segments: number;
@@ -212,6 +241,7 @@ export interface ApiCost {
 export interface Job {
   id: string;
   url: string;
+  mode: JobMode;
   target_language: string;
   status: string;
   progress: number;
@@ -224,6 +254,10 @@ export interface Job {
   timeline_id: string | null;
   source_video: string | null;
   output_video: string | null;
+  // Mode-specific configs
+  learning_config?: LearningConfig | null;
+  watching_config?: WatchingConfig | null;
+  dubbing_config?: DubbingConfig | null;
   // Processing stats
   step_timings?: Record<string, StepTiming>;
   api_costs?: ApiCost[];
@@ -233,9 +267,13 @@ export interface Job {
 
 export interface JobCreate {
   url: string;
+  mode?: JobMode;
   target_language?: string;
   use_traditional_chinese?: boolean;
   skip_diarization?: boolean;
+  learning_config?: Partial<LearningConfig>;
+  watching_config?: Partial<WatchingConfig>;
+  dubbing_config?: Partial<DubbingConfig>;
 }
 
 // Timeline Editor Types

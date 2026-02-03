@@ -65,6 +65,7 @@ class TimelineManager:
         source_title: str,
         source_duration: float,
         translated_transcript: TranslatedTranscript,
+        mode: str = "learning",
     ) -> Timeline:
         """Create a new timeline from a translated transcript.
 
@@ -74,6 +75,7 @@ class TimelineManager:
             source_title: Original video title
             source_duration: Video duration in seconds
             translated_transcript: Translated transcript with segments
+            mode: Job mode (learning, watching, dubbing)
 
         Returns:
             Created Timeline object
@@ -94,6 +96,7 @@ class TimelineManager:
 
         timeline = Timeline(
             job_id=job_id,
+            mode=mode,
             source_url=source_url,
             source_title=source_title,
             source_duration=source_duration,
@@ -151,6 +154,7 @@ class TimelineManager:
                 TimelineSummary(
                     timeline_id=timeline.timeline_id,
                     job_id=timeline.job_id,
+                    mode=timeline.mode,
                     source_title=timeline.source_title,
                     source_duration=timeline.source_duration,
                     total_segments=timeline.total_segments,

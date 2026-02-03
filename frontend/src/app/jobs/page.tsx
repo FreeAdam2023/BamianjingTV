@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import { listJobs, createJob, deleteJob, cancelJob, formatDuration, getVideoUrl, getExportVideoUrl } from "@/lib/api";
 import { useToast, useConfirm } from "@/components/ui";
-import type { Job, JobCreate } from "@/lib/types";
+import type { Job, JobCreate, JobMode } from "@/lib/types";
 
 export default function JobsPage() {
   const toast = useToast();
@@ -21,9 +21,17 @@ export default function JobsPage() {
   const [newUrl, setNewUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [jobOptions, setJobOptions] = useState<Partial<JobCreate>>({
+    mode: "learning",          // Default to Learning mode
     target_language: "zh-TW",  // Default to Traditional Chinese
     skip_diarization: true,    // Default: skip diarization (single speaker)
   });
+
+  // Mode options
+  const JOB_MODES: { value: JobMode; label: string; description: string }[] = [
+    { value: "learning", label: "学习模式", description: "原音 + 双语字幕 + 单词卡片" },
+    { value: "watching", label: "观影模式", description: "原音 + 透明字幕 + 场景截图" },
+    { value: "dubbing", label: "配音模式", description: "克隆配音 + 口型同步 (实验性)" },
+  ];
 
   // Supported target languages (Chinese variants merged into dropdown)
   const SUPPORTED_LANGUAGES = [
@@ -66,6 +74,7 @@ export default function JobsPage() {
   function openModal() {
     setNewUrl("");
     setJobOptions({
+      mode: "learning",          // Default to Learning mode
       target_language: "zh-TW",  // Default to Traditional Chinese
       skip_diarization: true,    // Default: skip diarization (single speaker)
     });
@@ -176,6 +185,19 @@ export default function JobsPage() {
     }
   }
 
+  function getModeBadge(mode: JobMode | undefined) {
+    switch (mode) {
+      case "learning":
+        return <span className="badge bg-blue-600 text-white text-xs">学习</span>;
+      case "watching":
+        return <span className="badge bg-purple-600 text-white text-xs">观影</span>;
+      case "dubbing":
+        return <span className="badge bg-orange-600 text-white text-xs">配音</span>;
+      default:
+        return <span className="badge bg-blue-600 text-white text-xs">学习</span>;
+    }
+  }
+
   // Only show full-page loading on initial load
   if (initialLoading) {
     return (
@@ -261,6 +283,7 @@ export default function JobsPage() {
                       <h3 className="text-lg font-semibold truncate">
                         {job.title || "Processing..."}
                       </h3>
+                      {getModeBadge(job.mode)}
                       {getStatusBadge(job.status)}
                     </div>
                     <p className="text-gray-400 text-sm">
@@ -452,10 +475,45 @@ export default function JobsPage() {
                 />
               </div>
 
+              {/* Mode Selection */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-300 mb-3">
+                  处理模式
+                </label>
+                <div className="grid grid-cols-1 gap-2">
+                  {JOB_MODES.map((mode) => (
+                    <label
+                      key={mode.value}
+                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                        jobOptions.mode === mode.value
+                          ? "border-blue-500 bg-blue-500/10"
+                          : "border-gray-600 bg-gray-800/50 hover:border-gray-500"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="mode"
+                        value={mode.value}
+                        checked={jobOptions.mode === mode.value}
+                        onChange={(e) =>
+                          setJobOptions({ ...jobOptions, mode: e.target.value as JobMode })
+                        }
+                        className="w-4 h-4 text-blue-500 border-gray-600 bg-gray-700 focus:ring-blue-500"
+                        disabled={submitting}
+                      />
+                      <div>
+                        <span className="text-white font-medium">{mode.label}</span>
+                        <p className="text-gray-500 text-xs">{mode.description}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               {/* Options */}
               <div className="mb-6 space-y-4">
                 <label className="block text-sm font-medium text-gray-300 mb-3">
-                  Processing Options
+                  处理选项
                 </label>
 
                 {/* Target Language */}

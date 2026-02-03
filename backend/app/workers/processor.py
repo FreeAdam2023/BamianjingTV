@@ -245,6 +245,7 @@ async def process_job(
                 source_title=job.title,
                 source_duration=job.duration,
                 translated_transcript=translated_transcript,
+                mode=job.mode.value if hasattr(job.mode, 'value') else job.mode,
             )
             job.timeline_id = timeline.timeline_id
             job_manager.save_job(job)

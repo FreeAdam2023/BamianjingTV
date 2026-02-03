@@ -63,19 +63,19 @@
 
 | ID | 任务 | 文件 | 工时 | 状态 |
 |----|------|------|------|------|
-| 0.1 | 添加 `JobMode` 枚举 | `backend/app/models/job.py` | 0.5h | ⬜ |
-| 0.2 | 添加模式配置类 `LearningConfig/WatchingConfig/DubbingConfig` | `backend/app/models/job.py` | 1h | ⬜ |
-| 0.3 | Job 模型添加 `mode` 和 `config` 字段 | `backend/app/models/job.py` | 0.5h | ⬜ |
-| 0.4 | Timeline 模型添加 `mode` 字段 | `backend/app/models/timeline.py` | 0.5h | ⬜ |
-| 0.5 | 更新 Job API 支持 `mode` 参数 | `backend/app/api/jobs.py` | 1h | ⬜ |
-| 0.6 | 更新前端创建 Job 时选择模式 | `frontend/src/app/jobs/page.tsx` | 2h | ⬜ |
-| 0.7 | 迁移脚本: 现有数据标记为 LEARNING | `scripts/migrate_to_unified.py` | 1h | ⬜ |
+| 0.1 | 添加 `JobMode` 枚举 | `backend/app/models/job.py` | 0.5h | ✅ |
+| 0.2 | 添加模式配置类 `LearningConfig/WatchingConfig/DubbingConfig` | `backend/app/models/job.py` | 1h | ✅ |
+| 0.3 | Job 模型添加 `mode` 和 `config` 字段 | `backend/app/models/job.py` | 0.5h | ✅ |
+| 0.4 | Timeline 模型添加 `mode` 字段 | `backend/app/models/timeline.py` | 0.5h | ✅ |
+| 0.5 | 更新 Job API 支持 `mode` 参数 | `backend/app/api/jobs.py` | 1h | ✅ |
+| 0.6 | 更新前端创建 Job 时选择模式 | `frontend/src/app/jobs/page.tsx` | 2h | ✅ |
+| 0.7 | 迁移脚本: 现有数据标记为 LEARNING | `scripts/migrate_to_unified.py` | 1h | ✅ |
 
 ### 验收标准
 
-- [ ] 创建 Job 时可选 mode (默认 LEARNING)
-- [ ] 现有功能无回归
-- [ ] 数据迁移脚本可重复执行
+- [x] 创建 Job 时可选 mode (默认 LEARNING)
+- [x] 现有功能无回归 (30 tests passed)
+- [x] 数据迁移脚本可重复执行
 
 ### 代码示例
 

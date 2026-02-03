@@ -84,6 +84,7 @@ class Timeline(BaseModel):
 
     timeline_id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
     job_id: str
+    mode: str = "learning"  # JobMode: learning, watching, dubbing
     source_url: str
     source_title: str
     source_duration: float  # Total video duration in seconds
@@ -218,6 +219,7 @@ class TimelineCreate(BaseModel):
     """Request model for creating a timeline (usually auto-created from job)."""
 
     job_id: str
+    mode: str = "learning"  # JobMode: learning, watching, dubbing
     source_url: str
     source_title: str
     source_duration: float
@@ -256,6 +258,7 @@ class TimelineSummary(BaseModel):
 
     timeline_id: str
     job_id: str
+    mode: str = "learning"  # JobMode: learning, watching, dubbing
     source_title: str
     source_duration: float
     total_segments: int
