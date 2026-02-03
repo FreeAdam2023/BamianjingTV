@@ -67,6 +67,8 @@ export interface Timeline {
   youtube_url: string | null;
   // Cover frame for thumbnail
   cover_frame_time: number | null;
+  // Observations (for WATCHING mode)
+  observations: Observation[];
   // Export progress tracking
   export_status: ExportStatus;
   export_progress: number;
@@ -89,6 +91,8 @@ export interface TimelineSummary {
   undecided_count: number;
   review_progress: number;
   is_reviewed: boolean;
+  // Observation count (for WATCHING mode)
+  observation_count: number;
   // Export progress tracking
   export_status: ExportStatus;
   export_progress: number;
@@ -274,6 +278,35 @@ export interface JobCreate {
   learning_config?: Partial<LearningConfig>;
   watching_config?: Partial<WatchingConfig>;
   dubbing_config?: Partial<DubbingConfig>;
+}
+
+// ============ Observation Types (for WATCHING mode) ============
+
+export type ObservationType = "slang" | "prop" | "character" | "music" | "visual" | "general";
+
+export interface CropRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface Observation {
+  id: string;
+  timecode: number;
+  frame_path: string;
+  crop_path: string | null;
+  crop_region: CropRegion | null;
+  note: string;
+  tag: ObservationType;
+  created_at: string;
+}
+
+export interface ObservationCreate {
+  timecode: number;
+  note: string;
+  tag: ObservationType;
+  crop_region?: CropRegion;
 }
 
 // Timeline Editor Types

@@ -7,6 +7,64 @@ from pydantic import BaseModel, Field
 import uuid
 
 
+# ============ Observation Types (for WATCHING mode) ============
+
+
+class ObservationType(str, Enum):
+    """Type of observation/scene capture."""
+
+    SLANG = "slang"  # Slang expressions, idioms
+    PROP = "prop"  # Props, objects in scene
+    CHARACTER = "character"  # Character observations
+    MUSIC = "music"  # Background music, songs
+    VISUAL = "visual"  # Visual gags, cinematography
+    GENERAL = "general"  # General observations
+
+
+class CropRegion(BaseModel):
+    """Region for cropped frame capture."""
+
+    x: int
+    y: int
+    width: int
+    height: int
+
+
+class Observation(BaseModel):
+    """A single observation/capture during watching session."""
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    timecode: float  # Timestamp in video (seconds)
+    frame_path: str  # Path to full frame capture
+    crop_path: Optional[str] = None  # Path to cropped region
+    crop_region: Optional[CropRegion] = None
+    note: str  # User's note about the observation
+    tag: ObservationType = ObservationType.GENERAL
+    created_at: datetime = Field(default_factory=datetime.now)
+
+    @property
+    def timecode_str(self) -> str:
+        """Get timecode as HH:MM:SS string."""
+        hours = int(self.timecode // 3600)
+        minutes = int((self.timecode % 3600) // 60)
+        seconds = int(self.timecode % 60)
+        if hours > 0:
+            return f"{hours}:{minutes:02d}:{seconds:02d}"
+        return f"{minutes}:{seconds:02d}"
+
+
+class ObservationCreate(BaseModel):
+    """Request model for creating an observation."""
+
+    timecode: float
+    note: str
+    tag: ObservationType = ObservationType.GENERAL
+    crop_region: Optional[CropRegion] = None
+
+
+# ============ Segment and Timeline Types ============
+
+
 class SegmentState(str, Enum):
     """Segment state for review."""
 
@@ -119,6 +177,9 @@ class Timeline(BaseModel):
     # Cover frame for thumbnail
     cover_frame_time: Optional[float] = None  # Timestamp of captured cover frame
 
+    # Observations (for WATCHING mode)
+    observations: List[Observation] = Field(default_factory=list)
+
     # AI-generated metadata drafts (saved to avoid re-generation)
     draft_youtube_title: Optional[str] = None
     draft_youtube_description: Optional[str] = None
@@ -214,6 +275,35 @@ class Timeline(BaseModel):
         self.is_reviewed = True
         self.updated_at = datetime.now()
 
+    # ============ Observation Methods (for WATCHING mode) ============
+
+    @property
+    def observation_count(self) -> int:
+        """Get number of observations."""
+        return len(self.observations)
+
+    def get_observation(self, observation_id: str) -> Optional[Observation]:
+        """Get observation by ID."""
+        for obs in self.observations:
+            if obs.id == observation_id:
+                return obs
+        return None
+
+    def add_observation(self, observation: Observation) -> Observation:
+        """Add an observation to the timeline."""
+        self.observations.append(observation)
+        self.updated_at = datetime.now()
+        return observation
+
+    def delete_observation(self, observation_id: str) -> bool:
+        """Delete an observation. Returns True if deleted."""
+        for i, obs in enumerate(self.observations):
+            if obs.id == observation_id:
+                del self.observations[i]
+                self.updated_at = datetime.now()
+                return True
+        return False
+
 
 class TimelineCreate(BaseModel):
     """Request model for creating a timeline (usually auto-created from job)."""
@@ -267,6 +357,8 @@ class TimelineSummary(BaseModel):
     undecided_count: int
     review_progress: float
     is_reviewed: bool
+    # Observation count (for WATCHING mode)
+    observation_count: int = 0
     # Export status
     export_status: ExportStatus = ExportStatus.IDLE
     export_progress: float = 0.0

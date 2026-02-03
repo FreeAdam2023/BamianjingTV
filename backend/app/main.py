@@ -56,6 +56,7 @@ from app.api import (
     set_youtube_worker,
     set_thumbnail_worker,
     set_waveform_worker,
+    set_timelines_frame_capture_worker,
     set_jobs_dir,
     set_job_manager,
     set_job_queue,
@@ -118,14 +119,20 @@ async def lifespan(app: FastAPI):
 
     logger.info(f"Initialized timeline manager: {timeline_manager.get_stats()['total']} timelines")
 
+    # ========== Frame Capture: Initialize frame capture worker ==========
+    from app.workers.frame_capture import FrameCaptureWorker
+
+    frame_capture_worker = FrameCaptureWorker()
+    set_timelines_frame_capture_worker(frame_capture_worker)  # For timeline observations
+
     # ========== SceneMind: Initialize session manager ==========
     from app.services.scenemind import SceneMindSessionManager
-    from app.workers.scenemind import FrameCaptureWorker
+    from app.workers.scenemind import FrameCaptureWorker as SceneMindFrameCaptureWorker
 
     scenemind_session_manager = SceneMindSessionManager()
     set_scenemind_session_manager(scenemind_session_manager)
-    frame_capture_worker = FrameCaptureWorker()
-    set_frame_capture_worker(frame_capture_worker)
+    scenemind_frame_worker = SceneMindFrameCaptureWorker()  # Keep for backwards compatibility
+    set_frame_capture_worker(scenemind_frame_worker)
 
     logger.info(f"Initialized SceneMind: {scenemind_session_manager.get_stats()['total']} sessions")
 

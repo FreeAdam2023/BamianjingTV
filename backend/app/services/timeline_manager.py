@@ -11,6 +11,8 @@ from app.models.timeline import (
     EditableSegment,
     ExportProfile,
     ExportStatus,
+    Observation,
+    ObservationCreate,
     SegmentState,
     SegmentUpdate,
     Timeline,
@@ -163,6 +165,7 @@ class TimelineManager:
                     undecided_count=timeline.undecided_count,
                     review_progress=timeline.review_progress,
                     is_reviewed=timeline.is_reviewed,
+                    observation_count=timeline.observation_count,
                     export_status=timeline.export_status,
                     export_progress=timeline.export_progress,
                     export_message=timeline.export_message,
@@ -496,3 +499,105 @@ class TimelineManager:
             "reviewed": reviewed,
             "pending": pending,
         }
+
+    # ============ Observation Methods (for WATCHING mode) ============
+
+    def add_observation(
+        self,
+        timeline_id: str,
+        create: ObservationCreate,
+        frame_path: str,
+        crop_path: Optional[str] = None,
+    ) -> Optional[Observation]:
+        """Add an observation to a timeline.
+
+        Args:
+            timeline_id: Timeline ID
+            create: Observation creation data
+            frame_path: Path to captured frame
+            crop_path: Path to cropped frame (optional)
+
+        Returns:
+            Created Observation or None if timeline not found
+        """
+        timeline = self.get_timeline(timeline_id)
+        if not timeline:
+            return None
+
+        observation = Observation(
+            timecode=create.timecode,
+            note=create.note,
+            tag=create.tag,
+            frame_path=frame_path,
+            crop_path=crop_path,
+            crop_region=create.crop_region,
+        )
+
+        timeline.add_observation(observation)
+        self._save_timeline(timeline)
+        logger.info(
+            f"Added observation {observation.id} to timeline {timeline_id} "
+            f"at {create.timecode}s"
+        )
+
+        return observation
+
+    def get_observations(self, timeline_id: str) -> List[Observation]:
+        """Get all observations for a timeline.
+
+        Args:
+            timeline_id: Timeline ID
+
+        Returns:
+            List of observations (empty if timeline not found)
+        """
+        timeline = self.get_timeline(timeline_id)
+        if not timeline:
+            return []
+        return timeline.observations
+
+    def get_observation(
+        self,
+        timeline_id: str,
+        observation_id: str,
+    ) -> Optional[Observation]:
+        """Get a specific observation.
+
+        Args:
+            timeline_id: Timeline ID
+            observation_id: Observation ID
+
+        Returns:
+            Observation or None if not found
+        """
+        timeline = self.get_timeline(timeline_id)
+        if not timeline:
+            return None
+        return timeline.get_observation(observation_id)
+
+    def delete_observation(
+        self,
+        timeline_id: str,
+        observation_id: str,
+    ) -> bool:
+        """Delete an observation.
+
+        Args:
+            timeline_id: Timeline ID
+            observation_id: Observation ID
+
+        Returns:
+            True if deleted, False if not found
+        """
+        timeline = self.get_timeline(timeline_id)
+        if not timeline:
+            return False
+
+        if timeline.delete_observation(observation_id):
+            self._save_timeline(timeline)
+            logger.info(
+                f"Deleted observation {observation_id} from timeline {timeline_id}"
+            )
+            return True
+
+        return False

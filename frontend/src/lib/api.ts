@@ -43,6 +43,10 @@ import type {
   WordCardResponse,
   EntityCardResponse,
   CardGenerateResponse,
+  // Observations
+  Observation,
+  ObservationCreate,
+  ObservationType,
 } from "./types";
 
 // Get API URL: use env var or derive from current host with port 8000
@@ -719,4 +723,79 @@ export async function getCardCacheStats(): Promise<{
   cache_dir: string;
 }> {
   return fetchAPI(`/cards/cache/stats`);
+}
+
+// ============ Observations API (for WATCHING mode) ============
+
+export async function addObservation(
+  timelineId: string,
+  data: ObservationCreate
+): Promise<Observation> {
+  return fetchAPI<Observation>(`/timelines/${timelineId}/observations`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getObservations(timelineId: string): Promise<Observation[]> {
+  return fetchAPI<Observation[]>(`/timelines/${timelineId}/observations`);
+}
+
+export async function getObservation(
+  timelineId: string,
+  observationId: string
+): Promise<Observation> {
+  return fetchAPI<Observation>(`/timelines/${timelineId}/observations/${observationId}`);
+}
+
+export async function deleteObservation(
+  timelineId: string,
+  observationId: string
+): Promise<{ message: string; observation_id: string }> {
+  return fetchAPI(`/timelines/${timelineId}/observations/${observationId}`, {
+    method: "DELETE",
+  });
+}
+
+export function getObservationFrameUrl(
+  timelineId: string,
+  observationId: string,
+  crop: boolean = false
+): string {
+  const base = getApiBase();
+  return `${base}/timelines/${timelineId}/observations/${observationId}/frame?crop=${crop}`;
+}
+
+// Observation tag helpers
+export const OBSERVATION_TAGS: ObservationType[] = [
+  "slang",
+  "prop",
+  "character",
+  "music",
+  "visual",
+  "general",
+];
+
+export function getObservationTagLabel(tag: ObservationType): string {
+  const labels: Record<ObservationType, string> = {
+    slang: "Slang",
+    prop: "Prop",
+    character: "Character",
+    music: "Music",
+    visual: "Visual",
+    general: "General",
+  };
+  return labels[tag] || tag;
+}
+
+export function getObservationTagColor(tag: ObservationType): string {
+  const colors: Record<ObservationType, string> = {
+    slang: "bg-purple-500",
+    prop: "bg-blue-500",
+    character: "bg-green-500",
+    music: "bg-pink-500",
+    visual: "bg-orange-500",
+    general: "bg-gray-500",
+  };
+  return colors[tag] || "bg-gray-500";
 }

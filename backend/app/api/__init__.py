@@ -12,6 +12,7 @@ from .timelines import (
     set_youtube_worker,
     set_thumbnail_worker,
     set_waveform_worker,
+    set_frame_capture_worker as set_timelines_frame_capture_worker,
     set_jobs_dir,
 )
 from .jobs import (
@@ -71,6 +72,7 @@ __all__ = [
     "set_youtube_worker",
     "set_thumbnail_worker",
     "set_waveform_worker",
+    "set_timelines_frame_capture_worker",
     "set_jobs_dir",
     # Job/Queue Setup functions
     "set_job_manager",

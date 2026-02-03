@@ -223,18 +223,18 @@ class EntityCard(BaseModel):
 
 | ID | 任务 | 文件 | 工时 | 状态 |
 |----|------|------|------|------|
-| 1A.1 | Timeline 模型添加 `observations` 字段 | `backend/app/models/timeline.py` | 1h | ⬜ |
-| 1A.2 | 迁移 Observation 模型到 timeline 模块 | `backend/app/models/timeline.py` | 1h | ⬜ |
-| 1A.3 | TimelineManager 添加 observation CRUD | `backend/app/services/timeline_manager.py` | 2h | ⬜ |
-| 1A.4 | 合并 SceneMind API 到 Timeline API | `backend/app/api/timelines.py` | 2h | ⬜ |
-| 1A.5 | 迁移 FrameCaptureWorker 到通用 workers | `backend/app/workers/frame_capture.py` | 1h | ⬜ |
-| 1A.6 | 前端: ObservationPanel 集成到 Review | `frontend/src/app/review/[timelineId]/page.tsx` | 3h | ⬜ |
-| 1A.7 | 前端: ObservationMarkers 时间轴组件 | `frontend/src/components/Timeline/ObservationMarkers.tsx` | 2h | ⬜ |
-| 1A.8 | 删除/重定向独立 SceneMind 路由 | `frontend/src/app/scenemind/` | 1h | ⬜ |
+| 1A.1 | Timeline 模型添加 `observations` 字段 | `backend/app/models/timeline.py` | 1h | ✅ |
+| 1A.2 | 迁移 Observation 模型到 timeline 模块 | `backend/app/models/timeline.py` | 1h | ✅ |
+| 1A.3 | TimelineManager 添加 observation CRUD | `backend/app/services/timeline_manager.py` | 2h | ✅ |
+| 1A.4 | 合并 SceneMind API 到 Timeline API | `backend/app/api/timelines.py` | 2h | ✅ |
+| 1A.5 | 迁移 FrameCaptureWorker 到通用 workers | `backend/app/workers/frame_capture.py` | 1h | ✅ |
+| 1A.6 | 前端: types + API 函数 | `frontend/src/lib/types.ts, api.ts` | 1h | ✅ |
+| 1A.7 | 前端: ObservationPanel 集成到 Review | `frontend/src/app/review/[timelineId]/page.tsx` | 3h | ⬜ |
+| 1A.8 | 前端: ObservationMarkers 时间轴组件 | `frontend/src/components/Timeline/ObservationMarkers.tsx` | 2h | ⬜ |
 
 ### 验收标准
 
-- [ ] WATCHING 模式 Timeline 可添加 observations
+- [x] WATCHING 模式 Timeline 可添加 observations (API ready)
 - [ ] Review 页面支持截图功能 (快捷键 S)
 - [ ] 时间轴上显示观察点标记
 - [ ] 旧 SceneMind 数据可迁移

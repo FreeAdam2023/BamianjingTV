@@ -5,7 +5,15 @@ from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.models.timeline import Timeline, TimelineSummary
+from fastapi.responses import FileResponse
+
+from app.models.timeline import (
+    Timeline,
+    TimelineSummary,
+    Observation,
+    ObservationCreate,
+)
+from app.workers.frame_capture import FrameCaptureWorker
 from app.services.timeline_manager import TimelineManager
 from app.workers.export import ExportWorker
 from app.workers.youtube import YouTubeWorker
@@ -20,6 +28,7 @@ _export_worker: Optional[ExportWorker] = None
 _youtube_worker: Optional[YouTubeWorker] = None
 _thumbnail_worker: Optional[ThumbnailWorker] = None
 _waveform_worker: Optional[WaveformWorker] = None
+_frame_capture_worker: Optional[FrameCaptureWorker] = None
 _jobs_dir: Optional[Path] = None
 
 
@@ -64,6 +73,12 @@ def set_waveform_worker(worker: WaveformWorker) -> None:
     _waveform_worker = worker
 
 
+def set_frame_capture_worker(worker: FrameCaptureWorker) -> None:
+    """Set the frame capture worker instance."""
+    global _frame_capture_worker
+    _frame_capture_worker = worker
+
+
 def _get_manager() -> TimelineManager:
     """Get the timeline manager instance."""
     if _timeline_manager is None:
@@ -97,6 +112,13 @@ def _get_waveform_worker() -> WaveformWorker:
     if _waveform_worker is None:
         raise RuntimeError("WaveformWorker not initialized")
     return _waveform_worker
+
+
+def _get_frame_capture_worker() -> FrameCaptureWorker:
+    """Get the frame capture worker instance."""
+    if _frame_capture_worker is None:
+        raise RuntimeError("FrameCaptureWorker not initialized")
+    return _frame_capture_worker
 
 
 # ============ Timeline CRUD Endpoints ============
@@ -329,3 +351,128 @@ async def reset_video_trim(timeline_id: str):
         "source_duration": timeline.source_duration,
         "message": "Video trim reset to full duration",
     }
+
+
+# ============ Observation Endpoints (for WATCHING mode) ============
+
+
+@router.post("/{timeline_id}/observations", response_model=Observation)
+async def add_observation(timeline_id: str, create: ObservationCreate):
+    """Add an observation to a timeline (captures frame automatically).
+
+    Observations are scene captures with notes, useful in WATCHING mode.
+    The frame at the specified timecode is automatically captured.
+    """
+    manager = _get_manager()
+    worker = _get_frame_capture_worker()
+    jobs_dir = _get_jobs_dir()
+
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    # Get video path from job
+    if not jobs_dir:
+        raise HTTPException(status_code=500, detail="Jobs directory not configured")
+
+    video_path = jobs_dir / timeline.job_id / "source" / "video.mp4"
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="Video file not found")
+
+    # Generate observation ID for filenames
+    import uuid
+    observation_id = str(uuid.uuid4())[:8]
+
+    # Capture frame(s)
+    output_dir = jobs_dir / timeline.job_id / "observations"
+
+    try:
+        full_path, crop_path = await worker.capture_observation(
+            video_path=str(video_path),
+            timecode=create.timecode,
+            output_dir=output_dir,
+            observation_id=observation_id,
+            crop_region=create.crop_region,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Frame capture failed: {str(e)}")
+
+    # Create observation record
+    observation = manager.add_observation(
+        timeline_id=timeline_id,
+        create=create,
+        frame_path=str(full_path),
+        crop_path=str(crop_path) if crop_path else None,
+    )
+
+    if not observation:
+        raise HTTPException(status_code=500, detail="Failed to create observation")
+
+    # Override with pre-generated ID
+    observation.id = observation_id
+
+    return observation
+
+
+@router.get("/{timeline_id}/observations", response_model=List[Observation])
+async def get_observations(timeline_id: str):
+    """Get all observations for a timeline."""
+    manager = _get_manager()
+
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    return manager.get_observations(timeline_id)
+
+
+@router.get("/{timeline_id}/observations/{observation_id}", response_model=Observation)
+async def get_observation(timeline_id: str, observation_id: str):
+    """Get a specific observation."""
+    manager = _get_manager()
+
+    observation = manager.get_observation(timeline_id, observation_id)
+    if not observation:
+        raise HTTPException(status_code=404, detail="Observation not found")
+
+    return observation
+
+
+@router.delete("/{timeline_id}/observations/{observation_id}")
+async def delete_observation(timeline_id: str, observation_id: str):
+    """Delete an observation."""
+    manager = _get_manager()
+
+    if not manager.delete_observation(timeline_id, observation_id):
+        raise HTTPException(status_code=404, detail="Observation not found")
+
+    return {"message": "Observation deleted", "observation_id": observation_id}
+
+
+@router.get("/{timeline_id}/observations/{observation_id}/frame")
+async def get_observation_frame(
+    timeline_id: str,
+    observation_id: str,
+    crop: bool = Query(default=False, description="Return cropped frame if available"),
+):
+    """Get the captured frame image for an observation."""
+    manager = _get_manager()
+
+    observation = manager.get_observation(timeline_id, observation_id)
+    if not observation:
+        raise HTTPException(status_code=404, detail="Observation not found")
+
+    # Determine which frame to return
+    if crop and observation.crop_path:
+        frame_path = Path(observation.crop_path)
+    else:
+        frame_path = Path(observation.frame_path)
+
+    if not frame_path.exists():
+        raise HTTPException(status_code=404, detail="Frame file not found")
+
+    return FileResponse(
+        frame_path,
+        media_type="image/png",
+        filename=frame_path.name,
+    )
