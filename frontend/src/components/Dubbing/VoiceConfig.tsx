@@ -64,7 +64,7 @@ export default function VoiceConfig({
   return (
     <div className="space-y-6">
       {/* Volume Controls */}
-      <div className="bg-gray-800 rounded-lg p-4">
+      <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
         <h3 className="text-sm font-medium text-gray-300 mb-4">Audio Mix</h3>
 
         <div className="space-y-4">
@@ -137,7 +137,7 @@ export default function VoiceConfig({
       </div>
 
       {/* Speaker Configuration */}
-      <div className="bg-gray-800 rounded-lg p-4">
+      <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
         <h3 className="text-sm font-medium text-gray-300 mb-4">Speakers</h3>
 
         {speakers.length === 0 ? (
@@ -147,7 +147,7 @@ export default function VoiceConfig({
             {speakers.map((speaker) => (
               <div
                 key={speaker.speaker_id}
-                className="flex items-center justify-between p-3 bg-gray-900 rounded-lg"
+                className="flex items-center justify-between p-3 bg-[var(--background)] rounded-lg"
               >
                 <div className="flex items-center gap-3">
                   <input
@@ -181,12 +181,12 @@ export default function VoiceConfig({
       </div>
 
       {/* Language Selection */}
-      <div className="bg-gray-800 rounded-lg p-4">
+      <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
         <h3 className="text-sm font-medium text-gray-300 mb-4">Target Language</h3>
         <select
           value={config.target_language}
           onChange={(e) => updateDubbingConfig(timelineId, { target_language: e.target.value })}
-          className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-gray-200"
+          className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="zh-cn">Chinese (Simplified)</option>
           <option value="zh-tw">Chinese (Traditional)</option>

@@ -67,7 +67,7 @@ export default function Home() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            导出中 {Math.round(timeline.export_progress)}%
+            Exporting {Math.round(timeline.export_progress)}%
           </span>
         );
       case "uploading":
@@ -77,7 +77,7 @@ export default function Home() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            上传中 {Math.round(timeline.export_progress)}%
+            Uploading {Math.round(timeline.export_progress)}%
           </span>
         );
       case "completed":
@@ -86,7 +86,7 @@ export default function Home() {
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
-            已导出
+            Exported
           </span>
         );
       case "failed":
@@ -95,7 +95,7 @@ export default function Home() {
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
-            导出失败
+            Export Failed
           </span>
         );
       default:

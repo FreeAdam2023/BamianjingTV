@@ -124,10 +124,10 @@ function ConfirmDialog({
   onCancel: () => void;
 }) {
   const {
-    title = "确认操作",
+    title = "Confirm",
     message,
-    confirmText = "确定",
-    cancelText = "取消",
+    confirmText = "Confirm",
+    cancelText = "Cancel",
     type = "info",
   } = options;
 
@@ -142,7 +142,7 @@ function ConfirmDialog({
       />
 
       {/* Dialog */}
-      <div className="relative bg-gray-800 rounded-xl shadow-2xl max-w-md w-full mx-4 animate-scale-in">
+      <div className="relative bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl max-w-md w-full mx-4 animate-scale-in">
         <div className="p-6">
           <div className="flex items-start gap-4">
             <div className="flex-shrink-0">{style.icon}</div>
@@ -153,7 +153,7 @@ function ConfirmDialog({
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 px-6 py-4 bg-gray-900/50 rounded-b-xl">
+        <div className="flex justify-end gap-3 px-6 py-4 bg-[var(--background)]/50 rounded-b-xl">
           <button
             onClick={onCancel}
             className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"

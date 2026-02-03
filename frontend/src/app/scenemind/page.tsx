@@ -11,6 +11,8 @@ import {
   formatEpisode,
 } from "@/lib/scenemind-api";
 import type { SessionSummary, SessionCreate, SceneMindStats } from "@/lib/scenemind-api";
+import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 export default function SceneMindPage() {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -18,6 +20,8 @@ export default function SceneMindPage() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
+  const toast = useToast();
+  const confirm = useConfirm();
 
   // Form state
   const [formData, setFormData] = useState<SessionCreate>({
@@ -81,22 +85,33 @@ export default function SceneMindPage() {
         video_path: "",
         duration: 0,
       });
+      toast.success("Session created successfully");
     } catch (error) {
       console.error("Failed to create session:", error);
-      alert("Failed to create session: " + (error instanceof Error ? error.message : "Unknown error"));
+      toast.error("Failed to create session: " + (error instanceof Error ? error.message : "Unknown error"));
     } finally {
       setCreating(false);
     }
   };
 
   const handleDelete = async (sessionId: string) => {
-    if (!confirm("Delete this session and all its observations?")) return;
+    const confirmed = await confirm({
+      title: "Delete Session",
+      message: "Delete this session and all its observations? This action cannot be undone.",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      type: "danger",
+    });
+
+    if (!confirmed) return;
 
     try {
       await deleteSession(sessionId);
       setSessions((prev) => prev.filter((s) => s.session_id !== sessionId));
+      toast.success("Session deleted successfully");
     } catch (error) {
       console.error("Failed to delete session:", error);
+      toast.error("Failed to delete session");
     }
   };
 

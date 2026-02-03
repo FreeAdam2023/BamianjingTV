@@ -102,7 +102,7 @@ export default function DubbedPreview({
       <audio ref={audioRef} className="hidden" />
 
       {/* Track Selector */}
-      <div className="bg-gray-800 rounded-lg p-4">
+      <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
         <h3 className="text-sm font-medium text-gray-300 mb-3">Audio Track</h3>
 
         <div className="flex flex-wrap gap-2">

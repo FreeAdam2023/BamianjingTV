@@ -122,7 +122,7 @@ export default function DubbingPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500" />
       </div>
     );
@@ -130,7 +130,7 @@ export default function DubbingPage() {
 
   if (error || !timeline || !config || !separationStatus || !dubbingStatus) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-xl font-semibold text-red-400 mb-2">Error</h1>
           <p className="text-gray-400">{error || "Timeline not found"}</p>
@@ -147,10 +147,10 @@ export default function DubbingPage() {
     ["separating", "extracting_samples", "synthesizing", "mixing"].includes(dubbingStatus.status);
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="min-h-screen bg-[var(--background)]">
       {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-900/95 backdrop-blur sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+      <header className="border-b border-[var(--border)] bg-[var(--card)]/50 backdrop-blur-sm sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link
               href={`/review/${timelineId}`}
@@ -169,7 +169,7 @@ export default function DubbingPage() {
       </header>
 
       {/* Main content */}
-      <main className="container mx-auto px-4 py-6">
+      <main className="max-w-6xl mx-auto px-6 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left column - Configuration */}
           <div className="lg:col-span-1 space-y-6">

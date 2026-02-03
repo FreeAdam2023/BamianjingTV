@@ -91,7 +91,7 @@ export default function LipSyncPreview({
 
   if (loading) {
     return (
-      <div className="bg-gray-800 rounded-lg p-6">
+      <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-6">
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500" />
         </div>
@@ -102,7 +102,7 @@ export default function LipSyncPreview({
   const isProcessing = lipSyncStatus?.status === "detecting_faces" || lipSyncStatus?.status === "processing";
 
   return (
-    <div className="bg-gray-800 rounded-lg overflow-hidden">
+    <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
         <div className="flex items-center gap-2">
