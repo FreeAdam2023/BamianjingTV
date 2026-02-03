@@ -6,6 +6,7 @@ export type JobMode = "learning" | "watching" | "dubbing";
 export type SegmentState = "keep" | "drop" | "undecided";
 export type ExportProfile = "full" | "essence" | "both";
 export type ExportStatus = "idle" | "exporting" | "uploading" | "completed" | "failed";
+export type SubtitleStyleMode = "half_screen" | "floating" | "none";
 
 // Mode-specific configurations
 export interface LearningConfig {
@@ -57,6 +58,7 @@ export interface Timeline {
   export_profile: ExportProfile;
   use_traditional_chinese: boolean;
   subtitle_area_ratio: number;  // 0.3-0.7, default 0.5
+  subtitle_style_mode: SubtitleStyleMode;  // half_screen, floating, none
   // Video-level trim (independent of subtitle segments)
   video_trim_start: number;  // Video starts from this time (seconds)
   video_trim_end: number | null;  // Video ends at this time (null = full duration)
@@ -126,6 +128,7 @@ export interface SubtitleStyleOptions {
 export interface ExportRequest {
   profile: ExportProfile;
   use_traditional_chinese: boolean;
+  subtitle_style_mode?: SubtitleStyleMode;  // half_screen, floating, none
   subtitle_style?: SubtitleStyleOptions;
   upload_to_youtube?: boolean;
   youtube_title?: string;

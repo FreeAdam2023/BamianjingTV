@@ -7,7 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from app.models.timeline import ExportStatus, TimelineExportRequest
+from app.models.timeline import ExportStatus, SubtitleStyleMode, TimelineExportRequest
 from app.models.job import JobStatus
 from app.api.timelines import (
     _get_manager,
@@ -89,6 +89,11 @@ async def trigger_export(
     manager.set_export_profile(
         timeline_id, request.profile, request.use_traditional_chinese
     )
+
+    # Update subtitle style mode if specified in request
+    if request.subtitle_style_mode is not None:
+        timeline.subtitle_style_mode = request.subtitle_style_mode
+        manager.save_timeline(timeline)
 
     # Get video path from job
     jobs_dir = _get_jobs_dir()

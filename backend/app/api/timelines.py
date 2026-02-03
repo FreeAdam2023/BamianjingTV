@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 from app.models.timeline import (
     Timeline,
     TimelineSummary,
+    SubtitleStyleMode,
     Observation,
     ObservationCreate,
 )
@@ -203,6 +204,57 @@ async def set_subtitle_area_ratio(timeline_id: str, ratio: float = Query(..., ge
         "timeline_id": timeline_id,
         "subtitle_area_ratio": ratio,
         "message": f"Subtitle area ratio set to {ratio:.0%}",
+    }
+
+
+@router.get("/{timeline_id}/subtitle-style-mode")
+async def get_subtitle_style_mode(timeline_id: str):
+    """Get current subtitle style mode for a timeline."""
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+    return {
+        "timeline_id": timeline_id,
+        "subtitle_style_mode": timeline.subtitle_style_mode.value,
+        "modes": {
+            "half_screen": "Learning mode: Video scaled to top, subtitles in bottom area",
+            "floating": "Watching mode: Transparent subtitles overlaid on video",
+            "none": "Dubbing mode: No subtitles",
+        },
+    }
+
+
+@router.post("/{timeline_id}/subtitle-style-mode")
+async def set_subtitle_style_mode(
+    timeline_id: str,
+    mode: SubtitleStyleMode = Query(..., description="Subtitle rendering mode"),
+):
+    """Set subtitle style mode for export.
+
+    Modes:
+    - half_screen: Learning mode - video scaled to top, subtitles in dedicated bottom area
+    - floating: Watching mode - transparent subtitles overlaid on video
+    - none: Dubbing mode - no subtitles rendered
+    """
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    timeline.subtitle_style_mode = mode
+    manager.save_timeline(timeline)
+
+    mode_descriptions = {
+        SubtitleStyleMode.HALF_SCREEN: "Learning mode: video on top, subtitles in bottom area",
+        SubtitleStyleMode.FLOATING: "Watching mode: transparent subtitles over video",
+        SubtitleStyleMode.NONE: "Dubbing mode: no subtitles",
+    }
+
+    return {
+        "timeline_id": timeline_id,
+        "subtitle_style_mode": mode.value,
+        "message": mode_descriptions.get(mode, f"Subtitle style set to {mode.value}"),
     }
 
 

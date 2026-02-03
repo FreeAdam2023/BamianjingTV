@@ -239,6 +239,46 @@ export async function setSubtitleAreaRatio(
   });
 }
 
+// Subtitle style mode APIs
+import type { SubtitleStyleMode } from "./types";
+
+export interface SubtitleStyleModeResponse {
+  timeline_id: string;
+  subtitle_style_mode: SubtitleStyleMode;
+  modes: Record<SubtitleStyleMode, string>;
+}
+
+export async function getSubtitleStyleMode(
+  timelineId: string
+): Promise<SubtitleStyleModeResponse> {
+  return fetchAPI(`/timelines/${timelineId}/subtitle-style-mode`);
+}
+
+export async function setSubtitleStyleMode(
+  timelineId: string,
+  mode: SubtitleStyleMode
+): Promise<{ timeline_id: string; subtitle_style_mode: SubtitleStyleMode; message: string }> {
+  return fetchAPI(`/timelines/${timelineId}/subtitle-style-mode?mode=${mode}`, {
+    method: "POST",
+  });
+}
+
+// Helper for subtitle style mode labels
+export const SUBTITLE_STYLE_MODES: Record<SubtitleStyleMode, { label: string; description: string }> = {
+  half_screen: {
+    label: "Learning Mode",
+    description: "Video on top, subtitles in dedicated bottom area",
+  },
+  floating: {
+    label: "Watching Mode",
+    description: "Transparent subtitles overlaid on video",
+  },
+  none: {
+    label: "Dubbing Mode",
+    description: "No subtitles rendered",
+  },
+};
+
 // Speaker naming APIs
 export interface SpeakerInfo {
   speaker_id: string;

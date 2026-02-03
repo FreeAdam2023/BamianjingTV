@@ -7,7 +7,15 @@ from typing import List, Optional, Tuple
 from loguru import logger
 
 from app.config import settings
-from app.models.timeline import EditableSegment, ExportProfile, SegmentState, Timeline
+from app.models.timeline import EditableSegment, ExportProfile, SegmentState, SubtitleStyleMode, Timeline
+from app.workers.subtitle_styles import (
+    SubtitleStyleConfig,
+    SubtitleStyleMode as StyleMode,
+    generate_half_screen_ass_header,
+    generate_floating_ass_header,
+    generate_ass_header,
+    ASS_HEADER_DEFAULT,
+)
 
 
 # ASS subtitle template with bilingual style (both at bottom, English above Chinese)
@@ -149,8 +157,9 @@ class ExportWorker:
         video_height: int = 1080,
         subtitle_area_ratio: float = 0.5,
         subtitle_style=None,
+        subtitle_style_mode: SubtitleStyleMode = SubtitleStyleMode.HALF_SCREEN,
     ) -> Path:
-        """Generate ASS subtitle file with WYSIWYG layout (video on top, subtitles at bottom).
+        """Generate ASS subtitle file with appropriate style based on mode.
 
         Args:
             segments: List of editable segments
@@ -158,8 +167,9 @@ class ExportWorker:
             use_traditional: Use Traditional Chinese
             time_offset: Time offset for timestamps
             video_height: Total video height
-            subtitle_area_ratio: Ratio of subtitle area (0.3-0.7)
+            subtitle_area_ratio: Ratio of subtitle area (for half_screen mode)
             subtitle_style: Optional subtitle style options (font size, colors, etc.)
+            subtitle_style_mode: Subtitle rendering mode (half_screen, floating, none)
 
         Returns:
             Path to ASS file
@@ -167,72 +177,31 @@ class ExportWorker:
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Calculate subtitle area dimensions
-        subtitle_area_height = int(video_height * subtitle_area_ratio)
-
-        # Get style options (from request or defaults)
-        # Default font sizes are 40px (matching frontend default)
-        base_en_size = 40
-        base_zh_size = 40
-        en_color_hex = "#ffffff"
-        zh_color_hex = "#facc15"
-        bg_color_hex = "#1a2744"
-
+        # Build SubtitleStyleConfig from request options
+        config = SubtitleStyleConfig()
         if subtitle_style:
-            base_en_size = getattr(subtitle_style, 'en_font_size', 40) or 40
-            base_zh_size = getattr(subtitle_style, 'zh_font_size', 40) or 40
-            en_color_hex = getattr(subtitle_style, 'en_color', "#ffffff") or "#ffffff"
-            zh_color_hex = getattr(subtitle_style, 'zh_color', "#facc15") or "#facc15"
-            bg_color_hex = getattr(subtitle_style, 'background_color', "#1a2744") or "#1a2744"
+            config.en_font_size = getattr(subtitle_style, 'en_font_size', 40) or 40
+            config.zh_font_size = getattr(subtitle_style, 'zh_font_size', 40) or 40
+            config.en_color = getattr(subtitle_style, 'en_color', "#ffffff") or "#ffffff"
+            config.zh_color = getattr(subtitle_style, 'zh_color', "#facc15") or "#facc15"
+            config.background_color = getattr(subtitle_style, 'background_color', "#1a2744") or "#1a2744"
 
-        # Scale font sizes based on subtitle area height
-        # Base reference: 40px at 300px subtitle height
-        scale_factor = subtitle_area_height / 300
-        english_font_size = max(24, int(base_en_size * scale_factor))
-        chinese_font_size = max(24, int(base_zh_size * scale_factor))
+        # Generate ASS header based on mode using subtitle_styles module
+        # Convert model enum to styles enum
+        style_mode = StyleMode(subtitle_style_mode.value)
+        ass_header = generate_ass_header(
+            mode=style_mode,
+            video_height=video_height,
+            subtitle_area_ratio=subtitle_area_ratio,
+            config=config,
+        )
 
-        # Calculate vertical positions to center both subtitles as a group
-        # Layout from top to bottom: English (white) -> gap -> Chinese (yellow)
-        # In ASS with Alignment=2 (bottom), MarginV is distance from bottom
-        # HIGHER MarginV = closer to top of subtitle area
-        gap_between = int(20 * scale_factor)  # Gap between English and Chinese
-        total_block_height = english_font_size + gap_between + chinese_font_size
-
-        # Center the block in subtitle area
-        block_bottom = (subtitle_area_height - total_block_height) // 2
-        # Chinese at bottom (smaller margin = closer to bottom edge)
-        chinese_margin_v = max(10, block_bottom)
-        # English above Chinese (larger margin = further from bottom edge = higher on screen)
-        english_margin_v = chinese_margin_v + chinese_font_size + gap_between
-
-        # IMPORTANT: Swap margins to match frontend preview
-        # Frontend renders English on top, Chinese on bottom
-        # But ASS MarginV with bottom alignment works inversely
-        english_margin_v, chinese_margin_v = chinese_margin_v, english_margin_v
-
-        # Convert colors to ASS format
-        english_color = self._hex_to_ass_color(en_color_hex, 0)
-        chinese_color = self._hex_to_ass_color(zh_color_hex, 0)
-        background_color = self._hex_to_ass_color(bg_color_hex, 192)  # 75% opacity (192/255)
-
-        # ASS header with calculated positions
-        # BorderStyle=3: Opaque box (背景框)
-        # Outline=12: Padding around text
-        ass_header = f"""[Script Info]
-Title: Hardcore Player Bilingual Subtitles
-ScriptType: v4.00+
-PlayResX: 1920
-PlayResY: {video_height}
-ScaledBorderAndShadow: yes
-
-[V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: English,Arial,{english_font_size},{english_color},&H000000FF,{background_color},{background_color},0,0,0,0,100,100,0,0,3,12,0,2,40,40,{english_margin_v},1
-Style: Chinese,Microsoft YaHei,{chinese_font_size},{chinese_color},&H000000FF,{background_color},{background_color},-1,0,0,0,100,100,0,0,3,12,0,2,40,40,{chinese_margin_v},1
-
-[Events]
-Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-"""
+        # If mode is NONE, return empty ASS file
+        if subtitle_style_mode == SubtitleStyleMode.NONE:
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write("")
+            logger.info(f"Generated empty ASS subtitle (mode=none): {output_path}")
+            return output_path
 
         # Convert Simplified to Traditional if needed
         converter = None
@@ -262,7 +231,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         with open(output_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
 
-        logger.info(f"Generated ASS subtitle with layout: {output_path}")
+        logger.info(f"Generated ASS subtitle with mode={subtitle_style_mode.value}: {output_path}")
         return output_path
 
     async def export_full_video(
@@ -272,21 +241,18 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         output_path: Path,
         subtitle_style=None,
     ) -> Path:
-        """Export full video with WYSIWYG layout (scaled video + subtitle area).
+        """Export full video with subtitles based on subtitle_style_mode.
 
-        Layout:
-        ┌─────────────────────┐
-        │   Scaled Video      │  ← (1 - subtitle_area_ratio) of height
-        │                     │
-        ├─────────────────────┤
-        │   English subtitle  │  ← subtitle_area_ratio of height
-        │   中文字幕           │
-        └─────────────────────┘
+        Modes:
+        - HALF_SCREEN (Learning): Video scaled to top, subtitles in bottom area
+        - FLOATING (Watching): Transparent subtitles overlaid on full video
+        - NONE (Dubbing): No subtitles
 
         Args:
             timeline: Timeline with all segments
             video_path: Source video path
             output_path: Output video path
+            subtitle_style: Optional subtitle style options
 
         Returns:
             Path to exported video
@@ -303,8 +269,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         orig_width, orig_height = self._get_video_dimensions(video_path)
         subtitle_ratio = getattr(timeline, 'subtitle_area_ratio', 0.5)
 
-        # Calculate video area height (top portion)
-        video_area_height = int(orig_height * (1 - subtitle_ratio))
+        # Get subtitle style mode (default to HALF_SCREEN for backwards compatibility)
+        subtitle_style_mode = getattr(timeline, 'subtitle_style_mode', SubtitleStyleMode.HALF_SCREEN)
+        if subtitle_style_mode is None:
+            subtitle_style_mode = SubtitleStyleMode.HALF_SCREEN
 
         # Filter segments to only include those within trim range
         if trim_start > 0 or trim_end is not None:
@@ -313,13 +281,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 seg for seg in timeline.segments
                 if seg.start >= trim_start and seg.end <= effective_trim_end
             ]
-            # Adjust segment timestamps relative to trim_start
             time_offset = trim_start
         else:
             trimmed_segments = timeline.segments
             time_offset = 0.0
 
-        # Generate ASS subtitle file with WYSIWYG layout
+        # Generate ASS subtitle file based on mode
         ass_path = output_path.parent / "subtitles_full.ass"
         await self.generate_ass_with_layout(
             segments=trimmed_segments,
@@ -329,43 +296,24 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             video_height=orig_height,
             subtitle_area_ratio=subtitle_ratio,
             subtitle_style=subtitle_style,
+            subtitle_style_mode=subtitle_style_mode,
         )
 
-        # Escape special characters in path for ffmpeg filter
-        ass_path_escaped = str(ass_path).replace("\\", "/").replace(":", "\\:")
-
-        # Calculate scaled video dimensions while maintaining aspect ratio
-        # The video should fit within the video area (top portion)
-        orig_aspect = orig_width / orig_height
-        target_aspect = orig_width / video_area_height
-
-        if orig_aspect >= target_aspect:
-            # Video is wider than target area - scale by width, center vertically
-            scaled_width = orig_width
-            scaled_height = int(orig_width / orig_aspect)
+        # Build ffmpeg command based on mode
+        if subtitle_style_mode == SubtitleStyleMode.HALF_SCREEN:
+            # Learning mode: Scale video to top portion, subtitles in bottom area
+            vf_filter = self._build_half_screen_filter(
+                orig_width, orig_height, subtitle_ratio, ass_path
+            )
+            mode_name = "half_screen (Learning)"
+        elif subtitle_style_mode == SubtitleStyleMode.FLOATING:
+            # Watching mode: Overlay transparent subtitles on full video
+            vf_filter = self._build_floating_filter(ass_path)
+            mode_name = "floating (Watching)"
         else:
-            # Video is taller than target area - scale by height, center horizontally
-            scaled_height = video_area_height
-            scaled_width = int(video_area_height * orig_aspect)
-
-        logger.info(
-            f"WYSIWYG export: original={orig_width}x{orig_height}, "
-            f"video_area={orig_width}x{video_area_height}, "
-            f"scaled={scaled_width}x{scaled_height}"
-        )
-
-        # Build ffmpeg filter:
-        # 1. Scale video maintaining aspect ratio
-        # 2. Pad with dark blue background (#1a2744) to match review page
-        # 3. Overlay subtitles
-        # Note: FFmpeg color format is 0xRRGGBB
-        subtitle_bg_color = "0x1a2744"  # Dark blue matching review page
-        vf_filter = (
-            f"scale={scaled_width}:{scaled_height},"
-            f"pad={orig_width}:{orig_height}:(ow-iw)/2:0:{subtitle_bg_color},"
-            f"setsar=1,"
-            f"ass={ass_path_escaped}"
-        )
+            # None mode: No subtitles, just copy/re-encode video
+            vf_filter = None
+            mode_name = "none (Dubbing)"
 
         # Build ffmpeg command with trim support
         cmd = ["ffmpeg"]
@@ -381,7 +329,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             duration = trim_end - trim_start
             cmd.extend(["-t", str(duration)])
 
-        cmd.extend(["-vf", vf_filter])
+        # Add video filter if applicable
+        if vf_filter:
+            cmd.extend(["-vf", vf_filter])
 
         if self.use_nvenc:
             cmd.extend(["-c:v", "h264_nvenc", "-preset", "p4"])
@@ -393,7 +343,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         trim_info = ""
         if trim_start > 0 or trim_end is not None:
             trim_info = f", trim={trim_start:.1f}s-{trim_end or 'end'}"
-        logger.info(f"Exporting full video with WYSIWYG layout (ratio={subtitle_ratio}{trim_info}): {output_path}")
+        logger.info(f"Exporting full video with {mode_name} mode{trim_info}: {output_path}")
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         if result.returncode != 0:
@@ -401,6 +351,74 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
         logger.info(f"Full video exported: {output_path}")
         return output_path
+
+    def _build_half_screen_filter(
+        self,
+        orig_width: int,
+        orig_height: int,
+        subtitle_ratio: float,
+        ass_path: Path,
+    ) -> str:
+        """Build ffmpeg filter for half_screen mode (Learning).
+
+        Layout:
+        ┌─────────────────────┐
+        │   Scaled Video      │  ← (1 - subtitle_ratio) of height
+        │                     │
+        ├─────────────────────┤
+        │   English subtitle  │  ← subtitle_ratio of height
+        │   中文字幕           │     (colored background)
+        └─────────────────────┘
+        """
+        video_area_height = int(orig_height * (1 - subtitle_ratio))
+
+        # Calculate scaled video dimensions while maintaining aspect ratio
+        orig_aspect = orig_width / orig_height
+        target_aspect = orig_width / video_area_height
+
+        if orig_aspect >= target_aspect:
+            scaled_width = orig_width
+            scaled_height = int(orig_width / orig_aspect)
+        else:
+            scaled_height = video_area_height
+            scaled_width = int(video_area_height * orig_aspect)
+
+        logger.info(
+            f"Half-screen layout: original={orig_width}x{orig_height}, "
+            f"video_area={orig_width}x{video_area_height}, "
+            f"scaled={scaled_width}x{scaled_height}"
+        )
+
+        # Escape ASS path for ffmpeg filter
+        ass_path_escaped = str(ass_path).replace("\\", "/").replace(":", "\\:")
+
+        # FFmpeg filter: scale → pad with background → overlay subtitles
+        subtitle_bg_color = "0x1a2744"  # Dark blue matching review page
+        return (
+            f"scale={scaled_width}:{scaled_height},"
+            f"pad={orig_width}:{orig_height}:(ow-iw)/2:0:{subtitle_bg_color},"
+            f"setsar=1,"
+            f"ass={ass_path_escaped}"
+        )
+
+    def _build_floating_filter(self, ass_path: Path) -> str:
+        """Build ffmpeg filter for floating mode (Watching).
+
+        Layout:
+        ┌─────────────────────┐
+        │                     │
+        │   Full Video        │
+        │                     │
+        │   ─── Subtitles ─── │  ← Transparent overlay near bottom
+        └─────────────────────┘
+        """
+        # Escape ASS path for ffmpeg filter
+        ass_path_escaped = str(ass_path).replace("\\", "/").replace(":", "\\:")
+
+        logger.info("Floating layout: subtitles overlay on full video")
+
+        # Simple filter: just overlay ASS subtitles on video
+        return f"ass={ass_path_escaped}"
 
     async def export_essence(
         self,
@@ -414,13 +432,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         This method:
         1. Extracts KEEP segments from source video
         2. Concatenates them with ffmpeg
-        3. Generates re-timed ASS subtitles
+        3. Generates re-timed ASS subtitles based on subtitle_style_mode
         4. Burns subtitles into final video
 
         Args:
             timeline: Timeline with segments (uses KEEP segments only)
             video_path: Source video path
             output_path: Output video path
+            subtitle_style: Optional subtitle style options
 
         Returns:
             Path to exported essence video
@@ -433,6 +452,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         trim_start = getattr(timeline, 'video_trim_start', 0.0) or 0.0
         trim_end = getattr(timeline, 'video_trim_end', None)
         effective_trim_end = trim_end if trim_end is not None else float('inf')
+
+        # Get subtitle style mode (default to HALF_SCREEN for backwards compatibility)
+        subtitle_style_mode = getattr(timeline, 'subtitle_style_mode', SubtitleStyleMode.HALF_SCREEN)
+        if subtitle_style_mode is None:
+            subtitle_style_mode = SubtitleStyleMode.HALF_SCREEN
 
         # Get KEEP segments that are within the trim range
         keep_segments = [
@@ -471,24 +495,40 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             concat_output = temp_path / "concat.mp4"
             await self._concat_segments(concat_file, concat_output)
 
-            # Generate re-timed ASS subtitles for essence
-            # We need to recalculate timing based on concatenated positions
+            # Get concatenated video dimensions for ASS header
+            concat_width, concat_height = self._get_video_dimensions(concat_output)
+            subtitle_ratio = getattr(timeline, 'subtitle_area_ratio', 0.5)
+
+            # Generate re-timed ASS subtitles for essence based on mode
             retimed_segments = self._retime_segments(keep_segments)
             ass_path = output_path.parent / "subtitles_essence.ass"
             await self._generate_essence_ass(
                 retimed_segments,
                 ass_path,
                 timeline.use_traditional_chinese,
+                video_height=concat_height,
+                subtitle_area_ratio=subtitle_ratio,
+                subtitle_style=subtitle_style,
+                subtitle_style_mode=subtitle_style_mode,
             )
 
-            # Burn subtitles into concatenated video
-            ass_path_escaped = str(ass_path).replace("\\", "/").replace(":", "\\:")
+            # Build ffmpeg filter based on mode
+            if subtitle_style_mode == SubtitleStyleMode.HALF_SCREEN:
+                vf_filter = self._build_half_screen_filter(
+                    concat_width, concat_height, subtitle_ratio, ass_path
+                )
+                mode_name = "half_screen"
+            elif subtitle_style_mode == SubtitleStyleMode.FLOATING:
+                vf_filter = self._build_floating_filter(ass_path)
+                mode_name = "floating"
+            else:
+                vf_filter = None
+                mode_name = "none"
 
-            cmd = [
-                "ffmpeg",
-                "-i", str(concat_output),
-                "-vf", f"ass={ass_path_escaped}",
-            ]
+            cmd = ["ffmpeg", "-i", str(concat_output)]
+
+            if vf_filter:
+                cmd.extend(["-vf", vf_filter])
 
             if self.use_nvenc:
                 cmd.extend(["-c:v", "h264_nvenc", "-preset", "p4"])
@@ -497,7 +537,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
             cmd.extend(["-c:a", "aac", "-b:a", "192k", "-y", str(output_path)])
 
-            logger.info(f"Burning subtitles into essence video: {output_path}")
+            logger.info(f"Exporting essence video with {mode_name} mode: {output_path}")
             result = subprocess.run(cmd, capture_output=True, text=True)
 
             if result.returncode != 0:
@@ -616,10 +656,39 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         retimed_segments: List[Tuple[float, float, str, str]],
         output_path: Path,
         use_traditional: bool = True,
+        video_height: int = 1080,
+        subtitle_area_ratio: float = 0.5,
+        subtitle_style=None,
+        subtitle_style_mode: SubtitleStyleMode = SubtitleStyleMode.HALF_SCREEN,
     ) -> Path:
-        """Generate ASS subtitles for retimed essence segments."""
+        """Generate ASS subtitles for retimed essence segments based on mode."""
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Build SubtitleStyleConfig from request options
+        config = SubtitleStyleConfig()
+        if subtitle_style:
+            config.en_font_size = getattr(subtitle_style, 'en_font_size', 40) or 40
+            config.zh_font_size = getattr(subtitle_style, 'zh_font_size', 40) or 40
+            config.en_color = getattr(subtitle_style, 'en_color', "#ffffff") or "#ffffff"
+            config.zh_color = getattr(subtitle_style, 'zh_color', "#facc15") or "#facc15"
+            config.background_color = getattr(subtitle_style, 'background_color', "#1a2744") or "#1a2744"
+
+        # Generate ASS header based on mode
+        style_mode = StyleMode(subtitle_style_mode.value)
+        ass_header = generate_ass_header(
+            mode=style_mode,
+            video_height=video_height,
+            subtitle_area_ratio=subtitle_area_ratio,
+            config=config,
+        )
+
+        # If mode is NONE, return empty ASS file
+        if subtitle_style_mode == SubtitleStyleMode.NONE:
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write("")
+            logger.info(f"Generated empty essence ASS subtitle (mode=none): {output_path}")
+            return output_path
 
         # Convert Simplified to Traditional if needed
         converter = None
@@ -630,18 +699,18 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             except ImportError:
                 logger.warning("opencc not installed, using Simplified Chinese")
 
-        lines = [ASS_HEADER]
+        lines = [ass_header]
 
         for start, end, en, zh in retimed_segments:
             start_str = _seconds_to_ass_time(start)
             end_str = _seconds_to_ass_time(end)
 
-            # English subtitle (top, white)
+            # English subtitle
             english_text = en.replace("\n", "\\N")
             if english_text:
                 lines.append(f"Dialogue: 0,{start_str},{end_str},English,,0,0,0,,{english_text}")
 
-            # Chinese subtitle (bottom, yellow)
+            # Chinese subtitle
             chinese_text = zh.replace("\n", "\\N")
             if chinese_text:
                 if converter:
@@ -651,5 +720,5 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         with open(output_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
 
-        logger.info(f"Generated essence ASS subtitle: {output_path}")
+        logger.info(f"Generated essence ASS subtitle with mode={subtitle_style_mode.value}: {output_path}")
         return output_path

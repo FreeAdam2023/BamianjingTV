@@ -91,6 +91,14 @@ class ExportStatus(str, Enum):
     FAILED = "failed"  # Export failed
 
 
+class SubtitleStyleMode(str, Enum):
+    """Subtitle rendering style mode for export."""
+
+    HALF_SCREEN = "half_screen"  # Learning: video on top, subtitles in bottom area
+    FLOATING = "floating"  # Watching: transparent subtitles over video
+    NONE = "none"  # Dubbing: no subtitles
+
+
 class EditableSegment(BaseModel):
     """An editable transcript segment for review."""
 
@@ -151,6 +159,7 @@ class Timeline(BaseModel):
     export_profile: ExportProfile = ExportProfile.FULL
     use_traditional_chinese: bool = True  # Traditional vs Simplified
     subtitle_area_ratio: float = 0.5  # Ratio of screen height for subtitle area (0.3-0.7)
+    subtitle_style_mode: SubtitleStyleMode = SubtitleStyleMode.HALF_SCREEN  # Subtitle rendering style
 
     # Video-level trim (independent of subtitle segments)
     video_trim_start: float = 0.0  # Trim video from this point (seconds)
@@ -331,6 +340,9 @@ class TimelineExportRequest(BaseModel):
 
     profile: ExportProfile = ExportProfile.FULL
     use_traditional_chinese: bool = True
+
+    # Subtitle style mode (half_screen, floating, none)
+    subtitle_style_mode: Optional[SubtitleStyleMode] = None  # None = use timeline's setting
 
     # Subtitle style options
     subtitle_style: Optional[SubtitleStyleOptions] = None
