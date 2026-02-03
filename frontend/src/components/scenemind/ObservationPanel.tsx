@@ -154,7 +154,7 @@ export default function ObservationPanel({
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder="What did you notice? (e.g., 'Groovy' means cool in 70s slang)"
-          className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="textarea"
           rows={3}
         />
       </div>

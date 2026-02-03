@@ -186,7 +186,7 @@ export default function VoiceConfig({
         <select
           value={config.target_language}
           onChange={(e) => updateDubbingConfig(timelineId, { target_language: e.target.value })}
-          className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="select"
         >
           <option value="zh-cn">Chinese (Simplified)</option>
           <option value="zh-tw">Chinese (Traditional)</option>

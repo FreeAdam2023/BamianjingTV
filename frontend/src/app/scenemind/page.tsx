@@ -278,7 +278,7 @@ export default function SceneMindPage() {
                 {session.duration > 0 && (
                   <div className="progress-bar mt-4">
                     <div
-                      className="progress-fill bg-gradient-to-r from-purple-500 to-pink-400"
+                      className="progress-fill progress-fill-accent"
                       style={{
                         width: `${(session.current_time / session.duration) * 100}%`,
                       }}
@@ -308,7 +308,7 @@ export default function SceneMindPage() {
                     onChange={(e) =>
                       setFormData((prev) => ({ ...prev, show_name: e.target.value }))
                     }
-                    className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg"
+                    className="input-sm"
                     placeholder="e.g., That '70s Show"
                     required
                   />
@@ -329,7 +329,7 @@ export default function SceneMindPage() {
                           season: parseInt(e.target.value) || 1,
                         }))
                       }
-                      className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg"
+                      className="input-sm"
                       required
                     />
                   </div>
@@ -347,7 +347,7 @@ export default function SceneMindPage() {
                           episode: parseInt(e.target.value) || 1,
                         }))
                       }
-                      className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg"
+                      className="input-sm"
                       required
                     />
                   </div>
@@ -363,7 +363,7 @@ export default function SceneMindPage() {
                     onChange={(e) =>
                       setFormData((prev) => ({ ...prev, title: e.target.value }))
                     }
-                    className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg"
+                    className="input-sm"
                     placeholder="e.g., That '70s Pilot"
                   />
                 </div>
@@ -378,7 +378,7 @@ export default function SceneMindPage() {
                     onChange={(e) =>
                       setFormData((prev) => ({ ...prev, video_path: e.target.value }))
                     }
-                    className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg font-mono text-sm"
+                    className="input-sm font-mono text-sm"
                     placeholder="/path/to/video.mp4"
                     required
                   />

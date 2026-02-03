@@ -131,6 +131,56 @@ video::-webkit-media-controls {
   .progress-fill {
     @apply h-full rounded-full transition-all duration-500;
   }
+
+  /* Progress bar semantic colors */
+  .progress-fill-success {
+    @apply bg-gradient-to-r from-green-500 to-emerald-400;
+  }
+
+  .progress-fill-info {
+    @apply bg-gradient-to-r from-blue-500 to-cyan-400;
+  }
+
+  .progress-fill-upload {
+    @apply bg-gradient-to-r from-purple-500 to-violet-400;
+  }
+
+  .progress-fill-warning {
+    @apply bg-gradient-to-r from-yellow-500 to-orange-400;
+  }
+
+  .progress-fill-accent {
+    @apply bg-gradient-to-r from-purple-500 to-pink-400;
+  }
+
+  /* Input variants */
+  .input-sm {
+    @apply w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg
+           text-white placeholder-gray-500
+           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+           transition-all duration-200;
+  }
+
+  /* Page container */
+  .page-container {
+    @apply max-w-6xl mx-auto px-6 py-8;
+  }
+
+  /* Select input */
+  .select {
+    @apply w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg
+           text-white
+           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+           transition-all duration-200;
+  }
+
+  /* Textarea */
+  .textarea {
+    @apply w-full px-4 py-3 bg-[var(--card)] border border-[var(--border)] rounded-lg
+           text-white placeholder-gray-500 resize-none
+           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+           transition-all duration-200;
+  }
 }
 
 /* Segment states */

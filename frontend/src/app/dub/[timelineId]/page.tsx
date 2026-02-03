@@ -238,14 +238,14 @@ export default function DubbingPage() {
 
             {/* Progress */}
             {isProcessing && (
-              <div className="bg-gray-800 rounded-lg p-4">
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-gray-300">{dubbingStatus.current_step}</span>
                   <span className="text-sm text-gray-500">{dubbingStatus.progress}%</span>
                 </div>
-                <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div className="progress-bar">
                   <div
-                    className="h-full bg-blue-500 transition-all duration-300"
+                    className="progress-fill progress-fill-info"
                     style={{ width: `${dubbingStatus.progress}%` }}
                   />
                 </div>

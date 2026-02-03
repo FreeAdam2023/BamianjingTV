@@ -235,7 +235,7 @@ export default function Home() {
                   {job.progress > 0 && (
                     <div className="progress-bar mt-4">
                       <div
-                        className="progress-fill bg-gradient-to-r from-blue-500 to-cyan-400"
+                        className="progress-fill progress-fill-info"
                         style={{ width: `${job.progress * 100}%` }}
                       />
                     </div>
@@ -298,7 +298,7 @@ export default function Home() {
                 {/* Review progress bar */}
                 <div className="progress-bar mt-4">
                   <div
-                    className="progress-fill bg-gradient-to-r from-green-500 to-emerald-400"
+                    className="progress-fill progress-fill-success"
                     style={{ width: `${timeline.review_progress}%` }}
                   />
                 </div>
@@ -308,8 +308,8 @@ export default function Home() {
                     <div
                       className={`progress-fill ${
                         timeline.export_status === "uploading"
-                          ? "bg-gradient-to-r from-purple-500 to-pink-400"
-                          : "bg-gradient-to-r from-blue-500 to-cyan-400"
+                          ? "progress-fill-upload"
+                          : "progress-fill-info"
                       }`}
                       style={{ width: `${timeline.export_progress}%` }}
                     />

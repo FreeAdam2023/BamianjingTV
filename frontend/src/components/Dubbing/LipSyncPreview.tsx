@@ -162,9 +162,9 @@ export default function LipSyncPreview({
               </span>
               <span className="text-sm text-gray-500">{lipSyncStatus.progress}%</span>
             </div>
-            <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+            <div className="progress-bar">
               <div
-                className="h-full bg-purple-500 transition-all duration-300"
+                className="progress-fill progress-fill-accent"
                 style={{ width: `${lipSyncStatus.progress}%` }}
               />
             </div>
