@@ -1,5 +1,5 @@
 /**
- * API types for Hardcore Player
+ * API types for SceneMind
  */
 
 export type JobMode = "learning" | "watching" | "dubbing";

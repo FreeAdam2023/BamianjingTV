@@ -1,4 +1,4 @@
-"""Source manager service for Hardcore Player."""
+"""Source manager service for SceneMind."""
 
 import json
 from datetime import datetime

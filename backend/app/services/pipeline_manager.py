@@ -1,4 +1,4 @@
-"""Pipeline manager service for Hardcore Player."""
+"""Pipeline manager service for SceneMind."""
 
 import json
 from datetime import datetime

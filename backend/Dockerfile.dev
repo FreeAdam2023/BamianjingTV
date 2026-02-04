@@ -1,4 +1,4 @@
-# Hardcore Player - Development Backend
+# SceneMind - Development Backend
 # CPU-only development environment
 
 FROM python:3.11-slim

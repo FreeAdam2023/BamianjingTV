@@ -26,7 +26,7 @@ def _create_word_model() -> "genanki.Model":
     """Create Anki model for word cards."""
     return genanki.Model(
         WORD_MODEL_ID,
-        "Hardcore Player - Word",
+        "SceneMind - Word",
         fields=[
             {"name": "Word"},
             {"name": "Pronunciation"},
@@ -123,7 +123,7 @@ def _create_entity_model() -> "genanki.Model":
     """Create Anki model for entity cards."""
     return genanki.Model(
         ENTITY_MODEL_ID,
-        "Hardcore Player - Entity",
+        "SceneMind - Entity",
         fields=[
             {"name": "Name"},
             {"name": "Type"},
@@ -261,7 +261,7 @@ class AnkiExportWorker:
             1 << 30, 1 << 31
         )
 
-        deck = genanki.Deck(deck_id, f"Hardcore Player - {book.name}")
+        deck = genanki.Deck(deck_id, f"SceneMind - {book.name}")
 
         # Add notes for each item
         word_count = 0

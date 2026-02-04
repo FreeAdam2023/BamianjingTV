@@ -3,13 +3,16 @@
 Handles job creation, listing, status, and video streaming.
 """
 
+import shutil
+import uuid
 from pathlib import Path
 from typing import List, Optional
 from urllib.parse import quote
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from loguru import logger
 
 from app.config import settings
 from app.models.job import Job, JobCreate, JobStatus, JobMode
@@ -111,7 +114,7 @@ async def create_job(
     job.watching_config = job_create.watching_config
     job.dubbing_config = job_create.dubbing_config
 
-    # Hardcore Player options
+    # SceneMind options
     job.use_traditional_chinese = job_create.use_traditional_chinese
     job.skip_diarization = job_create.skip_diarization
     _job_manager.save_job(job)
@@ -125,6 +128,94 @@ async def create_job(
 
     from loguru import logger
     logger.info(f"Created job {job.id} for URL: {job.url}")
+    return job
+
+
+@router.post("/jobs/upload", response_model=Job)
+async def create_job_with_upload(
+    file: UploadFile = File(...),
+    mode: str = Form("learning"),
+    target_language: str = Form("zh-TW"),
+    skip_diarization: bool = Form(True),
+    title: Optional[str] = Form(None),
+    background_tasks: BackgroundTasks = None,
+):
+    """Create a job with uploaded video file.
+
+    This endpoint accepts a video file upload instead of a URL.
+    """
+    # Validate file type
+    allowed_extensions = {".mp4", ".mkv", ".avi", ".mov", ".webm", ".m4v"}
+    original_filename = file.filename or "video.mp4"
+    file_ext = Path(original_filename).suffix.lower()
+    if file_ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type. Allowed: {', '.join(allowed_extensions)}"
+        )
+
+    # Create job first to get job ID
+    job_id = str(uuid.uuid4())[:8]
+
+    # Create job directory structure
+    job_dir = settings.jobs_dir / job_id
+    source_dir = job_dir / "source"
+    source_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save uploaded file
+    video_filename = f"video{file_ext}"
+    video_path = source_dir / video_filename
+
+    max_size = settings.max_upload_size_mb * 1024 * 1024
+
+    try:
+        total_size = 0
+        with open(video_path, "wb") as buffer:
+            while chunk := await file.read(8 * 1024 * 1024):  # 8MB chunks
+                total_size += len(chunk)
+                if total_size > max_size:
+                    buffer.close()
+                    shutil.rmtree(job_dir, ignore_errors=True)
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large. Maximum size: {settings.max_upload_size_mb}MB"
+                    )
+                buffer.write(chunk)
+
+        logger.info(f"Uploaded video for job {job_id}: {video_path} ({total_size / 1024 / 1024:.1f}MB)")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        shutil.rmtree(job_dir, ignore_errors=True)
+        logger.error(f"Upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+    # Create job with local file URL
+    local_url = f"file://{video_path}"
+    job = _job_manager.create_job(
+        url=local_url,
+        target_language=target_language,
+        job_id=job_id,
+    )
+
+    # Set mode and options
+    job.mode = JobMode(mode)
+    job.skip_diarization = skip_diarization
+    job.use_traditional_chinese = target_language.startswith("zh-TW")
+
+    # Set title from form or filename
+    job.title = title or Path(original_filename).stem
+
+    # Mark video as already downloaded
+    job.source_video = str(video_path)
+
+    _job_manager.save_job(job)
+
+    # Add to queue
+    await _job_queue.add(job_id)
+
+    logger.info(f"Created upload job {job_id} for file: {original_filename}")
     return job
 
 

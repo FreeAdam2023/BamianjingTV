@@ -1,6 +1,6 @@
-# Hardcore Player v2 n8n Workflows
+# SceneMind v2 n8n Workflows
 
-This directory contains n8n workflow templates for the Hardcore Player v2 architecture.
+This directory contains n8n workflow templates for the SceneMind v2 architecture.
 
 ## Architecture
 
@@ -57,7 +57,7 @@ workflows/
 ### Environment Variables
 
 Set these in n8n:
-- `API_URL`: Hardcore Player API base URL (e.g., `http://localhost:8000`)
+- `API_URL`: SceneMind API base URL (e.g., `http://localhost:8000`)
 - `NOTIFICATION_WEBHOOK`: Slack/Discord webhook URL for notifications
 
 ### Importing Workflows
@@ -73,7 +73,7 @@ Set these in n8n:
 ### Fetchers
 
 Each fetcher runs on a schedule and:
-1. Fetches enabled sources from Hardcore Player API
+1. Fetches enabled sources from SceneMind API
 2. Checks for new content from each source
 3. Creates Items for new content
 4. Optionally triggers the fanout workflow

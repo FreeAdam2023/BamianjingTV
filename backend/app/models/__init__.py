@@ -1,4 +1,4 @@
-"""Data models for Hardcore Player."""
+"""Data models for SceneMind."""
 
 from .job import Job, JobStatus, JobCreate
 from .source import Source, SourceType, SourceSubType, SourceCreate, SourceUpdate

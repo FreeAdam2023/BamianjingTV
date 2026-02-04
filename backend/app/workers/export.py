@@ -24,7 +24,7 @@ from app.workers.subtitle_styles import (
 # English: smaller font (44), white text, gray outline, positioned higher (MarginV=30 = higher position)
 # Chinese: larger font (52), yellow text, positioned lower (MarginV=120 = lower position)
 ASS_HEADER = """[Script Info]
-Title: Hardcore Player Bilingual Subtitles
+Title: SceneMind Bilingual Subtitles
 ScriptType: v4.00+
 PlayResX: 1920
 PlayResY: 1080

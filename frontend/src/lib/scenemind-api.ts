@@ -131,12 +131,78 @@ async function fetchAPI<T>(
   }
 }
 
+// ============ Upload Types ============
+
+export interface UploadProgress {
+  loaded: number;
+  total: number;
+  percentage: number;
+}
+
+export interface SessionCreateWithFile {
+  show_name: string;
+  season: number;
+  episode: number;
+  title: string;
+  file: File;
+}
+
 // ============ Session API ============
 
 export async function createSession(data: SessionCreate): Promise<Session> {
   return fetchAPI<Session>("/scenemind/sessions", {
     method: "POST",
     body: JSON.stringify(data),
+  });
+}
+
+export async function createSessionWithUpload(
+  data: SessionCreateWithFile,
+  onProgress?: (progress: UploadProgress) => void
+): Promise<Session> {
+  const formData = new FormData();
+  formData.append("file", data.file);
+  formData.append("show_name", data.show_name);
+  formData.append("season", data.season.toString());
+  formData.append("episode", data.episode.toString());
+  formData.append("title", data.title);
+
+  const apiBase = getApiBase();
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${apiBase}/scenemind/sessions/with-upload`);
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) {
+        onProgress({
+          loaded: event.loaded,
+          total: event.total,
+          percentage: Math.round((event.loaded / event.total) * 100),
+        });
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const session = JSON.parse(xhr.responseText);
+          resolve(session);
+        } catch {
+          reject(new Error("Invalid response"));
+        }
+      } else {
+        try {
+          const error = JSON.parse(xhr.responseText);
+          reject(new Error(error.detail || "Upload failed"));
+        } catch {
+          reject(new Error(`Upload failed: ${xhr.status}`));
+        }
+      }
+    };
+
+    xhr.onerror = () => reject(new Error("Network error"));
+    xhr.send(formData);
   });
 }
 

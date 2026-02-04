@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "Hardcore Player Team"}
+    {name = "SceneMind Team"}
 ]
 
 [tool.pytest.ini_options]

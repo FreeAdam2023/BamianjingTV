@@ -1,4 +1,4 @@
-"""Overview and aggregation API endpoints for Hardcore Player.
+"""Overview and aggregation API endpoints for SceneMind.
 
 These endpoints provide high-level views for dashboards and monitoring.
 """

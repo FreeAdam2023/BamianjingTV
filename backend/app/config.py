@@ -1,4 +1,4 @@
-"""Configuration settings for Hardcore Player.
+"""Configuration settings for SceneMind.
 
 Learning video factory: transcription, translation, and bilingual subtitles.
 """
@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     def scenemind_frames_dir(self) -> Path:
         """SceneMind frames directory."""
         return self.scenemind_dir / "frames"
+
+    @property
+    def scenemind_videos_dir(self) -> Path:
+        """SceneMind uploaded videos directory."""
+        return self.scenemind_dir / "videos"
+
+    # Upload settings
+    max_upload_size_mb: int = 4096  # 4GB max upload
 
     # Whisper settings
     whisper_model: str = "large-v3"
@@ -162,3 +170,4 @@ settings.timelines_dir.mkdir(parents=True, exist_ok=True)
 settings.models_cache_dir.mkdir(parents=True, exist_ok=True)
 settings.scenemind_sessions_dir.mkdir(parents=True, exist_ok=True)
 settings.scenemind_frames_dir.mkdir(parents=True, exist_ok=True)
+settings.scenemind_videos_dir.mkdir(parents=True, exist_ok=True)

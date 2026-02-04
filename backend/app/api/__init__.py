@@ -1,4 +1,4 @@
-"""API routers for Hardcore Player."""
+"""API routers for SceneMind."""
 
 from .sources import router as sources_router, set_source_manager
 from .items import router as items_router, set_item_manager
@@ -60,7 +60,7 @@ __all__ = [
     "pipelines_router",
     "overview_router",
     "websocket_router",
-    # Hardcore Player Routers
+    # SceneMind Routers
     "timelines_router",
     "segments_router",
     "export_router",
@@ -79,7 +79,7 @@ __all__ = [
     "set_pipeline_manager",
     "set_overview_managers",
     "get_connection_manager",
-    # Hardcore Player Setup functions
+    # SceneMind Setup functions
     "set_timeline_manager",
     "set_export_worker",
     "set_youtube_worker",

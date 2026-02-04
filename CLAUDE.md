@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Hardcore Player** - Learning video factory that transforms English video content into bilingual learning materials with preserved original audio and dual-language subtitles (English + Chinese).
+**SceneMind** - Learning video factory that transforms English video content into bilingual learning materials with preserved original audio and dual-language subtitles (English + Chinese).
 
 ## Architecture
 
@@ -19,7 +19,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 └─────────────────────────────────────────────────────────────────────┘
                                 ↓
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    Hardcore Player API (FastAPI)                     │
+│                    SceneMind API (FastAPI)                     │
 ├─────────────────────────────────────────────────────────────────────┤
 │  /sources    - Content source management                            │
 │  /items      - Content item tracking                                │

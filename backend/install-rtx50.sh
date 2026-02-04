@@ -1,5 +1,5 @@
 #!/bin/bash
-# Hardcore Player RTX 50 Series Installation Script
+# SceneMind RTX 50 Series Installation Script
 # Python 3.12 + CUDA 12.8 + PyTorch Nightly
 #
 # Usage:
@@ -9,7 +9,7 @@
 
 set -e
 
-echo "=== Hardcore Player RTX 50 Installation ==="
+echo "=== SceneMind RTX 50 Installation ==="
 echo ""
 
 # Accept Coqui TOS automatically

@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import PageHeader from "@/components/ui/PageHeader";
-import { listJobs, createJob, deleteJob, cancelJob, formatDuration, getVideoUrl, getExportVideoUrl } from "@/lib/api";
+import { listJobs, createJob, createJobWithUpload, deleteJob, cancelJob, formatDuration, getVideoUrl, getExportVideoUrl } from "@/lib/api";
+import type { UploadProgress } from "@/lib/api";
 import { useToast, useConfirm } from "@/components/ui";
 import type { Job, JobCreate, JobMode } from "@/lib/types";
 
@@ -19,7 +20,10 @@ export default function JobsPage() {
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
+  const [inputMode, setInputMode] = useState<"url" | "upload">("url");
   const [newUrl, setNewUrl] = useState("");
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [jobOptions, setJobOptions] = useState<Partial<JobCreate>>({
     mode: "learning",          // Default to Learning mode
@@ -73,7 +77,10 @@ export default function JobsPage() {
   }, [loadJobs]);
 
   function openModal() {
+    setInputMode("url");
     setNewUrl("");
+    setUploadFile(null);
+    setUploadProgress(null);
     setJobOptions({
       mode: "learning",          // Default to Learning mode
       target_language: "zh-TW",  // Default to Traditional Chinese
@@ -85,21 +92,41 @@ export default function JobsPage() {
 
   function closeModal() {
     setShowModal(false);
+    setInputMode("url");
     setNewUrl("");
+    setUploadFile(null);
+    setUploadProgress(null);
     setError(null);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!newUrl.trim()) return;
+
+    // Validate input based on mode
+    if (inputMode === "url" && !newUrl.trim()) return;
+    if (inputMode === "upload" && !uploadFile) return;
 
     setSubmitting(true);
     setError(null);
+    setUploadProgress(null);
+
     try {
-      await createJob({
-        url: newUrl.trim(),
-        ...jobOptions,
-      });
+      if (inputMode === "url") {
+        await createJob({
+          url: newUrl.trim(),
+          ...jobOptions,
+        });
+      } else {
+        await createJobWithUpload(
+          {
+            file: uploadFile!,
+            mode: jobOptions.mode,
+            target_language: jobOptions.target_language,
+            skip_diarization: jobOptions.skip_diarization,
+          },
+          (progress) => setUploadProgress(progress)
+        );
+      }
       closeModal();
       loadJobs(false);
     } catch (err) {
@@ -108,6 +135,7 @@ export default function JobsPage() {
       setError(message);
     } finally {
       setSubmitting(false);
+      setUploadProgress(null);
     }
   }
 
@@ -215,9 +243,9 @@ export default function JobsPage() {
     <main className="min-h-screen">
       <PageHeader
         title="Job Queue"
-        subtitle="Video Processing Tasks"
-        icon="🎬"
-        iconGradient="from-blue-500 to-purple-600"
+        subtitle="SceneMind Processing Tasks"
+        icon="🧠"
+        iconGradient="from-purple-500 to-pink-600"
         backHref="/"
         actions={
           <>
@@ -455,21 +483,112 @@ export default function JobsPage() {
             <h2 className="text-xl font-bold mb-6">Add New Job</h2>
 
             <form onSubmit={handleSubmit}>
-              {/* URL Input */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Video URL
-                </label>
-                <input
-                  type="url"
-                  value={newUrl}
-                  onChange={(e) => setNewUrl(e.target.value)}
-                  placeholder="Paste YouTube video URL..."
-                  className="input"
-                  disabled={submitting}
-                  autoFocus
-                />
+              {/* Input Mode Tabs */}
+              <div className="flex mb-4 border-b border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => setInputMode("url")}
+                  className={`px-4 py-2 text-sm font-medium transition-colors ${
+                    inputMode === "url"
+                      ? "text-blue-400 border-b-2 border-blue-400"
+                      : "text-gray-400 hover:text-gray-300"
+                  }`}
+                >
+                  🔗 URL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInputMode("upload")}
+                  className={`px-4 py-2 text-sm font-medium transition-colors ${
+                    inputMode === "upload"
+                      ? "text-blue-400 border-b-2 border-blue-400"
+                      : "text-gray-400 hover:text-gray-300"
+                  }`}
+                >
+                  📁 Upload
+                </button>
               </div>
+
+              {/* URL Input */}
+              {inputMode === "url" && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Video URL
+                  </label>
+                  <input
+                    type="url"
+                    value={newUrl}
+                    onChange={(e) => setNewUrl(e.target.value)}
+                    placeholder="Paste YouTube or video URL..."
+                    className="input"
+                    disabled={submitting}
+                    autoFocus
+                  />
+                </div>
+              )}
+
+              {/* File Upload */}
+              {inputMode === "upload" && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Video File
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="file"
+                      accept="video/*,.mp4,.mkv,.avi,.mov,.webm,.m4v"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        setUploadFile(file || null);
+                      }}
+                      className="hidden"
+                      id="job-video-upload"
+                      disabled={submitting}
+                    />
+                    <label
+                      htmlFor="job-video-upload"
+                      className="flex items-center justify-center w-full px-4 py-4 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-gray-500 transition-colors"
+                    >
+                      {uploadFile ? (
+                        <div className="text-center">
+                          <div className="text-sm font-medium text-white truncate max-w-[350px]">
+                            {uploadFile.name}
+                          </div>
+                          <div className="text-xs text-gray-400 mt-1">
+                            {(uploadFile.size / 1024 / 1024).toFixed(1)} MB
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          <svg className="w-10 h-10 mx-auto mb-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                          </svg>
+                          <span className="text-sm text-gray-400">
+                            Click to select video file
+                          </span>
+                          <p className="text-xs text-gray-500 mt-1">
+                            MP4, MKV, AVI, MOV, WebM (max 4GB)
+                          </p>
+                        </div>
+                      )}
+                    </label>
+                  </div>
+                  {uploadProgress && (
+                    <div className="mt-3">
+                      <div className="flex justify-between text-xs text-gray-400 mb-1">
+                        <span>Uploading...</span>
+                        <span>{uploadProgress.percentage}%</span>
+                      </div>
+                      <div className="w-full bg-gray-700 rounded-full h-2">
+                        <div
+                          className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${uploadProgress.percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Mode Selection */}
               <div className="mb-6">
@@ -573,16 +692,16 @@ export default function JobsPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting || !newUrl.trim()}
+                  disabled={submitting || (inputMode === "url" ? !newUrl.trim() : !uploadFile)}
                   className="btn btn-primary"
                 >
                   {submitting ? (
                     <>
                       <span className="spinner mr-2" />
-                      Adding...
+                      {uploadProgress ? `Uploading ${uploadProgress.percentage}%` : "Processing..."}
                     </>
                   ) : (
-                    "Add Job"
+                    inputMode === "url" ? "Add Job" : "Upload & Process"
                   )}
                 </button>
               </div>

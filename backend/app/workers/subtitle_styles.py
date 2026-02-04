@@ -105,7 +105,7 @@ def generate_half_screen_ass_header(
     background_color = _hex_to_ass_color(config.background_color, 192)  # 75% opacity
 
     return f"""[Script Info]
-Title: Hardcore Player Bilingual Subtitles - Learning Mode
+Title: SceneMind Bilingual Subtitles - Learning Mode
 ScriptType: v4.00+
 PlayResX: 1920
 PlayResY: {video_height}
@@ -175,7 +175,7 @@ def generate_floating_ass_header(
     # Outline=3: Thick outline for readability
     # Shadow=2: Drop shadow for depth
     return f"""[Script Info]
-Title: Hardcore Player Bilingual Subtitles - Watching Mode
+Title: SceneMind Bilingual Subtitles - Watching Mode
 ScriptType: v4.00+
 PlayResX: 1920
 PlayResY: {video_height}
@@ -221,7 +221,7 @@ def generate_floating_single_line_ass_header(
     alignment = 2 if config.floating_position == "bottom" else 8
 
     return f"""[Script Info]
-Title: Hardcore Player Bilingual Subtitles - Watching Mode (Compact)
+Title: SceneMind Bilingual Subtitles - Watching Mode (Compact)
 ScriptType: v4.00+
 PlayResX: 1920
 PlayResY: {video_height}
@@ -263,7 +263,7 @@ def generate_ass_header(
 
 # Default ASS header for backwards compatibility (half_screen mode)
 ASS_HEADER_DEFAULT = """[Script Info]
-Title: Hardcore Player Bilingual Subtitles
+Title: SceneMind Bilingual Subtitles
 ScriptType: v4.00+
 PlayResX: 1920
 PlayResY: 1080

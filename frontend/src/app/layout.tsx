@@ -3,8 +3,8 @@ import Providers from "@/components/Providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Hardcore Player",
-  description: "Learning video factory with bilingual subtitles",
+  title: "SceneMind",
+  description: "Watch & Learn with bilingual subtitles",
   icons: {
     icon: "/icon.svg",
   },

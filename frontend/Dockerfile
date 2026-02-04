@@ -1,5 +1,5 @@
-# Hardcore Player - Frontend
-# Next.js review UI for bilingual video learning
+# SceneMind - Frontend
+# Next.js UI for Watch & Learn with bilingual subtitles
 
 FROM node:20-alpine AS builder
 

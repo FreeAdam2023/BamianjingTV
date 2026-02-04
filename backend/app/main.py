@@ -1,4 +1,4 @@
-"""Hardcore Player - FastAPI main application.
+"""SceneMind - FastAPI main application.
 
 Learning video factory: transcription, translation, and bilingual subtitles.
 """
@@ -96,7 +96,7 @@ youtube_worker = YouTubeWorker()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
-    logger.info(f"Starting Hardcore Player v{__version__}")
+    logger.info(f"Starting SceneMind v{__version__}")
     logger.info(f"Jobs directory: {settings.jobs_dir}")
     logger.info(f"Data directory: {settings.data_dir}")
 
@@ -117,7 +117,7 @@ async def lifespan(app: FastAPI):
                 f"{item_manager.get_stats()['total']} items, "
                 f"{pipeline_manager.get_stats()['total']} pipelines")
 
-    # ========== Hardcore Player: Initialize timeline manager ==========
+    # ========== SceneMind: Initialize timeline manager ==========
     timeline_manager = TimelineManager()
     set_timeline_manager(timeline_manager)
     set_export_worker(export_worker)
@@ -290,11 +290,11 @@ async def lifespan(app: FastAPI):
     await job_queue.stop()
     await webhook_service.close()
     await card_generator.close()
-    logger.info("Shutting down Hardcore Player")
+    logger.info("Shutting down SceneMind")
 
 
 app = FastAPI(
-    title="Hardcore Player",
+    title="SceneMind",
     description="Learning video factory: transcription, translation, and bilingual subtitles",
     version=__version__,
     lifespan=lifespan,
@@ -316,7 +316,7 @@ app.include_router(pipelines_router)
 app.include_router(overview_router)
 app.include_router(websocket_router)
 
-# Hardcore Player routers
+# SceneMind routers
 app.include_router(timelines_router)
 app.include_router(segments_router)
 app.include_router(export_router)
@@ -337,7 +337,7 @@ app.include_router(dubbing_router)
 async def root():
     """Root endpoint."""
     return {
-        "name": "Hardcore Player",
+        "name": "SceneMind",
         "version": __version__,
         "status": "running",
         "features": ["transcription", "diarization", "translation", "bilingual_subtitles"],

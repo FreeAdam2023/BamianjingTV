@@ -2,7 +2,7 @@
 # Usage: docker-compose -f docker-compose.cpu.yml up -d
 
 services:
-  # Hardcore Player Backend API (CPU mode)
+  # SceneMind Backend API (CPU mode)
   api:
     build:
       context: ./backend
@@ -37,7 +37,7 @@ services:
       retries: 3
       start_period: 60s
 
-  # Hardcore Player Frontend (Next.js)
+  # SceneMind Frontend (Next.js)
   frontend:
     build:
       context: ./frontend

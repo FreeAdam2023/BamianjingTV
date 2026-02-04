@@ -1,4 +1,4 @@
-"""Source management API endpoints for Hardcore Player."""
+"""Source management API endpoints for SceneMind."""
 
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query

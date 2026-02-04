@@ -1,4 +1,4 @@
-"""Item manager service for Hardcore Player."""
+"""Item manager service for SceneMind."""
 
 import json
 from datetime import datetime, timedelta

@@ -28,12 +28,12 @@ SceneMind 是一套「看剧即创作」的私人工具，核心目标：
 
 ---
 
-## 2. 与 Hardcore Player 的关系
+## 2. 与 SceneMind 的关系
 
 ### 2.1 现有系统能力
 
 ```
-Hardcore Player 当前流程:
+SceneMind 当前流程:
 URL → Download → Whisper → Diarization → Translation → Review → Export
 ```
 
@@ -51,7 +51,7 @@ URL → Download → Whisper → Diarization → Translation → Review → Expo
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      Hardcore Player                             │
+│                      SceneMind                             │
 │   [视频学习材料工厂 - 字幕翻译流水线]                            │
 │   Input: 完整视频 → Output: 双语字幕视频                         │
 └─────────────────────────────────────────────────────────────────┘
@@ -65,7 +65,7 @@ URL → Download → Whisper → Diarization → Translation → Review → Expo
 
 ### 2.3 整合方式
 
-SceneMind 作为 Hardcore Player 的**新模块**（而非独立项目）：
+SceneMind 作为 SceneMind 的**新模块**（而非独立项目）：
 
 ```
 backend/

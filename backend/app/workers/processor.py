@@ -47,7 +47,7 @@ async def process_job(
 ) -> None:
     """Process a job through the pipeline.
 
-    Simplified for Hardcore Player (learning video factory):
+    Simplified for SceneMind (learning video factory):
     1. Download video
     2. Transcribe with Whisper
     3. Diarize speakers

@@ -1,5 +1,5 @@
 /**
- * API client for Hardcore Player backend
+ * API client for SceneMind backend
  */
 
 import type {
@@ -445,6 +445,70 @@ export async function createJob(job: JobCreate): Promise<Job> {
   return fetchAPI<Job>("/jobs", {
     method: "POST",
     body: JSON.stringify(job),
+  });
+}
+
+export interface JobUploadOptions {
+  file: File;
+  mode?: string;
+  target_language?: string;
+  skip_diarization?: boolean;
+  title?: string;
+}
+
+export interface UploadProgress {
+  loaded: number;
+  total: number;
+  percentage: number;
+}
+
+export async function createJobWithUpload(
+  options: JobUploadOptions,
+  onProgress?: (progress: UploadProgress) => void
+): Promise<Job> {
+  const formData = new FormData();
+  formData.append("file", options.file);
+  formData.append("mode", options.mode || "learning");
+  formData.append("target_language", options.target_language || "zh-TW");
+  formData.append("skip_diarization", String(options.skip_diarization ?? true));
+  if (options.title) {
+    formData.append("title", options.title);
+  }
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_BASE}/jobs/upload`);
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) {
+        onProgress({
+          loaded: event.loaded,
+          total: event.total,
+          percentage: Math.round((event.loaded / event.total) * 100),
+        });
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const job = JSON.parse(xhr.responseText);
+          resolve(job);
+        } catch {
+          reject(new Error("Invalid response"));
+        }
+      } else {
+        try {
+          const error = JSON.parse(xhr.responseText);
+          reject(new Error(error.detail || "Upload failed"));
+        } catch {
+          reject(new Error(`Upload failed: ${xhr.status}`));
+        }
+      }
+    };
+
+    xhr.onerror = () => reject(new Error("Network error"));
+    xhr.send(formData);
   });
 }
 

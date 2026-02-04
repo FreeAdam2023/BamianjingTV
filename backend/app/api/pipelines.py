@@ -1,4 +1,4 @@
-"""Pipeline configuration API endpoints for Hardcore Player."""
+"""Pipeline configuration API endpoints for SceneMind."""
 
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query

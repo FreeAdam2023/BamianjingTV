@@ -1,1 +1,1 @@
-"""Tests for Hardcore Player."""
+"""Tests for SceneMind."""

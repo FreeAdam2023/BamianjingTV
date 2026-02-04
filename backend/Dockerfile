@@ -1,4 +1,4 @@
-# Hardcore Player - Backend API
+# SceneMind - Backend API
 # Learning video factory with bilingual subtitles
 
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04

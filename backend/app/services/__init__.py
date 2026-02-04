@@ -1,4 +1,4 @@
-"""Services for Hardcore Player."""
+"""Services for SceneMind."""
 
 from .job_manager import JobManager
 from .queue import JobQueue, BatchProcessor

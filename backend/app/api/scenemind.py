@@ -1,8 +1,10 @@
 """SceneMind API endpoints for watching sessions and observations."""
 
+import shutil
+import uuid
 from pathlib import Path
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from loguru import logger
 
@@ -50,6 +52,99 @@ def _get_frame_capture_worker() -> FrameCaptureWorker:
     if _frame_capture_worker is None:
         raise HTTPException(status_code=500, detail="Frame capture worker not initialized")
     return _frame_capture_worker
+
+
+# ============ Upload Endpoint ============
+
+
+@router.post("/upload")
+async def upload_video(file: UploadFile = File(...)) -> dict:
+    """Upload a video file for a new session.
+
+    Returns the server path to use when creating a session.
+    """
+    # Validate file type
+    allowed_extensions = {".mp4", ".mkv", ".avi", ".mov", ".webm", ".m4v"}
+    file_ext = Path(file.filename or "video.mp4").suffix.lower()
+    if file_ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type. Allowed: {', '.join(allowed_extensions)}"
+        )
+
+    # Check file size (from content-length header if available)
+    max_size = settings.max_upload_size_mb * 1024 * 1024
+
+    # Generate unique filename
+    video_id = str(uuid.uuid4())[:8]
+    safe_filename = f"{video_id}{file_ext}"
+    video_path = settings.scenemind_videos_dir / safe_filename
+
+    # Stream file to disk
+    try:
+        total_size = 0
+        with open(video_path, "wb") as buffer:
+            while chunk := await file.read(8 * 1024 * 1024):  # 8MB chunks
+                total_size += len(chunk)
+                if total_size > max_size:
+                    buffer.close()
+                    video_path.unlink(missing_ok=True)
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large. Maximum size: {settings.max_upload_size_mb}MB"
+                    )
+                buffer.write(chunk)
+
+        logger.info(f"Uploaded video: {video_path} ({total_size / 1024 / 1024:.1f}MB)")
+
+        return {
+            "video_path": str(video_path),
+            "filename": safe_filename,
+            "size_mb": round(total_size / 1024 / 1024, 2),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        video_path.unlink(missing_ok=True)
+        logger.error(f"Upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+
+@router.post("/sessions/with-upload", response_model=Session)
+async def create_session_with_upload(
+    file: UploadFile = File(...),
+    show_name: str = Form(...),
+    season: int = Form(...),
+    episode: int = Form(...),
+    title: str = Form(""),
+) -> Session:
+    """Create a session with video upload in one request."""
+    manager = _get_session_manager()
+    worker = _get_frame_capture_worker()
+
+    # Upload the video first
+    upload_result = await upload_video(file)
+    video_path = upload_result["video_path"]
+
+    # Get video duration
+    duration = 0
+    try:
+        duration = await worker.get_video_duration(video_path)
+    except Exception as e:
+        logger.warning(f"Could not get video duration: {e}")
+
+    # Create the session
+    create = SessionCreate(
+        show_name=show_name,
+        season=season,
+        episode=episode,
+        title=title,
+        video_path=video_path,
+        duration=duration,
+    )
+
+    session = manager.create_session(create)
+    return session
 
 
 # ============ Session Endpoints ============

@@ -1,4 +1,4 @@
-"""Source data models for Hardcore Player."""
+"""Source data models for SceneMind."""
 
 from datetime import datetime
 from enum import Enum

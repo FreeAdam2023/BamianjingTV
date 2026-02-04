@@ -8,7 +8,7 @@
 
 | 模块 | 状态 | 完成度 |
 |------|------|--------|
-| **Learning Mode** (原 Hardcore Player) | ✅ 生产可用 | 95% |
+| **Learning Mode** (原 SceneMind) | ✅ 生产可用 | 95% |
 | **Watching Mode** (SceneMind) | ✅ Phase 1A 完成 | 90% |
 | **Dubbing Mode** | ✅ Phase 2 完成 | 100% |
 | **卡片系统** | ✅ Phase 1B 完成 | 100% |

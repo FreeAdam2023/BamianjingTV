@@ -1,1 +1,1 @@
-"""Service tests for Hardcore Player v2."""
+"""Service tests for SceneMind v2."""

@@ -21,7 +21,7 @@ class JobMode(str, Enum):
 class JobStatus(str, Enum):
     """Job status enum.
 
-    Simplified for Hardcore Player (learning video factory):
+    Simplified for SceneMind (learning video factory):
     - Removed TTS, thumbnail, content generation, and upload stages
     - Added AWAITING_REVIEW for human-in-the-loop editing
     - Added EXPORTING for video export with subtitles
@@ -97,7 +97,7 @@ def infer_source_type_from_url(url: str) -> SourceType:
 class JobCreate(BaseModel):
     """Request model for creating a new job.
 
-    Simplified for Hardcore Player (learning video factory).
+    Simplified for SceneMind (learning video factory).
     """
 
     url: str = Field(..., description="Video URL")
@@ -164,7 +164,7 @@ class JobCreate(BaseModel):
 class Job(BaseModel):
     """Job data model.
 
-    Simplified for Hardcore Player (learning video factory).
+    Simplified for SceneMind (learning video factory).
     """
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
@@ -228,7 +228,7 @@ class Job(BaseModel):
     translation: Optional[str] = None
     output_video: Optional[str] = None
 
-    # ========== Hardcore Player: Timeline ==========
+    # ========== SceneMind: Timeline ==========
     timeline_id: Optional[str] = Field(default=None, description="Associated timeline ID")
     use_traditional_chinese: bool = Field(
         default=True, description="Use Traditional Chinese for subtitles"

@@ -1,4 +1,4 @@
-"""Pipeline and Target configuration models for Hardcore Player."""
+"""Pipeline and Target configuration models for SceneMind."""
 
 from datetime import datetime
 from enum import Enum

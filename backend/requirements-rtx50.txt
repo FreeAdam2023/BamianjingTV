@@ -1,4 +1,4 @@
-# Hardcore Player Requirements for RTX 50 Series (Blackwell) GPUs
+# SceneMind Requirements for RTX 50 Series (Blackwell) GPUs
 # Python 3.12 + CUDA 12.8 + PyTorch Nightly
 #
 # Installation:

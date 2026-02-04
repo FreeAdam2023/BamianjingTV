@@ -1,4 +1,4 @@
-# Hardcore Player 部署指南
+# SceneMind 部署指南
 
 ## 目录
 

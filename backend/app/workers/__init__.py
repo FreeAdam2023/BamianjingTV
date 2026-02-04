@@ -1,4 +1,4 @@
-"""Worker modules for Hardcore Player pipeline."""
+"""Worker modules for SceneMind pipeline."""
 
 from .download import DownloadWorker
 from .whisper import WhisperWorker
