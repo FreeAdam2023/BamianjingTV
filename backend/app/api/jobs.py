@@ -154,8 +154,14 @@ async def create_job_with_upload(
             detail=f"Invalid file type. Allowed: {', '.join(allowed_extensions)}"
         )
 
-    # Create job first to get job ID
-    job_id = str(uuid.uuid4())[:8]
+    # Create job first to get the job ID
+    # Use a placeholder URL that will be updated after upload
+    placeholder_url = f"upload://{original_filename}"
+    job = _job_manager.create_job(
+        url=placeholder_url,
+        target_language=target_language,
+    )
+    job_id = job.id
 
     # Create job directory structure
     job_dir = settings.jobs_dir / job_id
@@ -176,6 +182,7 @@ async def create_job_with_upload(
                 if total_size > max_size:
                     buffer.close()
                     shutil.rmtree(job_dir, ignore_errors=True)
+                    _job_manager.delete_job(job_id, delete_files=False)
                     raise HTTPException(
                         status_code=413,
                         detail=f"File too large. Maximum size: {settings.max_upload_size_mb}MB"
@@ -188,16 +195,12 @@ async def create_job_with_upload(
         raise
     except Exception as e:
         shutil.rmtree(job_dir, ignore_errors=True)
+        _job_manager.delete_job(job_id, delete_files=False)
         logger.error(f"Upload failed: {e}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
-    # Create job with local file URL
-    local_url = f"file://{video_path}"
-    job = _job_manager.create_job(
-        url=local_url,
-        target_language=target_language,
-        job_id=job_id,
-    )
+    # Update job with local file path
+    job.url = f"file://{video_path}"
 
     # Set mode and options
     job.mode = JobMode(mode)
