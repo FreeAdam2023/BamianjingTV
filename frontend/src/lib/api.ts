@@ -80,7 +80,7 @@ function getApiBase(): string {
   return `${protocol}//${hostname}:8000`;
 }
 
-const API_BASE = getApiBase();
+export const API_BASE = getApiBase();
 
 async function fetchAPI<T>(
   endpoint: string,

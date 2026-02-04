@@ -1,0 +1,272 @@
+"use client";
+
+/**
+ * AIChatPanel - AI assistant for identifying interesting points in video
+ *
+ * Helps users:
+ * 1. Identify interesting points at current timestamp
+ * 2. Discuss video content to find highlights
+ * 3. Get suggestions for observations
+ */
+
+import { useState, useRef, useEffect, useCallback } from "react";
+import { API_BASE } from "@/lib/api";
+import type { Observation } from "@/lib/types";
+
+interface Message {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
+}
+
+interface AIChatPanelProps {
+  timelineId: string;
+  videoTitle?: string;
+  currentTime: number;
+  observations: Observation[];
+}
+
+function formatTime(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
+export default function AIChatPanel({
+  timelineId,
+  videoTitle,
+  currentTime,
+  observations,
+}: AIChatPanelProps) {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (expanded) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, expanded]);
+
+  // Focus input when expanded
+  useEffect(() => {
+    if (expanded) {
+      inputRef.current?.focus();
+    }
+  }, [expanded]);
+
+  const sendMessage = useCallback(
+    async (messageText?: string) => {
+      const trimmedInput = (messageText || input).trim();
+      if (!trimmedInput || loading) return;
+
+      const userMessage: Message = {
+        id: `user-${Date.now()}`,
+        role: "user",
+        content: trimmedInput,
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, userMessage]);
+      if (!messageText) setInput("");
+      setLoading(true);
+
+      try {
+        const response = await fetch(`${API_BASE}/timelines/${timelineId}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: trimmedInput,
+            include_transcript: true,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        const assistantMessage: Message = {
+          id: `assistant-${Date.now()}`,
+          role: "assistant",
+          content: data.response,
+          timestamp: new Date(),
+        };
+
+        setMessages((prev) => [...prev, assistantMessage]);
+      } catch (error) {
+        console.error("Chat error:", error);
+        const errorMessage: Message = {
+          id: `error-${Date.now()}`,
+          role: "assistant",
+          content: "抱歉，发生了错误。请稍后重试。",
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [input, loading, timelineId]
+  );
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  // Context-aware quick questions
+  const getQuickQuestions = () => {
+    const timeStr = formatTime(currentTime);
+    return [
+      `${timeStr} 这里在说什么？`,
+      "这个视频有哪些精彩片段？",
+      "帮我找出值得做笔记的地方",
+      observations.length > 0 ? "根据已有笔记，还有什么值得关注的？" : "这个视频的核心观点是什么？",
+    ];
+  };
+
+  return (
+    <div className="border-t border-gray-700 bg-gray-800/30 flex-shrink-0">
+      {/* Header - always visible */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-4 py-2 hover:bg-gray-700/50 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <svg
+            className="w-4 h-4 text-purple-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+            />
+          </svg>
+          <span className="text-sm font-medium">AI 助手</span>
+          <span className="text-xs text-gray-500">找兴趣点</span>
+          {messages.length > 0 && (
+            <span className="px-1.5 py-0.5 text-xs bg-purple-500/20 text-purple-400 rounded">
+              {messages.length}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500">{formatTime(currentTime)}</span>
+          <svg
+            className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? "rotate-180" : ""}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </button>
+
+      {/* Expanded content */}
+      {expanded && (
+        <div className="border-t border-gray-700">
+          {/* Messages area */}
+          <div className="h-48 overflow-y-auto p-3 space-y-3">
+            {messages.length === 0 ? (
+              <div className="text-center text-gray-500 py-2">
+                <p className="text-sm mb-3">问我关于视频的问题，帮你找到兴趣点</p>
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {getQuickQuestions().map((q, i) => (
+                    <button
+                      key={i}
+                      onClick={() => {
+                        sendMessage(q);
+                      }}
+                      className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded-full text-gray-300 transition-colors"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              messages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`max-w-[85%] px-3 py-2 rounded-lg text-sm ${
+                      msg.role === "user"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-700 text-gray-100"
+                    }`}
+                  >
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                  </div>
+                </div>
+              ))
+            )}
+            {loading && (
+              <div className="flex justify-start">
+                <div className="bg-gray-700 px-3 py-2 rounded-lg">
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                    <div
+                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                      style={{ animationDelay: "0.1s" }}
+                    />
+                    <div
+                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                      style={{ animationDelay: "0.2s" }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input area */}
+          <div className="border-t border-gray-700 p-2">
+            <div className="flex gap-2">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={`问关于 ${formatTime(currentTime)} 的问题...`}
+                disabled={loading}
+                rows={1}
+                className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 resize-none disabled:opacity-50"
+              />
+              <button
+                onClick={() => sendMessage()}
+                disabled={!input.trim() || loading}
+                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

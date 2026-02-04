@@ -528,3 +528,117 @@ async def get_observation_frame(
         media_type="image/png",
         filename=frame_path.name,
     )
+
+
+# ============ AI Chat ============
+
+from pydantic import BaseModel
+
+
+class ChatRequest(BaseModel):
+    """Request model for AI chat."""
+    message: str
+    include_transcript: bool = True
+
+
+class ChatResponse(BaseModel):
+    """Response model for AI chat."""
+    response: str
+    tokens_used: int = 0
+
+
+@router.post("/{timeline_id}/chat", response_model=ChatResponse)
+async def chat_with_ai(timeline_id: str, request: ChatRequest):
+    """
+    Chat with AI about the video content.
+
+    The AI has access to the full transcript and can answer questions about:
+    - Video content and topics
+    - Key points and highlights
+    - Recommendations for what to keep/drop
+    - Translations and language questions
+    """
+    from app.config import settings
+    from loguru import logger
+    import asyncio
+
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    # Build transcript context
+    transcript_context = ""
+    if request.include_transcript and timeline.segments:
+        lines = []
+        for seg in timeline.segments:
+            time_str = f"[{seg.start:.1f}s]"
+            text = seg.text or ""
+            translation = seg.translation or ""
+            if translation:
+                lines.append(f"{time_str} {text} | {translation}")
+            else:
+                lines.append(f"{time_str} {text}")
+        transcript_context = "\n".join(lines)
+
+    # Build system prompt
+    system_prompt = f"""你是一个视频内容分析助手。你可以帮助用户理解和分析视频内容。
+
+视频标题: {timeline.source_title or "未知"}
+视频时长: {timeline.source_duration:.0f}秒
+片段数量: {len(timeline.segments)}
+
+{"完整字幕内容：" if transcript_context else "（无字幕）"}
+{transcript_context}
+
+你可以：
+1. 回答关于视频内容的问题
+2. 总结视频的主要观点
+3. 找出有趣或重要的片段
+4. 帮助用户决定哪些片段值得保留
+5. 解释翻译或语言相关的问题
+
+请用简洁的中文回答。如果引用具体片段，请标注时间戳。"""
+
+    # Call LLM
+    try:
+        if settings.is_azure:
+            from openai import AsyncAzureOpenAI
+            azure_endpoint = settings.llm_base_url.split("/openai/")[0]
+            client = AsyncAzureOpenAI(
+                api_key=settings.llm_api_key,
+                api_version=settings.azure_api_version,
+                azure_endpoint=azure_endpoint,
+            )
+            model = settings.azure_deployment_name
+        else:
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(
+                api_key=settings.llm_api_key,
+                base_url=settings.llm_base_url,
+            )
+            model = settings.llm_model
+
+        response = await asyncio.wait_for(
+            client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": request.message},
+                ],
+                temperature=0.7,
+                max_tokens=1000,
+            ),
+            timeout=60,
+        )
+
+        content = response.choices[0].message.content or "抱歉，我无法生成回答。"
+        tokens = response.usage.total_tokens if response.usage else 0
+
+        return ChatResponse(response=content.strip(), tokens_used=tokens)
+
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="AI响应超时，请重试")
+    except Exception as e:
+        logger.error(f"AI chat failed: {e}")
+        raise HTTPException(status_code=500, detail=f"AI服务错误: {str(e)}")
