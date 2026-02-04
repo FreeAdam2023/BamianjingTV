@@ -206,6 +206,27 @@ export async function dropSegmentsAfter(
   });
 }
 
+export interface SplitSegmentResponse {
+  original_id: number;
+  new_segments: EditableSegment[];
+  message: string;
+}
+
+export async function splitSegment(
+  timelineId: string,
+  segmentId: number,
+  enSplitIndex: number,
+  zhSplitIndex: number
+): Promise<SplitSegmentResponse> {
+  return fetchAPI(`/timelines/${timelineId}/segments/${segmentId}/split`, {
+    method: "POST",
+    body: JSON.stringify({
+      en_split_index: enSplitIndex,
+      zh_split_index: zhSplitIndex,
+    }),
+  });
+}
+
 // ============ Video Trim API ============
 
 export interface VideoTrimInfo {

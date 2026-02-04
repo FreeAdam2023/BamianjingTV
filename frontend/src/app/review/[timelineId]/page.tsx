@@ -14,7 +14,7 @@ import { useTimeline } from "@/hooks/useTimeline";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useTimelineKeyboard } from "@/hooks/useTimelineKeyboard";
 import { useMultiTrackWaveform, TrackType } from "@/hooks/useMultiTrackWaveform";
-import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress, setSubtitleAreaRatio } from "@/lib/api";
+import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress, setSubtitleAreaRatio, splitSegment } from "@/lib/api";
 import type { ExportStatusResponse, SubtitleStyleOptions } from "@/lib/types";
 import { useToast, useConfirm } from "@/components/ui";
 import ReviewHeader from "./ReviewHeader";
@@ -307,6 +307,20 @@ export default function ReviewPage() {
     }
   }, [timeline, refresh, confirm, toast]);
 
+  // Handle segment split
+  const handleSplitSegment = useCallback(async (segmentId: number, enIndex: number, zhIndex: number) => {
+    if (!timeline) return;
+    try {
+      await splitSegment(timeline.timeline_id, segmentId, enIndex, zhIndex);
+      await refresh();
+      toast.success("段落已分割");
+    } catch (err) {
+      console.error("Failed to split segment:", err);
+      toast.error("分割失败: " + (err instanceof Error ? err.message : "Unknown error"));
+      throw err;
+    }
+  }, [timeline, refresh, toast]);
+
   // Handle timeline seek
   const handleTimelineSeek = useCallback((time: number) => {
     if (videoPlayerRef.current) {
@@ -446,6 +460,7 @@ export default function ReviewPage() {
             onSegmentClick={handleSegmentClick}
             onStateChange={setSegmentState}
             onTextChange={setSegmentText}
+            onSplitSegment={handleSplitSegment}
           />
 
           {/* Observations section (for WATCHING mode) - below segment list */}

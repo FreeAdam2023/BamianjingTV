@@ -5,6 +5,7 @@ import type { EditableSegment, SegmentState } from "@/lib/types";
 import { formatDuration } from "@/lib/api";
 import { ClickableSubtitle, CardPopupContainer } from "@/components/Cards";
 import { useCardPopup } from "@/hooks/useCardPopup";
+import SplitSegmentModal from "./SplitSegmentModal";
 
 interface SegmentListProps {
   segments: EditableSegment[];
@@ -12,6 +13,7 @@ interface SegmentListProps {
   onSegmentClick: (segmentId: number) => void;
   onStateChange: (segmentId: number, state: SegmentState) => void | Promise<void>;
   onTextChange?: (segmentId: number, en: string, zh: string) => void | Promise<void>;
+  onSplitSegment?: (segmentId: number, enIndex: number, zhIndex: number) => Promise<void>;
 }
 
 export default function SegmentList({
@@ -20,15 +22,22 @@ export default function SegmentList({
   onSegmentClick,
   onStateChange,
   onTextChange,
+  onSplitSegment,
 }: SegmentListProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editEn, setEditEn] = useState("");
   const [editZh, setEditZh] = useState("");
   const [saving, setSaving] = useState(false);
+  const [splittingSegment, setSplittingSegment] = useState<EditableSegment | null>(null);
 
   // Card popup state
   const { state: cardState, openWordCard, close: closeCard } = useCardPopup();
+
+  // Check if segment is long enough to split (at least 50 chars EN or 25 chars ZH)
+  const canSplit = (segment: EditableSegment) => {
+    return segment.en.length >= 50 || segment.zh.length >= 25;
+  };
 
   // Handle word click in subtitle
   const handleWordClick = useCallback((word: string, position: { x: number; y: number }) => {
@@ -132,6 +141,19 @@ export default function SegmentList({
                   title="Edit subtitles (or double-click text)"
                 >
                   Edit
+                </button>
+              )}
+              {/* Split button - only show for long segments */}
+              {editingId !== segment.id && onSplitSegment && canSplit(segment) && (
+                <button
+                  className="px-2 py-0.5 text-xs bg-gray-700 text-orange-300 rounded hover:bg-orange-600 hover:text-white transition"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSplittingSegment(segment);
+                  }}
+                  title="Split long segment into two"
+                >
+                  Split
                 </button>
               )}
             </div>
@@ -265,6 +287,17 @@ export default function SegmentList({
       state={cardState}
       onClose={closeCard}
     />
+
+    {/* Split segment modal */}
+    {splittingSegment && onSplitSegment && (
+      <SplitSegmentModal
+        segment={splittingSegment}
+        onSplit={async (enIndex, zhIndex) => {
+          await onSplitSegment(splittingSegment.id, enIndex, zhIndex);
+        }}
+        onClose={() => setSplittingSegment(null)}
+      />
+    )}
     </>
   );
 }
