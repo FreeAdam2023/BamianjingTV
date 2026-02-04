@@ -203,6 +203,22 @@ class TranslationWorker:
         cost = (tokens_in * cost_entry["input"] / 1_000_000) + (tokens_out * cost_entry["output"] / 1_000_000)
         return round(cost, 6)
 
+    def _is_trivial_text(self, text: str) -> bool:
+        """Check if text is trivial and should be skipped for translation.
+
+        Trivial text includes: empty, whitespace-only, single punctuation,
+        or text that's too short to meaningfully translate.
+        """
+        if not text:
+            return True
+        stripped = text.strip()
+        if not stripped:
+            return True
+        # Single punctuation or very short non-alphabetic text
+        if len(stripped) <= 2 and not any(c.isalpha() for c in stripped):
+            return True
+        return False
+
     async def translate_text(
         self,
         text: str,
@@ -221,6 +237,10 @@ class TranslationWorker:
         Returns:
             Tuple of (translated_text, tokens_in, tokens_out)
         """
+        # Skip trivial text (empty, punctuation-only, etc.)
+        if self._is_trivial_text(text):
+            return text, 0, 0
+
         from openai import BadRequestError
 
         client = self._get_client()
