@@ -7,7 +7,8 @@ import {
   FONT_FAMILIES,
   FONT_WEIGHTS,
   PRESET_COLORS,
-  BACKGROUND_COLORS
+  BACKGROUND_COLORS,
+  DISPLAY_MODES,
 } from "./constants";
 
 interface SubtitleStylePanelProps {
@@ -31,6 +32,27 @@ export default function SubtitleStylePanel({
         >
           Reset
         </button>
+      </div>
+
+      {/* Display mode */}
+      <div className="mb-3">
+        <label className="block text-gray-400 text-xs mb-1">显示模式</label>
+        <div className="flex gap-1">
+          {DISPLAY_MODES.map((mode) => (
+            <button
+              key={mode.value}
+              onClick={() => onStyleChange({ displayMode: mode.value })}
+              className={`flex-1 py-1.5 text-xs rounded ${
+                style.displayMode === mode.value
+                  ? "bg-blue-500 text-white"
+                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+              }`}
+              title={mode.description}
+            >
+              {mode.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Font family */}

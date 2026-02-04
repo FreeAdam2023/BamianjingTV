@@ -371,6 +371,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
 
   // Dark blue color matching subtitle area and export
   const containerBgColor = "#1a2744";
+  const isOverlayMode = subtitleStyle.displayMode === "overlay";
 
   return (
     <div
@@ -382,7 +383,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
       <div
         className="relative flex-shrink-0"
         style={{
-          height: `${(1 - subtitleHeightRatio) * 100}%`,
+          height: isOverlayMode ? "calc(100% - 60px)" : `${(1 - subtitleHeightRatio) * 100}%`,
           minHeight: "200px",
         }}
       >
@@ -406,31 +407,48 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
             />
           </div>
         )}
-      </div>
 
-      {/* Drag handle to resize */}
-      <div
-        className="h-1 bg-gray-600 hover:bg-blue-500 cursor-ns-resize flex-shrink-0 relative group"
-        onMouseDown={() => setIsDragging(true)}
-      >
-        <div className="absolute inset-x-0 -top-2 -bottom-2" />
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-1 bg-gray-400 rounded group-hover:bg-blue-400" />
-        {/* Percentage indicator shown during drag */}
-        {isDragging && (
-          <div className="absolute left-1/2 -translate-x-1/2 -top-8 px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded shadow-lg whitespace-nowrap">
-            Subtitle area: {Math.round(subtitleHeightRatio * 100)}%
-          </div>
+        {/* Overlay mode: subtitles on video */}
+        {isOverlayMode && (
+          <SubtitleOverlay
+            segment={currentSegment || null}
+            style={subtitleStyle}
+            subtitleHeightRatio={subtitleHeightRatio}
+            onStyleChange={updateSubtitleStyle}
+            onStyleReset={resetSubtitleStyle}
+            overlayMode={true}
+          />
         )}
       </div>
 
-      {/* Subtitle overlay */}
-      <SubtitleOverlay
-        segment={currentSegment || null}
-        style={subtitleStyle}
-        subtitleHeightRatio={subtitleHeightRatio}
-        onStyleChange={updateSubtitleStyle}
-        onStyleReset={resetSubtitleStyle}
-      />
+      {/* Drag handle to resize (only in split mode) */}
+      {!isOverlayMode && (
+        <div
+          className="h-1 bg-gray-600 hover:bg-blue-500 cursor-ns-resize flex-shrink-0 relative group"
+          onMouseDown={() => setIsDragging(true)}
+        >
+          <div className="absolute inset-x-0 -top-2 -bottom-2" />
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-1 bg-gray-400 rounded group-hover:bg-blue-400" />
+          {/* Percentage indicator shown during drag */}
+          {isDragging && (
+            <div className="absolute left-1/2 -translate-x-1/2 -top-8 px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded shadow-lg whitespace-nowrap">
+              Subtitle area: {Math.round(subtitleHeightRatio * 100)}%
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Split mode: subtitles below video */}
+      {!isOverlayMode && (
+        <SubtitleOverlay
+          segment={currentSegment || null}
+          style={subtitleStyle}
+          subtitleHeightRatio={subtitleHeightRatio}
+          onStyleChange={updateSubtitleStyle}
+          onStyleReset={resetSubtitleStyle}
+          overlayMode={false}
+        />
+      )}
 
       {/* Controls bar */}
       <VideoControls

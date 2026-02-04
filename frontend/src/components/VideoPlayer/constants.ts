@@ -2,6 +2,8 @@
  * VideoPlayer constants - fonts, colors, and default styles
  */
 
+export type SubtitleDisplayMode = "split" | "overlay";
+
 export interface SubtitleStyle {
   fontFamily: string;
   enFontSize: number;
@@ -11,6 +13,7 @@ export interface SubtitleStyle {
   fontWeight: string;
   textShadow: boolean;
   backgroundColor: string;
+  displayMode: SubtitleDisplayMode;
 }
 
 export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
@@ -22,7 +25,13 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   fontWeight: "500",
   textShadow: true,
   backgroundColor: "#1a2744",
+  displayMode: "split", // "split" = below video, "overlay" = on video
 };
+
+export const DISPLAY_MODES: { value: SubtitleDisplayMode; label: string; description: string }[] = [
+  { value: "split", label: "分屏", description: "字幕在视频下方" },
+  { value: "overlay", label: "悬浮", description: "字幕叠加在视频上" },
+];
 
 export const FONT_FAMILIES = [
   { value: "system-ui", label: "System Default" },
