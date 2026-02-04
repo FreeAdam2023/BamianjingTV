@@ -24,10 +24,10 @@ class DownloadWorker:
         subtitle_langs: List[str] = None,
     ) -> Dict[str, Any]:
         """
-        Download video from URL.
+        Download video from URL or use local file.
 
         Args:
-            url: Video URL (YouTube, etc.)
+            url: Video URL (YouTube, etc.) or file:// path for uploaded files
             output_dir: Directory to save files
             extract_audio: Whether to extract audio as WAV
             fetch_subtitles: Whether to download YouTube subtitles if available
@@ -40,12 +40,20 @@ class DownloadWorker:
         source_dir = output_dir / "source"
         source_dir.mkdir(parents=True, exist_ok=True)
 
-        video_path = source_dir / "video.mp4"
         audio_path = source_dir / "audio.wav"
         subtitle_path = None
 
         if subtitle_langs is None:
             subtitle_langs = ["en"]
+
+        # Handle local file uploads (file:// URLs)
+        if url.startswith("file://"):
+            return await self._handle_local_file(
+                url, source_dir, audio_path, extract_audio
+            )
+
+        # Standard video path for downloads
+        video_path = source_dir / "video.mp4"
 
         # Get video info first
         info = await self._get_video_info(url)
@@ -120,6 +128,75 @@ class DownloadWorker:
         """Check if URL is a YouTube video."""
         url_lower = url.lower()
         return "youtube.com" in url_lower or "youtu.be" in url_lower
+
+    async def _handle_local_file(
+        self,
+        url: str,
+        source_dir: Path,
+        audio_path: Path,
+        extract_audio: bool,
+    ) -> Dict[str, Any]:
+        """
+        Handle locally uploaded files (file:// URLs).
+
+        The file is already uploaded and saved by the upload endpoint.
+        We just need to verify it exists and extract audio if requested.
+        """
+        # Parse file:// URL to get the actual path
+        file_path = Path(url.replace("file://", ""))
+
+        if not file_path.exists():
+            raise FileNotFoundError(f"Uploaded video file not found: {file_path}")
+
+        logger.info(f"Using locally uploaded file: {file_path}")
+
+        # Get video duration using ffprobe
+        duration = await self._get_video_duration(file_path)
+
+        # Check duration limit
+        if duration > self.max_duration:
+            raise ValueError(
+                f"Video duration ({duration}s) exceeds maximum ({self.max_duration}s)"
+            )
+
+        # Extract audio if requested
+        if extract_audio:
+            if audio_path.exists():
+                logger.info("Audio already exists, skipping extraction")
+            else:
+                logger.info("Extracting audio from uploaded video...")
+                await self._extract_audio(file_path, audio_path)
+
+        return {
+            "video_path": str(file_path),
+            "audio_path": str(audio_path) if extract_audio else None,
+            "subtitle_path": None,
+            "has_youtube_subtitles": False,
+            "title": file_path.stem,  # Use filename as title
+            "duration": duration,
+            "channel": None,
+            "description": None,
+        }
+
+    async def _get_video_duration(self, video_path: Path) -> float:
+        """Get video duration using ffprobe."""
+        cmd = [
+            "ffprobe",
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "json",
+            str(video_path),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            logger.warning(f"ffprobe failed: {result.stderr}")
+            return 0.0
+
+        try:
+            data = json.loads(result.stdout)
+            return float(data.get("format", {}).get("duration", 0))
+        except (json.JSONDecodeError, ValueError):
+            return 0.0
 
     async def _get_video_info(self, url: str) -> Dict[str, Any]:
         """Get video metadata without downloading."""
