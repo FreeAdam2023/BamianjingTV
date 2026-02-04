@@ -1,8 +1,8 @@
 /**
- * SubtitleOverlay - Bilingual subtitle display area
+ * SubtitleOverlay - Bilingual subtitle display area with auto-scaling
  */
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { EditableSegment } from "@/lib/types";
 import { SubtitleStyle } from "./constants";
 import SubtitleStylePanel from "./SubtitleStylePanel";
@@ -16,6 +16,15 @@ interface SubtitleOverlayProps {
   overlayMode?: boolean;
 }
 
+// Minimum font sizes to maintain readability
+const MIN_EN_FONT_SIZE = 18;
+const MIN_ZH_FONT_SIZE = 20;
+
+// Character thresholds for scaling (approximate characters per line at base size)
+const EN_CHARS_PER_LINE = 60;
+const ZH_CHARS_PER_LINE = 30;
+const MAX_LINES = 4; // Max lines we want to display
+
 export default function SubtitleOverlay({
   segment,
   style,
@@ -26,10 +35,45 @@ export default function SubtitleOverlay({
 }: SubtitleOverlayProps) {
   const [showStyleSettings, setShowStyleSettings] = useState(false);
 
-  // Calculate font sizes based on subtitle height ratio (only for split mode)
-  const fontScale = overlayMode ? 1 : subtitleHeightRatio / 0.5;
-  const englishFontSize = Math.max(14, Math.min(48, style.enFontSize * fontScale));
-  const chineseFontSize = Math.max(16, Math.min(56, style.zhFontSize * fontScale));
+  // Calculate adaptive font sizes based on text length
+  const { englishFontSize, chineseFontSize } = useMemo(() => {
+    // Base font scale (from height ratio, only for split mode)
+    const fontScale = overlayMode ? 1 : subtitleHeightRatio / 0.5;
+    let enSize = Math.max(MIN_EN_FONT_SIZE, Math.min(48, style.enFontSize * fontScale));
+    let zhSize = Math.max(MIN_ZH_FONT_SIZE, Math.min(56, style.zhFontSize * fontScale));
+
+    if (!segment) return { englishFontSize: enSize, chineseFontSize: zhSize };
+
+    // Calculate text lengths
+    const enText = segment.en || "";
+    const zhText = segment.zh || "";
+    const enLength = enText.length;
+    const zhLength = zhText.length;
+
+    // Estimate how many lines the text would take at current font size
+    const enMaxChars = EN_CHARS_PER_LINE * MAX_LINES;
+    const zhMaxChars = ZH_CHARS_PER_LINE * MAX_LINES;
+
+    // Scale down if text is too long
+    if (enLength > enMaxChars) {
+      const enScale = Math.sqrt(enMaxChars / enLength); // Square root for gentler scaling
+      enSize = Math.max(MIN_EN_FONT_SIZE, enSize * enScale);
+    } else if (enLength > EN_CHARS_PER_LINE * 2) {
+      // Moderate scaling for 2-4 lines
+      const enScale = Math.sqrt((EN_CHARS_PER_LINE * 2) / enLength);
+      enSize = Math.max(MIN_EN_FONT_SIZE, enSize * Math.max(0.8, enScale));
+    }
+
+    if (zhLength > zhMaxChars) {
+      const zhScale = Math.sqrt(zhMaxChars / zhLength);
+      zhSize = Math.max(MIN_ZH_FONT_SIZE, zhSize * zhScale);
+    } else if (zhLength > ZH_CHARS_PER_LINE * 2) {
+      const zhScale = Math.sqrt((ZH_CHARS_PER_LINE * 2) / zhLength);
+      zhSize = Math.max(MIN_ZH_FONT_SIZE, zhSize * Math.max(0.8, zhScale));
+    }
+
+    return { englishFontSize: Math.round(enSize), chineseFontSize: Math.round(zhSize) };
+  }, [segment, style.enFontSize, style.zhFontSize, subtitleHeightRatio, overlayMode]);
 
   // Text shadow style for better visibility (stronger in overlay mode)
   const textShadowStyle = style.textShadow
