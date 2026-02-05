@@ -44,7 +44,10 @@ class CardGeneratorWorker:
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client with TomTrove auth headers."""
         if self.http_client is None or self.http_client.is_closed:
-            headers = {}
+            headers = {
+                # User-Agent required by Wikidata API
+                "User-Agent": "SceneMind/1.0 (https://github.com/FreeAdam2023/BamianjingTV; contact@scenemind.app)",
+            }
             if self.tomtrove_key:
                 headers["X-API-Key"] = self.tomtrove_key
             self.http_client = httpx.AsyncClient(
