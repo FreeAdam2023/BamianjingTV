@@ -17,7 +17,7 @@ import { useMultiTrackWaveform, TrackType } from "@/hooks/useMultiTrackWaveform"
 import { useCardPopup } from "@/hooks/useCardPopup";
 import { useCreativeConfig } from "@/hooks/useCreativeConfig";
 import { useCreativeKeyboard } from "@/hooks/useCreativeKeyboard";
-import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress, setSubtitleAreaRatio, splitSegment, getTimelineAnnotations, setSubtitleLanguageMode } from "@/lib/api";
+import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress, setSubtitleAreaRatio, splitSegment, getSegmentAnnotations, setSubtitleLanguageMode } from "@/lib/api";
 import type { ExportStatusResponse, SubtitleStyleOptions, SegmentAnnotations } from "@/lib/types";
 import type { CreativeStyle } from "@/lib/creative-types";
 import { useToast, useConfirm } from "@/components/ui";
@@ -82,9 +82,8 @@ export default function ReviewPage() {
   const [showObservationCapture, setShowObservationCapture] = useState(false);
   const [observations, setObservations] = useState<Observation[]>([]);
 
-  // NER annotations state (for LEARNING mode)
+  // NER annotations state - populated on-demand when segments are clicked
   const [segmentAnnotations, setSegmentAnnotations] = useState<Map<number, SegmentAnnotations> | undefined>();
-  const [analyzingEntities, setAnalyzingEntities] = useState(false);
 
   // Card popup state (shared between video and segment list)
   const { state: cardState, openWordCard, openEntityCard, close: closeCard } = useCardPopup();
@@ -225,16 +224,30 @@ export default function ReviewPage() {
     }
   }, []);
 
-  // Handle segment click
-  const handleSegmentClick = useCallback((segmentId: number) => {
+  // Handle segment click - also triggers entity analysis for that segment
+  const handleSegmentClick = useCallback(async (segmentId: number) => {
     setCurrentSegmentId(segmentId);
     if (timeline) {
       const segment = timeline.segments.find((s) => s.id === segmentId);
       if (segment && videoPlayerRef.current) {
         videoPlayerRef.current.seekTo(segment.start);
       }
+
+      // Auto-analyze entities for this segment if not already done
+      if (!segmentAnnotations?.has(segmentId)) {
+        try {
+          const annotation = await getSegmentAnnotations(timeline.timeline_id, segmentId);
+          setSegmentAnnotations((prev) => {
+            const newMap = new Map(prev || []);
+            newMap.set(segmentId, annotation);
+            return newMap;
+          });
+        } catch (err) {
+          console.error("Failed to analyze segment entities:", err);
+        }
+      }
     }
-  }, [timeline]);
+  }, [timeline, segmentAnnotations]);
 
   // Handle video time update
   const handleVideoTimeUpdate = useCallback((time: number) => {
@@ -362,28 +375,6 @@ export default function ReviewPage() {
       throw err;
     }
   }, [timeline, refresh, toast]);
-
-  // Handle entity analysis
-  const handleAnalyzeEntities = useCallback(async () => {
-    if (!timeline) return;
-    setAnalyzingEntities(true);
-    try {
-      const annotations = await getTimelineAnnotations(timeline.timeline_id, 50, 30);
-      // Convert to Map for quick lookup by segment ID
-      const annotationsMap = new Map<number, SegmentAnnotations>();
-      for (const segAnnotation of annotations.segments) {
-        annotationsMap.set(segAnnotation.segment_id, segAnnotation);
-      }
-      setSegmentAnnotations(annotationsMap);
-      const totalEntities = annotations.segments.reduce((sum, s) => sum + s.entities.length, 0);
-      toast.success(`发现 ${totalEntities} 个实体`);
-    } catch (err) {
-      console.error("Failed to analyze entities:", err);
-      toast.error("分析失败: " + (err instanceof Error ? err.message : "Unknown error"));
-    } finally {
-      setAnalyzingEntities(false);
-    }
-  }, [timeline, toast]);
 
   // Handle timeline seek
   const handleTimelineSeek = useCallback((time: number) => {
@@ -588,35 +579,17 @@ export default function ReviewPage() {
           />
           <SpeakerEditor timelineId={timelineId} onSpeakerNamesChange={() => refresh()} />
 
-          {/* Entity analysis button (available for all modes) */}
-          <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700 bg-gray-800/50">
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h5c.256 0 .512.098.707.293l7 7zM5 6a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-              </svg>
-              <span className="text-sm text-gray-300">实体识别</span>
-              {segmentAnnotations && (
-                <span className="px-1.5 py-0.5 text-xs bg-purple-500/20 text-purple-400 rounded">
-                  已分析
-                </span>
-              )}
-            </div>
-            <button
-              onClick={handleAnalyzeEntities}
-              disabled={analyzingEntities}
-              className="text-xs px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-500 disabled:bg-purple-600/50 disabled:cursor-not-allowed transition"
-            >
-              {analyzingEntities ? (
-                <span className="flex items-center gap-1">
-                  <span className="animate-spin w-3 h-3 border border-white border-t-transparent rounded-full" />
-                  分析中...
-                </span>
-              ) : segmentAnnotations ? (
-                "重新分析"
-              ) : (
-                "分析实体"
-              )}
-            </button>
+          {/* Entity analysis hint */}
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-700 bg-gray-800/50">
+            <svg className="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h5c.256 0 .512.098.707.293l7 7zM5 6a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+            </svg>
+            <span className="text-sm text-gray-400">点击台词自动识别实体</span>
+            {segmentAnnotations && segmentAnnotations.size > 0 && (
+              <span className="px-1.5 py-0.5 text-xs bg-purple-500/20 text-purple-400 rounded">
+                {segmentAnnotations.size} 段已分析
+              </span>
+            )}
           </div>
 
           {/* Segment list - scrollable */}

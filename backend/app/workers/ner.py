@@ -79,6 +79,40 @@ class NERWorker:
                 logger.warning(f"Failed to load spaCy: {e}. Using rule-based extraction only.")
                 self.use_spacy = False
 
+    def process_segment(
+        self,
+        segment_id: int,
+        text: str,
+        extract_vocabulary: bool = True,
+        extract_entities: bool = True,
+    ) -> SegmentAnnotations:
+        """Process a single segment and extract vocabulary and entities.
+
+        Args:
+            segment_id: ID of the segment.
+            text: English text to process.
+            extract_vocabulary: Whether to extract vocabulary words.
+            extract_entities: Whether to extract named entities.
+
+        Returns:
+            SegmentAnnotations with extracted data.
+        """
+        words = self._extract_vocabulary(text) if extract_vocabulary else []
+        entities = self._extract_entities(text) if extract_entities else []
+
+        annotation = SegmentAnnotations(
+            segment_id=segment_id,
+            words=words,
+            entities=entities,
+        )
+
+        logger.debug(
+            f"Processed segment {segment_id}: "
+            f"{len(words)} words, {len(entities)} entities"
+        )
+
+        return annotation
+
     def process_timeline(
         self,
         timeline: Timeline,

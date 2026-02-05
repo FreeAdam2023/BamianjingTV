@@ -261,6 +261,60 @@ async def get_timeline_annotations(
     return annotations
 
 
+@router.get("/timelines/{timeline_id}/segments/{segment_id}/annotations")
+async def get_segment_annotations(
+    timeline_id: str,
+    segment_id: int,
+    resolve_entity_ids: bool = True,
+):
+    """Get NER annotations for a single segment.
+
+    Returns vocabulary words and entities extracted from the segment.
+    Used for on-demand analysis when user clicks a segment.
+
+    Args:
+        resolve_entity_ids: If True, resolve entity names to Wikidata QIDs.
+    """
+    manager = _get_timeline_manager()
+    timeline = manager.get_timeline(timeline_id)
+
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    # Find the segment
+    segment = None
+    for seg in timeline.segments:
+        if seg.id == segment_id:
+            segment = seg
+            break
+
+    if not segment:
+        raise HTTPException(status_code=404, detail="Segment not found")
+
+    ner_worker = _get_ner_worker()
+
+    annotation = ner_worker.process_segment(
+        segment_id=segment.id,
+        text=segment.en,
+        extract_vocabulary=True,
+        extract_entities=True,
+    )
+
+    # Resolve entity IDs if requested
+    if resolve_entity_ids and annotation.entities:
+        generator = _get_card_generator()
+        for entity in annotation.entities:
+            if not entity.entity_id:
+                try:
+                    qid = await generator.search_entity(entity.text)
+                    if qid:
+                        entity.entity_id = qid
+                except Exception as e:
+                    logger.debug(f"Failed to resolve entity '{entity.text}': {e}")
+
+    return annotation
+
+
 # ============ Cache Management ============
 
 @router.get("/cache/stats")

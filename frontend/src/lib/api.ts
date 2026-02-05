@@ -44,6 +44,7 @@ import type {
   EntityCardResponse,
   CardGenerateResponse,
   TimelineAnnotations,
+  SegmentAnnotations,
   // Observations
   Observation,
   ObservationCreate,
@@ -900,6 +901,15 @@ export async function getTimelineAnnotations(
 ): Promise<TimelineAnnotations> {
   return fetchAPI<TimelineAnnotations>(
     `/cards/timelines/${timelineId}/annotations?vocabulary_limit=${vocabularyLimit}&entity_limit=${entityLimit}`
+  );
+}
+
+export async function getSegmentAnnotations(
+  timelineId: string,
+  segmentId: number
+): Promise<SegmentAnnotations> {
+  return fetchAPI<SegmentAnnotations>(
+    `/cards/timelines/${timelineId}/segments/${segmentId}/annotations`
   );
 }
 
