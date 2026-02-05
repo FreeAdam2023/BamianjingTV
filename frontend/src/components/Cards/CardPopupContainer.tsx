@@ -10,7 +10,6 @@ interface CardPopupContainerProps {
   state: CardPopupState;
   onClose: () => void;
   onAddWordToMemory?: (word: string) => void;
-  onAddEntityToMemory?: (entityId: string) => void;
 }
 
 /**
@@ -21,7 +20,6 @@ export default function CardPopupContainer({
   state,
   onClose,
   onAddWordToMemory,
-  onAddEntityToMemory,
 }: CardPopupContainerProps) {
   const popupRef = useRef<HTMLDivElement>(null);
   const [adjustedPosition, setAdjustedPosition] = useState(state.position);
@@ -149,7 +147,6 @@ export default function CardPopupContainer({
         <EntityCard
           card={state.entityCard}
           onClose={onClose}
-          onAddToMemory={onAddEntityToMemory}
         />
       )}
     </div>
