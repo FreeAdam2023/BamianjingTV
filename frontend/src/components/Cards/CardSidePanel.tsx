@@ -16,6 +16,8 @@ interface CardSidePanelProps {
   sourceTimelineId?: string;
   sourceTimecode?: number;
   sourceSegmentText?: string;
+  /** When true, panel fills its container instead of absolute positioning */
+  inline?: boolean;
 }
 
 // Inline WordCard component optimized for side panel
@@ -229,6 +231,7 @@ export default function CardSidePanel({
   state,
   onClose,
   position = "right",
+  inline = false,
 }: CardSidePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -244,6 +247,50 @@ export default function CardSidePanel({
 
   if (!state.isOpen) return null;
 
+  // Inline mode: fill container
+  if (inline) {
+    return (
+      <div
+        ref={panelRef}
+        className="h-full flex flex-col"
+      >
+      {/* Loading state */}
+      {state.loading && (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex items-center gap-3">
+            <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-400 border-t-transparent" />
+            <span className="text-white/60">Loading...</span>
+          </div>
+        </div>
+      )}
+
+      {/* Error state */}
+      {state.error && !state.loading && (
+        <div className="flex-1 flex flex-col items-center justify-center p-4">
+          <p className="text-red-400 text-sm text-center mb-3">{state.error}</p>
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white/80 text-sm rounded transition"
+          >
+            Close
+          </button>
+        </div>
+      )}
+
+      {/* Word card */}
+      {state.type === "word" && state.wordCard && !state.loading && (
+        <SidePanelWordCard card={state.wordCard} onClose={onClose} />
+      )}
+
+      {/* Entity card */}
+      {state.type === "entity" && state.entityCard && !state.loading && (
+        <SidePanelEntityCard card={state.entityCard} onClose={onClose} />
+      )}
+    </div>
+    );
+  }
+
+  // Absolute position mode (overlay)
   const positionClasses = position === "left"
     ? "left-0 rounded-r-xl"
     : "right-0 rounded-l-xl";
@@ -257,7 +304,6 @@ export default function CardSidePanel({
         bg-black/80 backdrop-blur-md
         border-l border-white/10
         shadow-2xl
-        animate-slide-in-${position}
         z-20
         flex flex-col
       `}

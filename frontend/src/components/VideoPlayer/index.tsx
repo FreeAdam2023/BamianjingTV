@@ -400,6 +400,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   // Dark blue color matching subtitle area and export
   const containerBgColor = "#1a2744";
   const isOverlayMode = subtitleStyle.displayMode === "overlay";
+  const hasCardOpen = cardState?.isOpen === true;
 
   return (
     <div
@@ -407,54 +408,64 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
       className="flex flex-col rounded-lg overflow-hidden h-full"
       style={{ backgroundColor: containerBgColor }}
     >
-      {/* Video area */}
+      {/* Main content area with video and optional card panel */}
       <div
-        className="relative flex-shrink-0"
+        className="flex flex-1 min-h-0"
         style={{
           height: isOverlayMode ? "calc(100% - 60px)" : `${(1 - subtitleHeightRatio) * 100}%`,
           minHeight: "200px",
         }}
       >
-        <video
-          ref={videoRef}
-          src={videoUrl}
-          key={videoUrl} // Force remount when URL changes
-          className="w-full h-full object-contain cursor-pointer"
-          style={{ backgroundColor: containerBgColor }}
-          preload="auto"
-          onClick={toggle}
-          playsInline
-        />
-        {/* Watermark overlay */}
-        {watermarkUrl && (
-          <div className="absolute top-3 left-3 pointer-events-none">
-            <img
-              src={watermarkUrl}
-              alt="Watermark"
-              className="max-h-16 max-w-32 object-contain opacity-90"
+        {/* Video area - shrinks when card is open */}
+        <div
+          className={`relative flex-shrink-0 transition-all duration-300 ${
+            hasCardOpen ? "w-[60%]" : "w-full"
+          }`}
+        >
+          <video
+            ref={videoRef}
+            src={videoUrl}
+            key={videoUrl} // Force remount when URL changes
+            className="w-full h-full object-contain cursor-pointer"
+            style={{ backgroundColor: containerBgColor }}
+            preload="auto"
+            onClick={toggle}
+            playsInline
+          />
+          {/* Watermark overlay */}
+          {watermarkUrl && (
+            <div className="absolute top-3 left-3 pointer-events-none">
+              <img
+                src={watermarkUrl}
+                alt="Watermark"
+                className="max-h-16 max-w-32 object-contain opacity-90"
+              />
+            </div>
+          )}
+
+          {/* Overlay mode: subtitles on video */}
+          {isOverlayMode && (
+            <SubtitleOverlay
+              segment={currentSegment || null}
+              style={subtitleStyle}
+              subtitleHeightRatio={subtitleHeightRatio}
+              onStyleChange={handleStyleChange}
+              onStyleReset={resetSubtitleStyle}
+              overlayMode={true}
+            />
+          )}
+        </div>
+
+        {/* Card side panel - beside video when open */}
+        {hasCardOpen && cardState && onCardClose && (
+          <div className="w-[40%] flex-shrink-0 border-l border-white/10 bg-black/60 backdrop-blur-sm">
+            <CardSidePanel
+              state={cardState}
+              onClose={onCardClose}
+              position="right"
+              inline={true}
             />
           </div>
-        )}
-
-        {/* Overlay mode: subtitles on video */}
-        {isOverlayMode && (
-          <SubtitleOverlay
-            segment={currentSegment || null}
-            style={subtitleStyle}
-            subtitleHeightRatio={subtitleHeightRatio}
-            onStyleChange={handleStyleChange}
-            onStyleReset={resetSubtitleStyle}
-            overlayMode={true}
-          />
-        )}
-
-        {/* Card side panel - overlays on video */}
-        {cardState && onCardClose && (
-          <CardSidePanel
-            state={cardState}
-            onClose={onCardClose}
-            position="right"
-          />
         )}
       </div>
 
