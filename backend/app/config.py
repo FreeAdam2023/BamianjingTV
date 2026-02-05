@@ -129,7 +129,7 @@ class Settings(BaseSettings):
     cleanup_schedule_hour: int = 3  # Hour of day to run (0-23, default 3 AM)
 
     # TomTrove API settings (for word cards and entity cards)
-    tomtrove_api_url: str = "http://localhost:8000/api/v1/public"
+    tomtrove_api_url: str = "http://localhost:8000/api/v1"
     tomtrove_api_key: str = ""  # Set via TOMTROVE_API_KEY env var
 
     # Azure Translator settings (for subtitle translation - fast and consistent)

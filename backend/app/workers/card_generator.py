@@ -144,11 +144,9 @@ class CardGeneratorWorker:
             logger.warning("TomTrove API not configured, falling back to free dictionary")
             return await self._fetch_word_from_free_dictionary(word)
 
-        url = f"{self.tomtrove_url}/dictionary/{word}"
-        params = {
-            "from_lang": "en",
-            "to_langs": target_lang,
-        }
+        # TomTrove API endpoint: /api/v1/dictionary/query/{word}
+        url = f"{self.tomtrove_url}/dictionary/query/{word}"
+        params = {}
 
         try:
             client = await self._get_client()
@@ -181,90 +179,69 @@ class CardGeneratorWorker:
 
         TomTrove response format:
         {
-            "word": "hello",
-            "source_lang": "en",
-            "phonetic": "/həˈloʊ/",
-            "audio_url": "https://...",
-            "translations": {
-                "zh-Hant": {
-                    "translations": [{"text": "你好", "pos": "interjection"}],
-                    "examples": [{"source": "Hello!", "target": "你好！"}]
-                }
-            },
-            "synonyms": [...],
-            "antonyms": [...]
+            "success": true,
+            "word": {
+                "user_lang": "zh_cn",
+                "senses": [
+                    {
+                        "pos": "interjection",
+                        "def_native": "用来表达惊讶、震惊或惊讶。",
+                        "def_en": "Used to express surprise...",
+                        "examples_en": ["My, what big teeth you have!"],
+                        "examples_native": ["哎呀，你的牙齿真大！"]
+                    }
+                ],
+                "pronunciations": [
+                    {"ipa": "/mi/", "audio": "https://...", "variety": "US"}
+                ],
+                "images": [{"url": "..."}]
+            }
         }
         """
         try:
-            # Extract pronunciation
+            # Handle both direct word object and nested response
+            word_data = data.get("word", data)
+            if not word_data:
+                logger.debug(f"No word data in response for: {word}")
+                return None
+
+            # Extract pronunciations
             pronunciations = []
-            if data.get("phonetic"):
+            for pron_data in word_data.get("pronunciations", []):
                 pron = Pronunciation(
-                    ipa=data["phonetic"],
-                    audio_url=data.get("audio_url"),
-                    region="us",
+                    ipa=pron_data.get("ipa", ""),
+                    audio_url=pron_data.get("audio"),
+                    region=pron_data.get("variety", "us").lower(),
                 )
                 pronunciations.append(pron)
 
-            # Extract senses from translations
+            # Extract senses with Chinese translations
             senses = []
-            translations = data.get("translations", {})
-            lang_data = translations.get(target_lang, {})
-
-            trans_list = lang_data.get("translations", [])
-            examples_list = lang_data.get("examples", [])
-
-            # Group translations by part of speech
-            pos_groups = {}
-            for trans in trans_list:
-                pos = trans.get("pos", "other") or "other"
-                if pos not in pos_groups:
-                    pos_groups[pos] = []
-                pos_groups[pos].append(trans.get("text", ""))
-
-            # Create senses
-            example_idx = 0
-            for pos, trans_texts in pos_groups.items():
-                for trans_text in trans_texts:
-                    # Get example if available
-                    example_en = ""
-                    example_zh = ""
-                    if example_idx < len(examples_list):
-                        ex = examples_list[example_idx]
-                        example_en = ex.get("source", "")
-                        example_zh = ex.get("target", "")
-                        example_idx += 1
-
-                    sense = WordSense(
-                        part_of_speech=pos,
-                        definition=trans_text,  # Use Chinese as main definition
-                        definition_zh=trans_text,
-                        examples=[example_en] if example_en else [],
-                        examples_zh=[example_zh] if example_zh else [],
-                        synonyms=data.get("synonyms", [])[:5],
-                        antonyms=data.get("antonyms", [])[:5],
-                    )
-                    senses.append(sense)
+            for sense_data in word_data.get("senses", []):
+                sense = WordSense(
+                    part_of_speech=sense_data.get("pos", "other") or "other",
+                    definition=sense_data.get("def_en", ""),
+                    definition_zh=sense_data.get("def_native"),
+                    examples=sense_data.get("examples_en", []),
+                    examples_zh=sense_data.get("examples_native", []),
+                    synonyms=[],
+                    antonyms=[],
+                )
+                senses.append(sense)
 
             if not senses:
-                # Fallback: create a simple sense if we have any translation
-                for trans in trans_list:
-                    sense = WordSense(
-                        part_of_speech=trans.get("pos", "other") or "other",
-                        definition=trans.get("text", ""),
-                        definition_zh=trans.get("text", ""),
-                    )
-                    senses.append(sense)
-
-            if not senses:
-                logger.debug(f"No translations found for: {word}")
+                logger.debug(f"No senses found for: {word}")
                 return None
+
+            # Extract images
+            images = [img.get("url") for img in word_data.get("images", []) if img.get("url")]
 
             card = WordCard(
                 word=word,
-                lemma=data.get("word", word),
+                lemma=word,
                 pronunciations=pronunciations,
                 senses=senses[:10],
+                images=images,
                 source="tomtrove",
             )
 
