@@ -271,6 +271,7 @@ async def get_segment_annotations(
 
     Returns vocabulary words and entities extracted from the segment.
     Used for on-demand analysis when user clicks a segment.
+    Results are cached in the timeline for future use.
 
     Args:
         resolve_entity_ids: If True, resolve entity names to Wikidata QIDs.
@@ -280,6 +281,13 @@ async def get_segment_annotations(
 
     if not timeline:
         raise HTTPException(status_code=404, detail="Timeline not found")
+
+    # Check if we have cached annotations for this segment
+    if segment_id in timeline.segment_annotations:
+        logger.info(f"Using cached annotations for segment {segment_id}")
+        from app.models.card import SegmentAnnotations
+        cached = timeline.segment_annotations[segment_id]
+        return SegmentAnnotations(**cached)
 
     # Find the segment
     segment = None
@@ -309,8 +317,14 @@ async def get_segment_annotations(
                     qid = await generator.search_entity(entity.text)
                     if qid:
                         entity.entity_id = qid
+                        logger.info(f"Resolved entity '{entity.text}' -> {qid}")
                 except Exception as e:
-                    logger.debug(f"Failed to resolve entity '{entity.text}': {e}")
+                    logger.warning(f"Failed to resolve entity '{entity.text}': {e}")
+
+    # Cache the annotation in timeline
+    timeline.segment_annotations[segment_id] = annotation.model_dump()
+    manager.save_timeline(timeline)
+    logger.info(f"Cached annotations for segment {segment_id} in timeline {timeline_id}")
 
     return annotation
 

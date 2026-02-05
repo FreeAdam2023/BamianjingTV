@@ -73,6 +73,8 @@ export interface Timeline {
   cover_frame_time: number | null;
   // Observations (for WATCHING mode)
   observations: Observation[];
+  // Entity annotations cache (keyed by segment_id)
+  segment_annotations: Record<number, SegmentAnnotations>;
   // Export progress tracking
   export_status: ExportStatus;
   export_progress: number;

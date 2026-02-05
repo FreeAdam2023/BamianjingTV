@@ -107,6 +107,17 @@ export default function ReviewPage() {
     }
   }, [timeline?.observations]);
 
+  // Initialize segment annotations from timeline (cached annotations)
+  useEffect(() => {
+    if (timeline?.segment_annotations && Object.keys(timeline.segment_annotations).length > 0) {
+      const annotationsMap = new Map<number, SegmentAnnotations>();
+      for (const [segIdStr, annotation] of Object.entries(timeline.segment_annotations)) {
+        annotationsMap.set(Number(segIdStr), annotation as SegmentAnnotations);
+      }
+      setSegmentAnnotations(annotationsMap);
+    }
+  }, [timeline?.segment_annotations]);
+
   // Waveform data for timeline
   const { tracks: waveformTracks, generateTrack: generateWaveform } = useMultiTrackWaveform(timelineId);
 

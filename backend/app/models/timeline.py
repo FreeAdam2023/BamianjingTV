@@ -211,6 +211,10 @@ class Timeline(BaseModel):
     # Creative mode config (Remotion config for dynamic subtitles)
     creative_config: Optional[dict] = None  # RemotionConfig as dict
 
+    # Entity annotations cache (keyed by segment_id)
+    # Format: {segment_id: {segment_id, words: [...], entities: [...]}}
+    segment_annotations: Dict[int, dict] = Field(default_factory=dict)
+
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
