@@ -236,23 +236,23 @@ class CardGeneratorWorker:
             client = await self._get_client()
             response = await client.get(url, params=params)
 
-            logger.debug(f"Wikidata search for '{query}': status={response.status_code}")
+            logger.info(f"Wikidata search for '{query}': status={response.status_code}")
 
             if response.status_code != 200:
-                logger.warning(f"Wikidata search failed for '{query}': status={response.status_code}")
+                logger.warning(f"Wikidata search failed for '{query}': status={response.status_code}, body={response.text[:200]}")
                 return None
 
             data = response.json()
             results = data.get("search", [])
 
-            logger.debug(f"Wikidata search results for '{query}': {len(results)} results")
+            logger.info(f"Wikidata search results for '{query}': {len(results)} results, keys={list(data.keys())}")
 
             if results:
                 qid = results[0].get("id")
                 logger.info(f"Found entity '{query}' -> {qid}")
                 return qid
 
-            logger.debug(f"No Wikidata results for '{query}'")
+            logger.warning(f"No Wikidata results for '{query}', response: {data}")
             return None
 
         except Exception as e:
