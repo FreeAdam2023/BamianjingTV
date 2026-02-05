@@ -155,6 +155,7 @@ class CardGeneratorWorker:
         params = {
             "from_lang": "en",
             "to_langs": target_lang,
+            "force_refresh": "true",
         }
 
         logger.info(f"Fetching word from TomTrove: {url} params={params}")
