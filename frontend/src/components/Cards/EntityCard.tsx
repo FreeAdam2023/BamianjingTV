@@ -12,17 +12,6 @@ interface EntityCardProps {
   sourceSegmentText?: string;
 }
 
-const entityTypeLabels: Record<string, { label: string; labelZh: string; color: string; icon: string }> = {
-  person: { label: "Person", labelZh: "人物", color: "bg-blue-500", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
-  place: { label: "Place", labelZh: "地点", color: "bg-green-500", icon: "M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z" },
-  organization: { label: "Organization", labelZh: "组织", color: "bg-purple-500", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },
-  event: { label: "Event", labelZh: "事件", color: "bg-orange-500", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
-  work: { label: "Work", labelZh: "作品", color: "bg-pink-500", icon: "M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" },
-  concept: { label: "Concept", labelZh: "概念", color: "bg-cyan-500", icon: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" },
-  product: { label: "Product", labelZh: "产品", color: "bg-yellow-500", icon: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" },
-  other: { label: "Other", labelZh: "其他", color: "bg-gray-500", icon: "M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
-};
-
 export default function EntityCard({
   card,
   onClose,
@@ -31,7 +20,6 @@ export default function EntityCard({
   sourceSegmentText,
 }: EntityCardProps) {
   const [imageError, setImageError] = useState(false);
-  const typeInfo = entityTypeLabels[card.entity_type] || entityTypeLabels.other;
 
   // Get localizations
   const zhLocalization = card.localizations?.zh;
@@ -59,11 +47,7 @@ export default function EntityCard({
             <div className="absolute inset-0 bg-gradient-to-t from-[var(--card)] via-transparent to-transparent" />
           </div>
         ) : (
-          <div className={`h-24 ${typeInfo.color}/20 flex items-center justify-center`}>
-            <svg className={`w-12 h-12 ${typeInfo.color.replace('bg-', 'text-')}/40`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={typeInfo.icon} />
-            </svg>
-          </div>
+          <div className="h-20 bg-gradient-to-r from-gray-800 to-gray-700" />
         )}
 
         {/* Close button */}
@@ -75,14 +59,6 @@ export default function EntityCard({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
-
-        {/* Entity type badge */}
-        <div className={`absolute top-2 left-2 px-2.5 py-1 ${typeInfo.color} text-white text-xs font-medium rounded-lg flex items-center gap-1.5 backdrop-blur-sm`}>
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={typeInfo.icon} />
-          </svg>
-          {typeInfo.labelZh}
-        </div>
       </div>
 
       {/* Content */}
