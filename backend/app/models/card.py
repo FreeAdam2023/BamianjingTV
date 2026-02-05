@@ -90,30 +90,21 @@ class EntityCard(BaseModel):
     """Entity card with Wikipedia/Wikidata data."""
     entity_id: str  # Wikidata QID (e.g., Q42)
     entity_type: EntityType
-    name: str  # Primary name (English)
+    name: str  # Primary name
     description: str  # Short description
 
     # Links
     wikipedia_url: Optional[str] = None
     wikidata_url: Optional[str] = None
-    official_website: Optional[str] = None
 
     # Media
     image_url: Optional[str] = None
-
-    # Type-specific fields
-    birth_date: Optional[str] = None  # For persons
-    death_date: Optional[str] = None  # For persons
-    nationality: Optional[str] = None  # For persons
-    location: Optional[str] = None  # For places
-    coordinates: Optional[Dict[str, float]] = None  # lat, lon for places
-    founded_date: Optional[str] = None  # For organizations
 
     # Localizations
     localizations: Dict[str, EntityLocalization] = Field(default_factory=dict)
 
     # Metadata
-    source: str = "wikidata"
+    source: str = "tomtrove"
     fetched_at: datetime = Field(default_factory=datetime.now)
 
     def get_localized(self, lang: str = "zh") -> EntityLocalization:

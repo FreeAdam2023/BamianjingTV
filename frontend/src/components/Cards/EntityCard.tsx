@@ -1,66 +1,75 @@
 "use client";
 
+import { useState } from "react";
 import type { EntityCard as EntityCardType } from "@/lib/types";
 import { CollectButton } from "@/components/MemoryBook";
 
 interface EntityCardProps {
   card: EntityCardType;
   onClose: () => void;
-  onAddToMemory?: (entityId: string) => void;
   sourceTimelineId?: string;
   sourceTimecode?: number;
   sourceSegmentText?: string;
 }
 
-const entityTypeLabels: Record<string, { label: string; color: string }> = {
-  person: { label: "Person", color: "bg-blue-600" },
-  place: { label: "Place", color: "bg-green-600" },
-  organization: { label: "Organization", color: "bg-purple-600" },
-  event: { label: "Event", color: "bg-orange-600" },
-  work: { label: "Work", color: "bg-pink-600" },
-  concept: { label: "Concept", color: "bg-cyan-600" },
-  product: { label: "Product", color: "bg-yellow-600" },
-  other: { label: "Other", color: "bg-gray-600" },
+const entityTypeLabels: Record<string, { label: string; labelZh: string; color: string; icon: string }> = {
+  person: { label: "Person", labelZh: "人物", color: "bg-blue-500", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
+  place: { label: "Place", labelZh: "地点", color: "bg-green-500", icon: "M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z" },
+  organization: { label: "Organization", labelZh: "组织", color: "bg-purple-500", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },
+  event: { label: "Event", labelZh: "事件", color: "bg-orange-500", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
+  work: { label: "Work", labelZh: "作品", color: "bg-pink-500", icon: "M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" },
+  concept: { label: "Concept", labelZh: "概念", color: "bg-cyan-500", icon: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" },
+  product: { label: "Product", labelZh: "产品", color: "bg-yellow-500", icon: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" },
+  other: { label: "Other", labelZh: "其他", color: "bg-gray-500", icon: "M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
 };
 
 export default function EntityCard({
   card,
   onClose,
-  onAddToMemory,
   sourceTimelineId,
   sourceTimecode,
   sourceSegmentText,
 }: EntityCardProps) {
+  const [imageError, setImageError] = useState(false);
   const typeInfo = entityTypeLabels[card.entity_type] || entityTypeLabels.other;
 
-  // Get Chinese localization if available
+  // Get localizations
   const zhLocalization = card.localizations?.zh;
+  const enLocalization = card.localizations?.en;
+
+  // Determine display name and description (Chinese primary)
+  const displayName = card.name;
+  const englishName = enLocalization?.name && enLocalization.name !== displayName ? enLocalization.name : null;
+  const displayDescription = card.description;
+  const englishDescription = enLocalization?.description && enLocalization.description !== displayDescription
+    ? enLocalization.description : null;
 
   return (
-    <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl w-96 max-h-[500px] overflow-hidden flex flex-col">
-      {/* Header with optional image */}
+    <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl w-[400px] max-h-[520px] overflow-hidden flex flex-col">
+      {/* Image Header */}
       <div className="relative">
-        {/* Entity image */}
-        {card.image_url ? (
-          <div className="h-40 overflow-hidden">
+        {card.image_url && !imageError ? (
+          <div className="h-44 overflow-hidden bg-gray-800">
             <img
               src={card.image_url}
-              alt={card.name}
+              alt={displayName}
               className="w-full h-full object-cover"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = "none";
-              }}
+              onError={() => setImageError(true)}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[var(--card)] via-transparent to-transparent" />
           </div>
         ) : (
-          <div className="h-16 bg-gradient-to-r from-gray-800 to-gray-700" />
+          <div className={`h-24 ${typeInfo.color}/20 flex items-center justify-center`}>
+            <svg className={`w-12 h-12 ${typeInfo.color.replace('bg-', 'text-')}/40`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={typeInfo.icon} />
+            </svg>
+          </div>
         )}
 
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute top-2 right-2 p-1.5 bg-black/50 text-white hover:bg-black/70 rounded-full transition-colors"
+          className="absolute top-2 right-2 p-1.5 bg-black/50 text-white hover:bg-black/70 rounded-full transition-colors backdrop-blur-sm"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -68,91 +77,51 @@ export default function EntityCard({
         </button>
 
         {/* Entity type badge */}
-        <span
-          className={`absolute top-2 left-2 px-2 py-0.5 ${typeInfo.color} text-white text-xs font-medium rounded`}
-        >
-          {typeInfo.label}
-        </span>
+        <div className={`absolute top-2 left-2 px-2.5 py-1 ${typeInfo.color} text-white text-xs font-medium rounded-lg flex items-center gap-1.5 backdrop-blur-sm`}>
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={typeInfo.icon} />
+          </svg>
+          {typeInfo.labelZh}
+        </div>
       </div>
 
       {/* Content */}
-      <div className="p-4 flex-1 overflow-y-auto">
-        {/* Name */}
-        <h2 className="text-xl font-bold text-white mb-1">{card.name}</h2>
-
-        {/* Chinese name */}
-        {zhLocalization?.name && zhLocalization.name !== card.name && (
-          <p className="text-gray-400 text-sm mb-2">{zhLocalization.name}</p>
-        )}
-
-        {/* Description */}
-        <p className="text-gray-300 text-sm mb-4">
-          {card.description}
-        </p>
-
-        {/* Chinese description */}
-        {zhLocalization?.description && (
-          <p className="text-gray-400 text-sm mb-4">
-            {zhLocalization.description}
-          </p>
-        )}
-
-        {/* Type-specific info */}
-        <div className="space-y-2 text-sm">
-          {/* Person info */}
-          {card.entity_type === "person" && (
-            <>
-              {card.birth_date && (
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-500">Born:</span>
-                  <span className="text-gray-300">{card.birth_date}</span>
-                </div>
-              )}
-              {card.death_date && (
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-500">Died:</span>
-                  <span className="text-gray-300">{card.death_date}</span>
-                </div>
-              )}
-              {card.nationality && (
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-500">Nationality:</span>
-                  <span className="text-gray-300">{card.nationality}</span>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Place info */}
-          {card.entity_type === "place" && card.location && (
-            <div className="flex items-center gap-2">
-              <span className="text-gray-500">Location:</span>
-              <span className="text-gray-300">{card.location}</span>
-            </div>
-          )}
-
-          {/* Organization info */}
-          {card.entity_type === "organization" && card.founded_date && (
-            <div className="flex items-center gap-2">
-              <span className="text-gray-500">Founded:</span>
-              <span className="text-gray-300">{card.founded_date}</span>
-            </div>
+      <div className={`p-4 flex-1 overflow-y-auto ${card.image_url && !imageError ? '-mt-6 relative z-10' : ''}`}>
+        {/* Name Section */}
+        <div className="mb-3">
+          <h2 className="text-xl font-bold text-white leading-tight">{displayName}</h2>
+          {englishName && (
+            <p className="text-sm text-gray-400 mt-0.5">{englishName}</p>
           )}
         </div>
 
-        {/* Links */}
+        {/* Description Section */}
+        <div className="space-y-2">
+          {displayDescription && (
+            <p className="text-sm text-gray-200 leading-relaxed">
+              {displayDescription}
+            </p>
+          )}
+          {englishDescription && (
+            <p className="text-xs text-gray-500 leading-relaxed border-l-2 border-gray-700 pl-3">
+              {englishDescription}
+            </p>
+          )}
+        </div>
+
+        {/* Links Section */}
         <div className="mt-4 flex flex-wrap gap-2">
           {card.wikipedia_url && (
             <a
               href={card.wikipedia_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs rounded-lg transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-700/80 hover:bg-gray-600 text-gray-200 text-xs rounded-lg transition-colors"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12.09 13.119c-.936 1.932-2.217 4.548-2.853 5.728-.616 1.074-1.127.931-1.532.029-1.406-3.321-4.293-9.144-5.651-12.409-.251-.601-.441-.987-.619-1.139-.181-.15-.554-.24-1.122-.271C.103 5.033 0 4.982 0 4.898v-.455l.052-.045c.924-.005 5.401 0 5.401 0l.051.045v.434c0 .119-.075.176-.225.176l-.564.031c-.485.029-.727.164-.727.436 0 .135.053.33.166.601 1.082 2.646 4.818 10.521 4.818 10.521l.136.046 2.411-4.81-.482-1.067-1.658-3.264s-.318-.654-.428-.872c-.728-1.443-.712-1.518-1.447-1.617-.207-.023-.313-.05-.313-.149v-.468l.06-.045h4.292l.113.037v.451c0 .105-.076.15-.227.15l-.308.047c-.792.061-.661.381-.136 1.422l1.582 3.252 1.758-3.504c.293-.64.233-.801-.378-.801h-.283c-.104 0-.166-.045-.166-.134v-.485l.06-.045c1.538 0 4.044 0 4.044 0l.06.045v.48c0 .104-.061.157-.166.157-.503.013-.728.042-.894.111-.166.075-.406.32-.639.787l-2.713 5.478.136.046 2.932 6.029c.063.134.224.206.389.286.34.146.626.131.781.131.166 0 .271.05.271.135v.485c0 .095-.045.149-.135.149h-4.478l-.075-.045v-.451c0-.088.06-.15.166-.15h.166c.652 0 .871-.166.559-.706l-3.173-6.363-3.049 6.065c-.429.924-.35 1.004.67 1.004h.105c.105 0 .166.052.166.15v.469l-.051.044h-4.098l-.075-.045v-.468c0-.098.045-.149.166-.149.926 0 1.443-.136 1.909-.971 1.073-1.894 2.723-5.328 3.814-7.53.016-.044.016-.089 0-.133l-2.081-4.258z"/>
               </svg>
-              Wikipedia
+              维基百科
             </a>
           )}
           {card.wikidata_url && (
@@ -160,7 +129,7 @@ export default function EntityCard({
               href={card.wikidata_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs rounded-lg transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-700/80 hover:bg-gray-600 text-gray-200 text-xs rounded-lg transition-colors"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M2 3h1v18H2V3zm2 0h1v18H4V3zm14 0h1v18h-1V3zm2 0h1v18h-1V3zm2 0h1v18h-1V3zM6 3h1v3H6V3zm0 5h1v3H6V8zm0 5h1v3H6v-3zm0 5h1v3H6v-3zm2-15h1v3H8V3zm0 5h1v3H8V8zm0 5h1v3H8v-3zm0 5h1v3H8v-3zm2-12h1v6h-1V6zm0 8h1v6h-1v-6zm2-8h1v6h-1V6zm0 8h1v6h-1v-6z"/>
@@ -168,50 +137,27 @@ export default function EntityCard({
               Wikidata
             </a>
           )}
-          {card.official_website && (
-            <a
-              href={card.official_website}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs rounded-lg transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-              Website
-            </a>
-          )}
         </div>
       </div>
 
       {/* Footer */}
       <div className="p-3 border-t border-[var(--border)] flex items-center justify-between bg-[var(--card)]">
-        <span className="text-xs text-gray-500">
-          {card.entity_id} | {card.source}
+        <span className="text-xs text-gray-500 flex items-center gap-1.5">
+          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+          </svg>
+          {card.entity_id}
         </span>
 
-        <div className="flex items-center gap-2">
-          <CollectButton
-            targetType="entity"
-            targetId={card.entity_id}
-            cardData={card}
-            sourceTimelineId={sourceTimelineId}
-            sourceTimecode={sourceTimecode}
-            sourceSegmentText={sourceSegmentText}
-            size="md"
-          />
-          {onAddToMemory && (
-            <button
-              onClick={() => onAddToMemory(card.entity_id)}
-              className="btn btn-sm btn-primary flex items-center gap-1.5"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add to Memory
-            </button>
-          )}
-        </div>
+        <CollectButton
+          targetType="entity"
+          targetId={card.entity_id}
+          cardData={card}
+          sourceTimelineId={sourceTimelineId}
+          sourceTimecode={sourceTimecode}
+          sourceSegmentText={sourceSegmentText}
+          size="md"
+        />
       </div>
     </div>
   );

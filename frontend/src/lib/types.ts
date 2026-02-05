@@ -545,14 +545,7 @@ export interface EntityCard {
   description: string;
   wikipedia_url: string | null;
   wikidata_url: string | null;
-  official_website: string | null;
   image_url: string | null;
-  birth_date: string | null;
-  death_date: string | null;
-  nationality: string | null;
-  location: string | null;
-  coordinates: { lat: number; lon: number } | null;
-  founded_date: string | null;
   localizations: Record<string, EntityLocalization>;
   source: string;
   fetched_at: string;

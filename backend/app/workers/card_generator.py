@@ -741,12 +741,6 @@ class CardGeneratorWorker:
                     description=descriptions.get("zh", {}).get("value"),
                 )
 
-            # Extract type-specific fields
-            birth_date = self._extract_date_claim(claims, "P569")
-            death_date = self._extract_date_claim(claims, "P570")
-            nationality = self._extract_item_label(claims, "P27")
-            founded_date = self._extract_date_claim(claims, "P571")
-
             card = EntityCard(
                 entity_id=entity_id,
                 entity_type=entity_type,
@@ -755,10 +749,6 @@ class CardGeneratorWorker:
                 wikipedia_url=wikipedia_url,
                 wikidata_url=f"https://www.wikidata.org/wiki/{entity_id}",
                 image_url=image_url,
-                birth_date=birth_date,
-                death_date=death_date,
-                nationality=nationality,
-                founded_date=founded_date,
                 localizations=localizations,
                 source="wikidata",
             )
@@ -800,32 +790,6 @@ class CardGeneratorWorker:
                 return EntityType.EVENT
 
         return EntityType.OTHER
-
-    def _extract_date_claim(self, claims: dict, property_id: str) -> Optional[str]:
-        """Extract a date from Wikidata claims."""
-        if property_id not in claims:
-            return None
-
-        try:
-            time_value = claims[property_id][0].get("mainsnak", {}).get("datavalue", {}).get("value", {})
-            time_str = time_value.get("time", "")
-            if time_str:
-                return time_str[1:11]
-        except (IndexError, KeyError):
-            pass
-        return None
-
-    def _extract_item_label(self, claims: dict, property_id: str) -> Optional[str]:
-        """Extract an item label from Wikidata claims."""
-        if property_id not in claims:
-            return None
-
-        try:
-            qid = claims[property_id][0].get("mainsnak", {}).get("datavalue", {}).get("value", {}).get("id")
-            return qid
-        except (IndexError, KeyError):
-            pass
-        return None
 
     async def get_entity_cards_batch(
         self,
