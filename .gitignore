@@ -63,3 +63,9 @@ youtube_token.json
 node_modules/
 .next/
 .pnpm-store/
+
+# Remotion studio (local dev only)
+frontend/remotion-studio/
+
+# TypeScript build cache
+*.tsbuildinfo
