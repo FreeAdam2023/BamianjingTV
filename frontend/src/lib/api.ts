@@ -71,15 +71,15 @@ import type {
   PreviewResponse,
 } from "./types";
 
-// Get API URL: use env var or derive from current host with port 8000
+// Get API URL: use env var or derive from current host with port 8001
 function getApiBase(): string {
   // Server-side: use env var
   if (typeof window === "undefined") {
-    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
   }
-  // Client-side: use same host with port 8000
+  // Client-side: use same host with port 8001
   const { protocol, hostname } = window.location;
-  return `${protocol}//${hostname}:8000`;
+  return `${protocol}//${hostname}:8001`;
 }
 
 export const API_BASE = getApiBase();
@@ -856,8 +856,9 @@ export function getStateColor(state: SegmentState): string {
 
 // ============ Cards API ============
 
-export async function getWordCard(word: string): Promise<WordCardResponse> {
-  return fetchAPI<WordCardResponse>(`/cards/words/${encodeURIComponent(word)}`);
+export async function getWordCard(word: string, lang?: string): Promise<WordCardResponse> {
+  const params = lang ? `?lang=${encodeURIComponent(lang)}` : "";
+  return fetchAPI<WordCardResponse>(`/cards/words/${encodeURIComponent(word)}${params}`);
 }
 
 export async function getEntityCard(entityId: string): Promise<EntityCardResponse> {

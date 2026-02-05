@@ -82,15 +82,20 @@ def _get_timeline_manager() -> TimelineManager:
 # ============ Word Card Endpoints ============
 
 @router.get("/words/{word}", response_model=WordCardResponse)
-async def get_word_card(word: str):
+async def get_word_card(word: str, lang: Optional[str] = None):
     """Get a word card by word.
 
     Fetches from cache first, then from dictionary API if not cached.
+
+    Args:
+        word: The word to look up.
+        lang: Target language for translations (zh-TW for Traditional Chinese,
+              zh-CN for Simplified Chinese). If None, returns English only.
     """
     generator = _get_card_generator()
 
     try:
-        card = await generator.get_word_card(word)
+        card = await generator.get_word_card(word, target_lang=lang)
 
         if card:
             return WordCardResponse(word=word, found=True, card=card)

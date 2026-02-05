@@ -55,16 +55,18 @@ class CardCache:
 
     # ============ Word Cards ============
 
-    def get_word_card(self, word: str) -> Optional[WordCard]:
+    def get_word_card(self, word: str, cache_key: Optional[str] = None) -> Optional[WordCard]:
         """Get a word card from cache.
 
         Args:
             word: The word to look up.
+            cache_key: Optional custom cache key (e.g., "word:zh-TW" for translated cards).
 
         Returns:
             WordCard if found and not expired, None otherwise.
         """
-        filename = self._sanitize_filename(word) + ".json"
+        key = cache_key or word
+        filename = self._sanitize_filename(key) + ".json"
         file_path = self.words_dir / filename
 
         if not file_path.exists():
@@ -88,13 +90,15 @@ class CardCache:
             logger.warning(f"Failed to load word card {word}: {e}")
             return None
 
-    def set_word_card(self, card: WordCard) -> None:
+    def set_word_card(self, card: WordCard, cache_key: Optional[str] = None) -> None:
         """Store a word card in cache.
 
         Args:
             card: WordCard to store.
+            cache_key: Optional custom cache key (e.g., "word:zh-TW" for translated cards).
         """
-        filename = self._sanitize_filename(card.word) + ".json"
+        key = cache_key or card.word
+        filename = self._sanitize_filename(key) + ".json"
         file_path = self.words_dir / filename
 
         try:

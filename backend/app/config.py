@@ -128,15 +128,24 @@ class Settings(BaseSettings):
     cleanup_videos_only: bool = True  # Only delete videos, keep metadata
     cleanup_schedule_hour: int = 3  # Hour of day to run (0-23, default 3 AM)
 
+    # TomTrove API settings (for word cards and entity cards)
+    tomtrove_api_url: str = "http://localhost:8000/api/v1/public"
+    tomtrove_api_key: str = ""  # Set via TOMTROVE_API_KEY env var
+
+    # Azure Translator settings (for subtitle translation - fast and consistent)
+    azure_translator_key: str = ""  # Set via AZURE_TRANSLATOR_KEY env var
+    azure_translator_endpoint: str = "https://api.cognitive.microsofttranslator.com/"
+    azure_translator_region: str = "eastasia"  # Region where resource was created
+
     # Server settings
     host: str = "0.0.0.0"
-    port: int = 8000
+    port: int = 8001
     debug: bool = False
 
     # Frontend settings
-    frontend_url: str = "http://localhost:3000"
+    frontend_url: str = "http://localhost:3001"
     frontend_dir: Path = Path("../frontend")  # Path to frontend directory for Remotion
-    cors_origins: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    cors_origins: List[str] = ["http://localhost:3001", "http://127.0.0.1:3001"]
 
     @field_validator("cors_origins", mode="before")
     @classmethod

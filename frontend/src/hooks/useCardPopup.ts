@@ -16,9 +16,14 @@ export interface CardPopupState {
   position: { x: number; y: number };
 }
 
+interface OpenWordCardOptions {
+  position?: { x: number; y: number };
+  lang?: string; // "zh-TW" for Traditional Chinese, "zh-CN" for Simplified Chinese
+}
+
 interface UseCardPopupReturn {
   state: CardPopupState;
-  openWordCard: (word: string, position?: { x: number; y: number }) => Promise<void>;
+  openWordCard: (word: string, options?: OpenWordCardOptions) => Promise<void>;
   openEntityCard: (entityIdOrText: string, position?: { x: number; y: number }) => Promise<void>;
   close: () => void;
 }
@@ -50,8 +55,13 @@ export function useCardPopup(): UseCardPopupReturn {
     };
   }, []);
 
-  const openWordCard = useCallback(async (word: string, position?: { x: number; y: number }) => {
+  const openWordCard = useCallback(async (word: string, options?: OpenWordCardOptions) => {
     const normalizedWord = word.toLowerCase().trim();
+    const position = options?.position;
+    const lang = options?.lang;
+
+    // Include language in cache key for different translations
+    const cacheKey = lang ? `${normalizedWord}:${lang}` : normalizedWord;
 
     // Cancel previous request
     if (abortControllerRef.current) {
@@ -60,8 +70,8 @@ export function useCardPopup(): UseCardPopupReturn {
     abortControllerRef.current = new AbortController();
 
     // Check cache first
-    if (wordCache.has(normalizedWord)) {
-      const cached = wordCache.get(normalizedWord) ?? null;
+    if (wordCache.has(cacheKey)) {
+      const cached = wordCache.get(cacheKey) ?? null;
       setState({
         isOpen: true,
         type: "word",
@@ -86,10 +96,10 @@ export function useCardPopup(): UseCardPopupReturn {
     });
 
     try {
-      const response = await getWordCard(normalizedWord);
+      const response = await getWordCard(normalizedWord, lang);
 
       // Cache the result
-      wordCache.set(normalizedWord, response.card);
+      wordCache.set(cacheKey, response.card);
 
       setState((prev) => ({
         ...prev,

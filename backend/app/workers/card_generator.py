@@ -1,10 +1,14 @@
-"""Card generator worker for fetching word and entity data from APIs."""
+"""Card generator worker for fetching word and entity data from TomTrove API.
+
+Uses TomTrove's dictionary and entity services for high-quality card data.
+"""
 
 import asyncio
 from typing import List, Optional
 import httpx
 from loguru import logger
 
+from app.config import settings
 from app.models.card import (
     WordCard,
     EntityCard,
@@ -17,11 +21,11 @@ from app.services.card_cache import CardCache
 
 
 class CardGeneratorWorker:
-    """Worker for generating word and entity cards from external APIs.
+    """Worker for generating word and entity cards from TomTrove API.
 
     APIs used:
-    - Free Dictionary API: https://dictionaryapi.dev/
-    - Wikidata API: https://www.wikidata.org/wiki/Wikidata:Data_access
+    - TomTrove Dictionary API: /dictionary/{word}
+    - TomTrove Entity API: /entities/recognize, /entities/details
     """
 
     def __init__(self, card_cache: Optional[CardCache] = None):
@@ -33,10 +37,20 @@ class CardGeneratorWorker:
         self.cache = card_cache or CardCache()
         self.http_client: Optional[httpx.AsyncClient] = None
 
+        # TomTrove API settings
+        self.tomtrove_url = settings.tomtrove_api_url
+        self.tomtrove_key = settings.tomtrove_api_key
+
     async def _get_client(self) -> httpx.AsyncClient:
-        """Get or create HTTP client."""
+        """Get or create HTTP client with TomTrove auth headers."""
         if self.http_client is None or self.http_client.is_closed:
-            self.http_client = httpx.AsyncClient(timeout=30.0)
+            headers = {}
+            if self.tomtrove_key:
+                headers["X-API-Key"] = self.tomtrove_key
+            self.http_client = httpx.AsyncClient(
+                timeout=30.0,
+                headers=headers,
+            )
         return self.http_client
 
     async def close(self):
@@ -44,39 +58,222 @@ class CardGeneratorWorker:
         if self.http_client and not self.http_client.is_closed:
             await self.http_client.aclose()
 
+    def _is_tomtrove_available(self) -> bool:
+        """Check if TomTrove API is configured."""
+        return bool(self.tomtrove_url and self.tomtrove_key)
+
     # ============ Word Card Generation ============
 
-    async def get_word_card(self, word: str, use_cache: bool = True) -> Optional[WordCard]:
-        """Get word card, from cache or API.
+    async def get_word_card(
+        self,
+        word: str,
+        use_cache: bool = True,
+        target_lang: Optional[str] = None,
+    ) -> Optional[WordCard]:
+        """Get word card from TomTrove API.
 
         Args:
             word: The word to look up.
             use_cache: Whether to use cache.
+            target_lang: Target language for translations (zh-TW, zh-CN, zh-Hans, zh-Hant).
 
         Returns:
             WordCard or None if not found.
         """
         word = word.lower().strip()
 
+        # Normalize language code for TomTrove
+        tomtrove_lang = self._normalize_lang_for_tomtrove(target_lang)
+
+        # Include language in cache key
+        cache_key = f"{word}:{tomtrove_lang}" if tomtrove_lang else word
+
         # Check cache first
         if use_cache:
-            cached = self.cache.get_word_card(word)
+            cached = self.cache.get_word_card(cache_key)
             if cached:
+                logger.debug(f"Word card cache hit: {word}")
                 return cached
 
-        # Fetch from API
-        card = await self._fetch_word_from_free_dictionary(word)
+        # Fetch from TomTrove API
+        card = await self._fetch_word_from_tomtrove(word, tomtrove_lang)
 
         # Cache result
         if card and use_cache:
-            self.cache.set_word_card(card)
+            self.cache.set_word_card(card, cache_key=cache_key)
 
         return card
 
-    async def _fetch_word_from_free_dictionary(self, word: str) -> Optional[WordCard]:
-        """Fetch word data from Free Dictionary API.
+    def _normalize_lang_for_tomtrove(self, lang: Optional[str]) -> str:
+        """Normalize language code for TomTrove API.
 
-        API docs: https://dictionaryapi.dev/
+        TomTrove uses: zh-Hans (simplified), zh-Hant (traditional)
+        BamianjingTV uses: zh-TW (traditional), zh-CN (simplified)
+        """
+        if not lang:
+            return "zh-Hant"  # Default to traditional Chinese
+
+        lang_map = {
+            "zh-TW": "zh-Hant",
+            "zh-CN": "zh-Hans",
+            "zh-tw": "zh-Hant",
+            "zh-cn": "zh-Hans",
+            "zh_TW": "zh-Hant",
+            "zh_CN": "zh-Hans",
+        }
+        return lang_map.get(lang, lang)
+
+    async def _fetch_word_from_tomtrove(
+        self,
+        word: str,
+        target_lang: str = "zh-Hant",
+    ) -> Optional[WordCard]:
+        """Fetch word data from TomTrove Dictionary API.
+
+        Args:
+            word: Word to look up.
+            target_lang: Target language for translations.
+
+        Returns:
+            WordCard or None.
+        """
+        if not self._is_tomtrove_available():
+            logger.warning("TomTrove API not configured, falling back to free dictionary")
+            return await self._fetch_word_from_free_dictionary(word)
+
+        url = f"{self.tomtrove_url}/dictionary/{word}"
+        params = {
+            "from_lang": "en",
+            "to_langs": target_lang,
+        }
+
+        try:
+            client = await self._get_client()
+            response = await client.get(url, params=params)
+
+            if response.status_code == 404:
+                logger.debug(f"Word not found in TomTrove: {word}")
+                return None
+
+            if response.status_code != 200:
+                logger.warning(f"TomTrove API error for {word}: {response.status_code}")
+                return None
+
+            data = response.json()
+
+            # Parse TomTrove response into WordCard
+            return self._parse_tomtrove_word_response(word, data, target_lang)
+
+        except Exception as e:
+            logger.error(f"Error fetching word from TomTrove {word}: {e}")
+            return None
+
+    def _parse_tomtrove_word_response(
+        self,
+        word: str,
+        data: dict,
+        target_lang: str,
+    ) -> Optional[WordCard]:
+        """Parse TomTrove dictionary response into WordCard.
+
+        TomTrove response format:
+        {
+            "word": "hello",
+            "source_lang": "en",
+            "phonetic": "/həˈloʊ/",
+            "audio_url": "https://...",
+            "translations": {
+                "zh-Hant": {
+                    "translations": [{"text": "你好", "pos": "interjection"}],
+                    "examples": [{"source": "Hello!", "target": "你好！"}]
+                }
+            },
+            "synonyms": [...],
+            "antonyms": [...]
+        }
+        """
+        try:
+            # Extract pronunciation
+            pronunciations = []
+            if data.get("phonetic"):
+                pron = Pronunciation(
+                    ipa=data["phonetic"],
+                    audio_url=data.get("audio_url"),
+                    region="us",
+                )
+                pronunciations.append(pron)
+
+            # Extract senses from translations
+            senses = []
+            translations = data.get("translations", {})
+            lang_data = translations.get(target_lang, {})
+
+            trans_list = lang_data.get("translations", [])
+            examples_list = lang_data.get("examples", [])
+
+            # Group translations by part of speech
+            pos_groups = {}
+            for trans in trans_list:
+                pos = trans.get("pos", "other") or "other"
+                if pos not in pos_groups:
+                    pos_groups[pos] = []
+                pos_groups[pos].append(trans.get("text", ""))
+
+            # Create senses
+            example_idx = 0
+            for pos, trans_texts in pos_groups.items():
+                for trans_text in trans_texts:
+                    # Get example if available
+                    example_en = ""
+                    example_zh = ""
+                    if example_idx < len(examples_list):
+                        ex = examples_list[example_idx]
+                        example_en = ex.get("source", "")
+                        example_zh = ex.get("target", "")
+                        example_idx += 1
+
+                    sense = WordSense(
+                        part_of_speech=pos,
+                        definition=trans_text,  # Use Chinese as main definition
+                        definition_zh=trans_text,
+                        examples=[example_en] if example_en else [],
+                        examples_zh=[example_zh] if example_zh else [],
+                        synonyms=data.get("synonyms", [])[:5],
+                        antonyms=data.get("antonyms", [])[:5],
+                    )
+                    senses.append(sense)
+
+            if not senses:
+                # Fallback: create a simple sense if we have any translation
+                for trans in trans_list:
+                    sense = WordSense(
+                        part_of_speech=trans.get("pos", "other") or "other",
+                        definition=trans.get("text", ""),
+                        definition_zh=trans.get("text", ""),
+                    )
+                    senses.append(sense)
+
+            if not senses:
+                logger.debug(f"No translations found for: {word}")
+                return None
+
+            card = WordCard(
+                word=word,
+                lemma=data.get("word", word),
+                pronunciations=pronunciations,
+                senses=senses[:10],
+                source="tomtrove",
+            )
+
+            logger.debug(f"Fetched word card from TomTrove: {word} ({len(senses)} senses)")
+            return card
+
+        except Exception as e:
+            logger.error(f"Error parsing TomTrove word response for {word}: {e}")
+            return None
+
+    async def _fetch_word_from_free_dictionary(self, word: str) -> Optional[WordCard]:
+        """Fallback: Fetch word data from Free Dictionary API.
 
         Args:
             word: Word to look up.
@@ -125,7 +322,7 @@ class CardGeneratorWorker:
                         definition=definition.get("definition", ""),
                         examples=definition.get("example", []) if isinstance(definition.get("example"), list)
                                  else [definition.get("example")] if definition.get("example") else [],
-                        synonyms=definition.get("synonyms", [])[:5],  # Limit synonyms
+                        synonyms=definition.get("synonyms", [])[:5],
                         antonyms=definition.get("antonyms", [])[:5],
                     )
                     senses.append(sense)
@@ -134,14 +331,13 @@ class CardGeneratorWorker:
                 logger.debug(f"No definitions found for: {word}")
                 return None
 
-            # Get lemma (base form) - use the word itself for now
             lemma = entry.get("word", word)
 
             card = WordCard(
                 word=word,
                 lemma=lemma,
                 pronunciations=pronunciations,
-                senses=senses[:10],  # Limit to 10 senses
+                senses=senses[:10],
                 source="free_dictionary",
             )
 
@@ -156,6 +352,7 @@ class CardGeneratorWorker:
         self,
         words: List[str],
         use_cache: bool = True,
+        target_lang: Optional[str] = None,
         concurrency: int = 5,
     ) -> dict[str, Optional[WordCard]]:
         """Fetch multiple word cards with concurrency control.
@@ -163,6 +360,7 @@ class CardGeneratorWorker:
         Args:
             words: List of words to look up.
             use_cache: Whether to use cache.
+            target_lang: Target language for translations.
             concurrency: Max concurrent requests.
 
         Returns:
@@ -172,7 +370,7 @@ class CardGeneratorWorker:
 
         async def fetch_with_limit(word: str) -> tuple[str, Optional[WordCard]]:
             async with semaphore:
-                card = await self.get_word_card(word, use_cache)
+                card = await self.get_word_card(word, use_cache, target_lang)
                 return word, card
 
         tasks = [fetch_with_limit(word) for word in words]
@@ -186,12 +384,14 @@ class CardGeneratorWorker:
         self,
         entity_id: str,
         use_cache: bool = True,
+        target_lang: Optional[str] = None,
     ) -> Optional[EntityCard]:
-        """Get entity card, from cache or Wikidata API.
+        """Get entity card from TomTrove API.
 
         Args:
             entity_id: Wikidata QID (e.g., Q42).
             use_cache: Whether to use cache.
+            target_lang: Target language for localization.
 
         Returns:
             EntityCard or None.
@@ -202,10 +402,11 @@ class CardGeneratorWorker:
         if use_cache:
             cached = self.cache.get_entity_card(entity_id)
             if cached:
+                logger.debug(f"Entity card cache hit: {entity_id}")
                 return cached
 
-        # Fetch from Wikidata
-        card = await self._fetch_entity_from_wikidata(entity_id)
+        # Fetch from TomTrove API
+        card = await self._fetch_entity_from_tomtrove(entity_id, target_lang)
 
         # Cache result
         if card and use_cache:
@@ -216,6 +417,8 @@ class CardGeneratorWorker:
     async def search_entity(self, query: str, lang: str = "en") -> Optional[str]:
         """Search for an entity by name and return its QID.
 
+        Uses TomTrove's entity recognition API.
+
         Args:
             query: Search query (e.g., "Albert Einstein").
             lang: Language for search.
@@ -223,6 +426,46 @@ class CardGeneratorWorker:
         Returns:
             Wikidata QID or None.
         """
+        if not self._is_tomtrove_available():
+            logger.warning("TomTrove API not configured for entity search")
+            return await self._search_entity_wikidata(query, lang)
+
+        url = f"{self.tomtrove_url}/entities/recognize"
+
+        try:
+            client = await self._get_client()
+            response = await client.post(
+                url,
+                json={"text": query},
+            )
+
+            if response.status_code != 200:
+                logger.warning(f"TomTrove entity search failed for '{query}': {response.status_code}")
+                return await self._search_entity_wikidata(query, lang)
+
+            data = response.json()
+
+            if not data.get("success"):
+                logger.warning(f"TomTrove entity search unsuccessful for '{query}'")
+                return await self._search_entity_wikidata(query, lang)
+
+            # Get first entity from results
+            entities = data.get("data", {}).get("entities", [])
+            if entities:
+                entity_id = entities[0].get("entity_id")
+                if entity_id:
+                    logger.info(f"Found entity '{query}' -> {entity_id} (via TomTrove)")
+                    return entity_id
+
+            logger.debug(f"No entities found for '{query}' in TomTrove")
+            return await self._search_entity_wikidata(query, lang)
+
+        except Exception as e:
+            logger.error(f"Error searching entity '{query}' via TomTrove: {e}")
+            return await self._search_entity_wikidata(query, lang)
+
+    async def _search_entity_wikidata(self, query: str, lang: str = "en") -> Optional[str]:
+        """Fallback: Search entity via Wikidata API."""
         url = "https://www.wikidata.org/w/api.php"
         params = {
             "action": "wbsearchentities",
@@ -236,38 +479,150 @@ class CardGeneratorWorker:
             client = await self._get_client()
             response = await client.get(url, params=params)
 
-            logger.info(f"Wikidata search for '{query}': status={response.status_code}")
-
             if response.status_code != 200:
-                logger.warning(f"Wikidata search failed for '{query}': status={response.status_code}, body={response.text[:200]}")
+                logger.warning(f"Wikidata search failed for '{query}': {response.status_code}")
                 return None
 
             data = response.json()
             results = data.get("search", [])
 
-            logger.info(f"Wikidata search results for '{query}': {len(results)} results, keys={list(data.keys())}")
-
             if results:
                 qid = results[0].get("id")
-                logger.info(f"Found entity '{query}' -> {qid}")
+                logger.info(f"Found entity '{query}' -> {qid} (via Wikidata)")
                 return qid
 
-            logger.warning(f"No Wikidata results for '{query}', response: {data}")
             return None
 
         except Exception as e:
-            logger.error(f"Error searching entity '{query}': {e}")
+            logger.error(f"Error searching entity '{query}' via Wikidata: {e}")
             return None
 
-    async def _fetch_entity_from_wikidata(self, entity_id: str) -> Optional[EntityCard]:
-        """Fetch entity data from Wikidata API.
+    async def _fetch_entity_from_tomtrove(
+        self,
+        entity_id: str,
+        target_lang: Optional[str] = None,
+    ) -> Optional[EntityCard]:
+        """Fetch entity data from TomTrove API.
 
         Args:
             entity_id: Wikidata QID.
+            target_lang: Target language for localization.
 
         Returns:
             EntityCard or None.
         """
+        if not self._is_tomtrove_available():
+            logger.warning("TomTrove API not configured, falling back to Wikidata")
+            return await self._fetch_entity_from_wikidata(entity_id)
+
+        url = f"{self.tomtrove_url}/entities/details"
+        params = {"entity_id": entity_id}
+
+        try:
+            client = await self._get_client()
+            response = await client.get(url, params=params)
+
+            if response.status_code == 404:
+                logger.debug(f"Entity not found in TomTrove: {entity_id}")
+                return await self._fetch_entity_from_wikidata(entity_id)
+
+            if response.status_code != 200:
+                logger.warning(f"TomTrove entity API error for {entity_id}: {response.status_code}")
+                return await self._fetch_entity_from_wikidata(entity_id)
+
+            data = response.json()
+
+            if not data.get("success"):
+                logger.warning(f"TomTrove entity fetch unsuccessful for {entity_id}")
+                return await self._fetch_entity_from_wikidata(entity_id)
+
+            return self._parse_tomtrove_entity_response(entity_id, data, target_lang)
+
+        except Exception as e:
+            logger.error(f"Error fetching entity from TomTrove {entity_id}: {e}")
+            return await self._fetch_entity_from_wikidata(entity_id)
+
+    def _parse_tomtrove_entity_response(
+        self,
+        entity_id: str,
+        data: dict,
+        target_lang: Optional[str] = None,
+    ) -> Optional[EntityCard]:
+        """Parse TomTrove entity response into EntityCard.
+
+        TomTrove response format:
+        {
+            "success": true,
+            "data": {
+                "resolution": {
+                    "wikidata_id": "Q937",
+                    "localizations": {
+                        "zh_cn": {
+                            "title": "阿尔伯特·爱因斯坦",
+                            "description": "物理学家",
+                            "url": "https://zh.wikipedia.org/wiki/...",
+                            "thumbnail": "https://..."
+                        },
+                        "en": {...}
+                    },
+                    "images": [{"url": "..."}]
+                }
+            }
+        }
+        """
+        try:
+            resolution = data.get("data", {}).get("resolution", {})
+            localizations_data = resolution.get("localizations", {})
+            images = resolution.get("images", [])
+
+            # Get English localization as base
+            en_loc = localizations_data.get("en", {})
+            name = en_loc.get("title", entity_id)
+            description = en_loc.get("description", "")
+            wikipedia_url = en_loc.get("url")
+
+            # Get image URL
+            image_url = None
+            if images:
+                image_url = images[0].get("url")
+            if not image_url:
+                image_url = en_loc.get("thumbnail")
+
+            # Build localizations for Chinese
+            localizations = {}
+            for lang_key in ["zh_cn", "zh_tw", "zh-cn", "zh-tw", "zh"]:
+                zh_loc = localizations_data.get(lang_key)
+                if zh_loc:
+                    localizations["zh"] = EntityLocalization(
+                        name=zh_loc.get("title", name),
+                        description=zh_loc.get("description"),
+                    )
+                    break
+
+            # Infer entity type (TomTrove doesn't provide this directly)
+            entity_type = EntityType.OTHER
+
+            card = EntityCard(
+                entity_id=entity_id,
+                entity_type=entity_type,
+                name=name,
+                description=description,
+                wikipedia_url=wikipedia_url,
+                wikidata_url=f"https://www.wikidata.org/wiki/{entity_id}",
+                image_url=image_url,
+                localizations=localizations,
+                source="tomtrove",
+            )
+
+            logger.debug(f"Fetched entity card from TomTrove: {entity_id} ({name})")
+            return card
+
+        except Exception as e:
+            logger.error(f"Error parsing TomTrove entity response for {entity_id}: {e}")
+            return None
+
+    async def _fetch_entity_from_wikidata(self, entity_id: str) -> Optional[EntityCard]:
+        """Fallback: Fetch entity data from Wikidata API."""
         url = "https://www.wikidata.org/w/api.php"
         params = {
             "action": "wbgetentities",
@@ -305,7 +660,7 @@ class CardGeneratorWorker:
             # Extract claims for type-specific data
             claims = entity.get("claims", {})
 
-            # Determine entity type from instance of (P31)
+            # Determine entity type
             entity_type = self._infer_entity_type(claims)
 
             # Extract image from P18
@@ -313,7 +668,6 @@ class CardGeneratorWorker:
             if "P18" in claims:
                 image_name = claims["P18"][0].get("mainsnak", {}).get("datavalue", {}).get("value")
                 if image_name:
-                    # Convert to Wikimedia Commons URL
                     image_name = image_name.replace(" ", "_")
                     image_url = f"https://commons.wikimedia.org/wiki/Special:FilePath/{image_name}?width=300"
 
@@ -333,10 +687,10 @@ class CardGeneratorWorker:
                 )
 
             # Extract type-specific fields
-            birth_date = self._extract_date_claim(claims, "P569")  # Date of birth
-            death_date = self._extract_date_claim(claims, "P570")  # Date of death
-            nationality = self._extract_item_label(claims, "P27")  # Country of citizenship
-            founded_date = self._extract_date_claim(claims, "P571")  # Inception
+            birth_date = self._extract_date_claim(claims, "P569")
+            death_date = self._extract_date_claim(claims, "P570")
+            nationality = self._extract_item_label(claims, "P27")
+            founded_date = self._extract_date_claim(claims, "P571")
 
             card = EntityCard(
                 entity_id=entity_id,
@@ -354,23 +708,15 @@ class CardGeneratorWorker:
                 source="wikidata",
             )
 
-            logger.debug(f"Fetched entity card: {entity_id} ({name})")
+            logger.debug(f"Fetched entity card from Wikidata: {entity_id} ({name})")
             return card
 
         except Exception as e:
-            logger.error(f"Error fetching entity {entity_id}: {e}")
+            logger.error(f"Error fetching entity {entity_id} from Wikidata: {e}")
             return None
 
     def _infer_entity_type(self, claims: dict) -> EntityType:
-        """Infer entity type from Wikidata claims.
-
-        Args:
-            claims: Wikidata claims dict.
-
-        Returns:
-            EntityType enum value.
-        """
-        # P31 = instance of
+        """Infer entity type from Wikidata claims."""
         if "P31" not in claims:
             return EntityType.OTHER
 
@@ -380,12 +726,11 @@ class CardGeneratorWorker:
             if qid:
                 instance_of_ids.append(qid)
 
-        # Check for known types
-        person_types = {"Q5"}  # Human
-        place_types = {"Q515", "Q6256", "Q486972"}  # City, Country, Human settlement
-        org_types = {"Q43229", "Q4830453", "Q783794"}  # Organization, Business, Company
-        work_types = {"Q11424", "Q7725634", "Q571"}  # Film, Literary work, Book
-        event_types = {"Q1190554", "Q1656682"}  # Occurrence, Event
+        person_types = {"Q5"}
+        place_types = {"Q515", "Q6256", "Q486972"}
+        org_types = {"Q43229", "Q4830453", "Q783794"}
+        work_types = {"Q11424", "Q7725634", "Q571"}
+        event_types = {"Q1190554", "Q1656682"}
 
         for qid in instance_of_ids:
             if qid in person_types:
@@ -409,17 +754,14 @@ class CardGeneratorWorker:
         try:
             time_value = claims[property_id][0].get("mainsnak", {}).get("datavalue", {}).get("value", {})
             time_str = time_value.get("time", "")
-            # Format: +1879-03-14T00:00:00Z -> 1879-03-14
             if time_str:
-                return time_str[1:11]  # Skip the + and take YYYY-MM-DD
+                return time_str[1:11]
         except (IndexError, KeyError):
             pass
         return None
 
     def _extract_item_label(self, claims: dict, property_id: str) -> Optional[str]:
-        """Extract an item label from Wikidata claims (would need additional API call)."""
-        # For simplicity, just return the QID for now
-        # A full implementation would fetch the label
+        """Extract an item label from Wikidata claims."""
         if property_id not in claims:
             return None
 
@@ -434,23 +776,15 @@ class CardGeneratorWorker:
         self,
         entity_ids: List[str],
         use_cache: bool = True,
+        target_lang: Optional[str] = None,
         concurrency: int = 3,
     ) -> dict[str, Optional[EntityCard]]:
-        """Fetch multiple entity cards with concurrency control.
-
-        Args:
-            entity_ids: List of Wikidata QIDs.
-            use_cache: Whether to use cache.
-            concurrency: Max concurrent requests.
-
-        Returns:
-            Dict mapping entity IDs to cards (or None).
-        """
+        """Fetch multiple entity cards with concurrency control."""
         semaphore = asyncio.Semaphore(concurrency)
 
         async def fetch_with_limit(entity_id: str) -> tuple[str, Optional[EntityCard]]:
             async with semaphore:
-                card = await self.get_entity_card(entity_id, use_cache)
+                card = await self.get_entity_card(entity_id, use_cache, target_lang)
                 return entity_id, card
 
         tasks = [fetch_with_limit(eid) for eid in entity_ids]

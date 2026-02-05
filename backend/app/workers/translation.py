@@ -1,4 +1,9 @@
-"""Translation worker using OpenAI API."""
+"""Translation worker using Azure Translator and OpenAI API.
+
+Azure Translator is used for Chinese translations (zh-TW, zh-CN) as it provides
+fast, consistent translations with context awareness through batch processing.
+LLM (OpenAI/Grok) is used as fallback for other languages or when Azure is unavailable.
+"""
 
 import asyncio
 from pathlib import Path
@@ -12,9 +17,14 @@ from app.models.transcript import (
     TranslatedSegment,
     TranslatedTranscript,
 )
+from app.services.azure_translator import azure_translator
 
 if TYPE_CHECKING:
     from app.models.job import Job
+
+
+# Languages supported by Azure Translator (preferred for these)
+AZURE_SUPPORTED_LANGUAGES = {"zh-TW", "zh-CN"}
 
 
 # Cost per 1M tokens (as of Jan 2025)
@@ -144,7 +154,12 @@ SUPPORTED_LANGUAGES = {
 
 
 class TranslationWorker:
-    """Worker for translating transcripts using LLM API (OpenAI, Grok, Azure, etc.)."""
+    """Worker for translating transcripts.
+
+    Uses Azure Translator for Chinese (zh-TW, zh-CN) as it provides fast,
+    consistent translations with context awareness.
+    Falls back to LLM API (OpenAI, Grok, etc.) for other languages.
+    """
 
     def __init__(self):
         """Initialize translation worker."""
@@ -152,6 +167,13 @@ class TranslationWorker:
         self.base_url = settings.llm_base_url
         self.model = settings.llm_model
         self.client = None
+
+    def _should_use_azure(self, target_language: str) -> bool:
+        """Check if Azure Translator should be used for this language."""
+        return (
+            target_language in AZURE_SUPPORTED_LANGUAGES
+            and azure_translator.is_available()
+        )
 
     def _get_translation_prompt(self, target_language: str = "zh-TW") -> str:
         """Get the translation prompt for the target language.
@@ -318,6 +340,9 @@ class TranslationWorker:
         """
         Translate all segments in a diarized transcript.
 
+        Uses Azure Translator for Chinese (zh-TW, zh-CN) for fast, consistent
+        translations with context awareness. Falls back to LLM for other languages.
+
         Args:
             transcript: Diarized transcript to translate
             target_language: Target language code (default: zh-TW for Traditional Chinese)
@@ -327,7 +352,83 @@ class TranslationWorker:
         Returns:
             TranslatedTranscript with translations
         """
-        logger.info(f"Translating {len(transcript.segments)} segments to {target_language}...")
+        # Use Azure Translator for Chinese languages (faster and more consistent)
+        if self._should_use_azure(target_language):
+            return await self._translate_with_azure(transcript, target_language, job)
+
+        # Fall back to LLM for other languages
+        return await self._translate_with_llm(transcript, target_language, batch_size, job)
+
+    async def _translate_with_azure(
+        self,
+        transcript: DiarizedTranscript,
+        target_language: str,
+        job: "Job" = None,
+    ) -> TranslatedTranscript:
+        """Translate using Azure Translator (for Chinese languages)."""
+        logger.info(f"Using Azure Translator for {len(transcript.segments)} segments to {target_language}...")
+
+        # Prepare segments for Azure Translator
+        segments_data = [{"en": seg.text} for seg in transcript.segments]
+
+        try:
+            # Translate using Azure (batch_size=50 for context awareness)
+            translated_data = await azure_translator.translate_segments(
+                segments_data,
+                target_lang=target_language,
+                source_lang="en",
+                batch_size=50,  # Azure considers context within batches
+            )
+
+            # Build translated segments
+            translated_segments = []
+            for seg, trans in zip(transcript.segments, translated_data):
+                translation = trans.get("zh") or seg.text  # Fallback to original if failed
+                translated_segments.append(
+                    TranslatedSegment(
+                        start=seg.start,
+                        end=seg.end,
+                        text=seg.text,
+                        speaker=seg.speaker,
+                        translation=translation,
+                    )
+                )
+
+            # Record API usage (Azure Translator pricing: ~$10 per 1M characters)
+            if job:
+                total_chars = sum(len(seg.text) for seg in transcript.segments)
+                cost = total_chars * 10.0 / 1_000_000  # $10 per 1M chars
+                job.add_api_cost(
+                    service="Azure Translator",
+                    model="translator-text-v3",
+                    tokens_in=total_chars,  # Using chars as "tokens" for tracking
+                    tokens_out=0,
+                    cost_usd=round(cost, 6),
+                    description=f"Translate {len(transcript.segments)} segments to {target_language}",
+                )
+                logger.info(f"Azure Translator: {total_chars} chars, ~${cost:.4f}")
+
+            return TranslatedTranscript(
+                source_language=transcript.language,
+                target_language=target_language,
+                num_speakers=transcript.num_speakers,
+                segments=translated_segments,
+            )
+
+        except Exception as e:
+            logger.error(f"Azure Translator failed: {e}, falling back to LLM")
+            # Fall back to LLM translation
+            return await self._translate_with_llm(transcript, target_language, 10, job)
+
+    async def _translate_with_llm(
+        self,
+        transcript: DiarizedTranscript,
+        target_language: str,
+        batch_size: int,
+        job: "Job" = None,
+    ) -> TranslatedTranscript:
+        """Translate using LLM API (OpenAI, Grok, etc.)."""
+        logger.info(f"Using LLM for {len(transcript.segments)} segments to {target_language}...")
 
         translated_segments: List[TranslatedSegment] = []
         total_tokens_in = 0

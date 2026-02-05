@@ -34,7 +34,7 @@ install:
 	cd backend && pip install -r requirements.txt
 
 dev:
-	cd backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+	cd backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 
 test:
 	cd backend && pytest tests/ -v
@@ -66,7 +66,7 @@ frontend-build:
 
 # Run both backend and frontend
 dev-all:
-	@echo "Starting backend on :8000 and frontend on :3000"
+	@echo "Starting backend on :8001 and frontend on :3001"
 	@make dev & make frontend-dev
 
 # ============ Docker (Production) ============
