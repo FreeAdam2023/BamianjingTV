@@ -236,19 +236,27 @@ class CardGeneratorWorker:
             client = await self._get_client()
             response = await client.get(url, params=params)
 
+            logger.debug(f"Wikidata search for '{query}': status={response.status_code}")
+
             if response.status_code != 200:
+                logger.warning(f"Wikidata search failed for '{query}': status={response.status_code}")
                 return None
 
             data = response.json()
             results = data.get("search", [])
 
-            if results:
-                return results[0].get("id")
+            logger.debug(f"Wikidata search results for '{query}': {len(results)} results")
 
+            if results:
+                qid = results[0].get("id")
+                logger.info(f"Found entity '{query}' -> {qid}")
+                return qid
+
+            logger.debug(f"No Wikidata results for '{query}'")
             return None
 
         except Exception as e:
-            logger.error(f"Error searching entity {query}: {e}")
+            logger.error(f"Error searching entity '{query}': {e}")
             return None
 
     async def _fetch_entity_from_wikidata(self, entity_id: str) -> Optional[EntityCard]:
