@@ -413,7 +413,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
       style={{ backgroundColor: containerBgColor }}
     >
       {/* Left side: Video + Subtitle + Controls */}
-      <div className={`flex flex-col transition-all duration-300 ${hasCardOpen ? "w-[65%]" : "w-full"}`}>
+      <div className="w-[65%] flex flex-col">
         {/* Video area */}
         <div
           className="relative flex-shrink-0"
@@ -527,20 +527,62 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         />
       </div>
 
-      {/* Right side: Card panel (always visible area, shows card when open) */}
-      <div
-        className={`flex-shrink-0 border-l border-white/10 transition-all duration-300 overflow-hidden ${
-          hasCardOpen ? "w-[35%] bg-black/60 backdrop-blur-sm" : "w-0"
-        }`}
-      >
-        {hasCardOpen && cardState && onCardClose && (
-          <CardSidePanel
-            state={cardState}
-            onClose={onCardClose}
-            position="right"
-            inline={true}
-          />
-        )}
+      {/* Right side: Card panel (always visible) */}
+      <div className="w-[35%] flex-shrink-0 border-l border-white/10 bg-gradient-to-b from-slate-900/80 to-slate-800/60 backdrop-blur-sm relative overflow-hidden">
+        {/* Placeholder when no card is open */}
+        <div
+          className={`absolute inset-0 flex flex-col items-center justify-center p-6 transition-opacity duration-300 ${
+            hasCardOpen ? "opacity-0 pointer-events-none" : "opacity-100"
+          }`}
+        >
+          <div className="text-center space-y-4">
+            {/* Icon */}
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center">
+              <svg className="w-8 h-8 text-purple-400/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+
+            {/* Title */}
+            <h3 className="text-white/70 font-medium text-lg">Learning Cards</h3>
+
+            {/* Description */}
+            <p className="text-white/40 text-sm leading-relaxed max-w-[200px]">
+              Click on highlighted words or entities in subtitles to view detailed cards
+            </p>
+
+            {/* Hint badges */}
+            <div className="flex flex-wrap justify-center gap-2 pt-2">
+              <span className="px-2 py-1 bg-blue-500/10 text-blue-400/60 text-xs rounded-full">
+                Words
+              </span>
+              <span className="px-2 py-1 bg-purple-500/10 text-purple-400/60 text-xs rounded-full">
+                Entities
+              </span>
+              <span className="px-2 py-1 bg-green-500/10 text-green-400/60 text-xs rounded-full">
+                Places
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card content with slide-in animation */}
+        <div
+          className={`h-full transition-all duration-300 ease-out ${
+            hasCardOpen
+              ? "opacity-100 translate-x-0"
+              : "opacity-0 translate-x-4 pointer-events-none"
+          }`}
+        >
+          {cardState && onCardClose && (
+            <CardSidePanel
+              state={cardState}
+              onClose={onCardClose}
+              position="right"
+              inline={true}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
