@@ -588,38 +588,36 @@ export default function ReviewPage() {
           />
           <SpeakerEditor timelineId={timelineId} onSpeakerNamesChange={() => refresh()} />
 
-          {/* Entity analysis button (for LEARNING mode) */}
-          {timeline.mode === "learning" && (
-            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700 bg-gray-800/50">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h5c.256 0 .512.098.707.293l7 7zM5 6a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                </svg>
-                <span className="text-sm text-gray-300">实体识别</span>
-                {segmentAnnotations && (
-                  <span className="px-1.5 py-0.5 text-xs bg-purple-500/20 text-purple-400 rounded">
-                    已分析
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={handleAnalyzeEntities}
-                disabled={analyzingEntities}
-                className="text-xs px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-500 disabled:bg-purple-600/50 disabled:cursor-not-allowed transition"
-              >
-                {analyzingEntities ? (
-                  <span className="flex items-center gap-1">
-                    <span className="animate-spin w-3 h-3 border border-white border-t-transparent rounded-full" />
-                    分析中...
-                  </span>
-                ) : segmentAnnotations ? (
-                  "重新分析"
-                ) : (
-                  "分析实体"
-                )}
-              </button>
+          {/* Entity analysis button (available for all modes) */}
+          <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700 bg-gray-800/50">
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h5c.256 0 .512.098.707.293l7 7zM5 6a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+              </svg>
+              <span className="text-sm text-gray-300">实体识别</span>
+              {segmentAnnotations && (
+                <span className="px-1.5 py-0.5 text-xs bg-purple-500/20 text-purple-400 rounded">
+                  已分析
+                </span>
+              )}
             </div>
-          )}
+            <button
+              onClick={handleAnalyzeEntities}
+              disabled={analyzingEntities}
+              className="text-xs px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-500 disabled:bg-purple-600/50 disabled:cursor-not-allowed transition"
+            >
+              {analyzingEntities ? (
+                <span className="flex items-center gap-1">
+                  <span className="animate-spin w-3 h-3 border border-white border-t-transparent rounded-full" />
+                  分析中...
+                </span>
+              ) : segmentAnnotations ? (
+                "重新分析"
+              ) : (
+                "分析实体"
+              )}
+            </button>
+          </div>
 
           {/* Segment list - scrollable */}
           <SegmentList
