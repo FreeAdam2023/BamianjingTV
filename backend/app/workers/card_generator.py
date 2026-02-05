@@ -112,9 +112,10 @@ class CardGeneratorWorker:
 
         TomTrove uses: zh-Hans (simplified), zh-Hant (traditional)
         BamianjingTV uses: zh-TW (traditional), zh-CN (simplified)
+        Default to zh-Hant (Traditional Chinese) for learning materials.
         """
         if not lang:
-            return "zh-Hant"  # Default to traditional Chinese
+            return "zh-Hant"  # Default to Traditional Chinese
 
         lang_map = {
             "zh-TW": "zh-Hant",
@@ -123,6 +124,7 @@ class CardGeneratorWorker:
             "zh-cn": "zh-Hans",
             "zh_TW": "zh-Hant",
             "zh_CN": "zh-Hans",
+            "zh": "zh-Hant",  # Default Chinese to Traditional
         }
         return lang_map.get(lang, lang)
 
@@ -144,9 +146,12 @@ class CardGeneratorWorker:
             logger.warning("TomTrove API not configured, falling back to free dictionary")
             return await self._fetch_word_from_free_dictionary(word)
 
-        # TomTrove API endpoint: /api/v1/dictionary/query/{word}
-        url = f"{self.tomtrove_url}/dictionary/query/{word}"
-        params = {}
+        # TomTrove Public API endpoint: /api/v1/public/dictionary/{word}
+        url = f"{self.tomtrove_url}/dictionary/{word}"
+        params = {
+            "from_lang": "en",
+            "to_langs": target_lang,
+        }
 
         try:
             client = await self._get_client()
@@ -175,70 +180,89 @@ class CardGeneratorWorker:
         data: dict,
         target_lang: str,
     ) -> Optional[WordCard]:
-        """Parse TomTrove dictionary response into WordCard.
+        """Parse TomTrove Public API dictionary response into WordCard.
 
-        TomTrove response format:
+        TomTrove Public API response format:
         {
-            "success": true,
-            "word": {
-                "user_lang": "zh_cn",
-                "senses": [
-                    {
-                        "pos": "interjection",
-                        "def_native": "用来表达惊讶、震惊或惊讶。",
-                        "def_en": "Used to express surprise...",
-                        "examples_en": ["My, what big teeth you have!"],
-                        "examples_native": ["哎呀，你的牙齿真大！"]
-                    }
-                ],
-                "pronunciations": [
-                    {"ipa": "/mi/", "audio": "https://...", "variety": "US"}
-                ],
-                "images": [{"url": "..."}]
-            }
+            "word": "hello",
+            "phonetic": "/həˈloʊ/",
+            "audio_url": "https://...",
+            "translations": [
+                {"text": "你好", "pos": "noun", "confidence": 0.3162, "lang": "zh-Hans"}
+            ],
+            "examples": [
+                {"source": "Hello there!", "target": "你好！", "lang": "zh-Hans"}
+            ],
+            "images": [{"url": "...", "source": "pixabay", "alt": "..."}],
+            "synonyms": ["greeting", "hi"],
+            "antonyms": [],
+            "etymology": "..."
         }
         """
         try:
-            # Handle both direct word object and nested response
-            word_data = data.get("word", data)
-            if not word_data:
-                logger.debug(f"No word data in response for: {word}")
-                return None
-
-            # Extract pronunciations
+            # Extract pronunciation
             pronunciations = []
-            for pron_data in word_data.get("pronunciations", []):
+            if data.get("phonetic"):
                 pron = Pronunciation(
-                    ipa=pron_data.get("ipa", ""),
-                    audio_url=pron_data.get("audio"),
-                    region=pron_data.get("variety", "us").lower(),
+                    ipa=data["phonetic"],
+                    audio_url=data.get("audio_url"),
+                    region="us",
                 )
                 pronunciations.append(pron)
 
-            # Extract senses with Chinese translations
+            # Group translations by part of speech
+            translations = data.get("translations", [])
+            examples = data.get("examples", [])
+            synonyms = data.get("synonyms", [])[:5]
+            antonyms = data.get("antonyms", [])[:5]
+
+            # Group translations by POS
+            pos_groups: dict = {}
+            for trans in translations:
+                pos = trans.get("pos", "other") or "other"
+                if pos not in pos_groups:
+                    pos_groups[pos] = []
+                pos_groups[pos].append(trans.get("text", ""))
+
+            # Create senses from grouped translations
             senses = []
-            for sense_data in word_data.get("senses", []):
+            example_idx = 0
+            for pos, trans_texts in pos_groups.items():
+                # Join translations for this POS as the Chinese definition
+                definition_zh = "；".join(trans_texts[:3])  # Top 3 translations
+
+                # Get examples
+                examples_en = []
+                examples_zh = []
+                # Assign 2 examples per sense
+                for _ in range(2):
+                    if example_idx < len(examples):
+                        ex = examples[example_idx]
+                        examples_en.append(ex.get("source", ""))
+                        examples_zh.append(ex.get("target", ""))
+                        example_idx += 1
+
                 sense = WordSense(
-                    part_of_speech=sense_data.get("pos", "other") or "other",
-                    definition=sense_data.get("def_en", ""),
-                    definition_zh=sense_data.get("def_native"),
-                    examples=sense_data.get("examples_en", []),
-                    examples_zh=sense_data.get("examples_native", []),
-                    synonyms=[],
-                    antonyms=[],
+                    part_of_speech=pos,
+                    definition=definition_zh,  # Use Chinese as main definition
+                    definition_zh=definition_zh,
+                    examples=examples_en,
+                    examples_zh=examples_zh,
+                    synonyms=synonyms if len(senses) == 0 else [],  # Only add to first sense
+                    antonyms=antonyms if len(senses) == 0 else [],
                 )
                 senses.append(sense)
 
             if not senses:
-                logger.debug(f"No senses found for: {word}")
+                logger.debug(f"No translations found for: {word}")
                 return None
 
             # Extract images
-            images = [img.get("url") for img in word_data.get("images", []) if img.get("url")]
+            images = [img.get("url") for img in data.get("images", []) if img.get("url")]
 
             card = WordCard(
                 word=word,
-                lemma=word,
+                lemma=data.get("word", word),
                 pronunciations=pronunciations,
                 senses=senses[:10],
                 images=images,
