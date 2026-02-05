@@ -52,6 +52,11 @@ from .dubbing import (
     set_audio_mixer_worker,
     set_lip_sync_worker,
 )
+from .creative import (
+    router as creative_router,
+    set_timeline_manager as set_creative_timeline_manager,
+    set_config_generator,
+)
 
 __all__ = [
     # v2 Routers
@@ -111,4 +116,8 @@ __all__ = [
     "set_voice_clone_worker",
     "set_audio_mixer_worker",
     "set_lip_sync_worker",
+    # Creative Router and Setup functions
+    "creative_router",
+    "set_creative_timeline_manager",
+    "set_config_generator",
 ]

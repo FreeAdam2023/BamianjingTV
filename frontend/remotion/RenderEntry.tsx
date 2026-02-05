@@ -1,0 +1,53 @@
+/**
+ * RenderEntry.tsx - Entry point for Remotion server-side rendering
+ * This file registers the composition that will be bundled and rendered
+ */
+
+import React from "react";
+import { Composition } from "remotion";
+import { SubtitleComposition } from "./compositions/SubtitleComposition";
+import type { SubtitleCompositionProps } from "./compositions/SubtitleComposition";
+import type { RemotionConfig } from "../src/lib/creative-types";
+import type { SubtitleSegment } from "./types";
+
+// Default props for the composition (will be overridden by inputProps)
+const defaultConfig: RemotionConfig = {
+  version: "1.0",
+  style: "karaoke",
+  global: {
+    fontFamily: "Inter, system-ui, sans-serif",
+    backgroundColor: "transparent",
+    subtitlePosition: "bottom",
+    enFontSize: 32,
+    zhFontSize: 28,
+    enColor: "#ffffff",
+    zhColor: "#facc15",
+    fontWeight: "600",
+    lineSpacing: 8,
+  },
+  animation: {
+    entrance: { type: "fadeIn", duration: 10, easing: "easeOut" },
+    wordHighlight: { enabled: true, color: "#facc15", scale: 1.1, duration: 15 },
+    exit: { type: "fadeOut", duration: 10, easing: "easeIn" },
+  },
+};
+
+export const RemotionRoot: React.FC = () => {
+  return (
+    <>
+      <Composition
+        id="SubtitleComposition"
+        component={SubtitleComposition as unknown as React.ComponentType<Record<string, unknown>>}
+        durationInFrames={300}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={{
+          segments: [] as SubtitleSegment[],
+          config: defaultConfig,
+          videoSrc: undefined,
+        }}
+      />
+    </>
+  );
+};

@@ -81,6 +81,10 @@ from app.api import (
     set_voice_clone_worker,
     set_audio_mixer_worker,
     set_lip_sync_worker,
+    # Creative setup functions
+    creative_router,
+    set_creative_timeline_manager,
+    set_config_generator,
 )
 
 
@@ -210,6 +214,15 @@ async def lifespan(app: FastAPI):
 
     logger.info(f"Initialized Dubbing: features={dubbing_features}")
 
+    # ========== Creative: Initialize creative config generator ==========
+    from app.services.creative_config_generator import CreativeConfigGenerator
+
+    creative_config_generator = CreativeConfigGenerator()
+    set_creative_timeline_manager(timeline_manager)
+    set_config_generator(creative_config_generator)
+
+    logger.info("Initialized Creative mode config generator")
+
     # v2: Get WebSocket connection manager
     ws_manager = get_connection_manager()
 
@@ -290,6 +303,7 @@ async def lifespan(app: FastAPI):
     await job_queue.stop()
     await webhook_service.close()
     await card_generator.close()
+    await creative_config_generator.close()
     logger.info("Shutting down SceneMind")
 
 
@@ -329,6 +343,7 @@ app.include_router(scenemind_router)
 app.include_router(cards_router)
 app.include_router(memory_books_router)
 app.include_router(dubbing_router)
+app.include_router(creative_router)
 
 
 # ============ Root Endpoints ============

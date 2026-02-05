@@ -99,6 +99,15 @@ class SubtitleStyleMode(str, Enum):
     NONE = "none"  # Dubbing: no subtitles
 
 
+class SubtitleLanguageMode(str, Enum):
+    """Which subtitle languages to display."""
+
+    BOTH = "both"  # Show both EN and ZH subtitles
+    EN = "en"  # Show only English (original)
+    ZH = "zh"  # Show only Chinese (translation)
+    NONE = "none"  # No subtitles
+
+
 class EditableSegment(BaseModel):
     """An editable transcript segment for review."""
 
@@ -160,6 +169,7 @@ class Timeline(BaseModel):
     use_traditional_chinese: bool = True  # Traditional vs Simplified
     subtitle_area_ratio: float = 0.5  # Ratio of screen height for subtitle area (0.3-0.7)
     subtitle_style_mode: SubtitleStyleMode = SubtitleStyleMode.HALF_SCREEN  # Subtitle rendering style
+    subtitle_language_mode: SubtitleLanguageMode = SubtitleLanguageMode.BOTH  # Which languages to show
 
     # Video-level trim (independent of subtitle segments)
     video_trim_start: float = 0.0  # Trim video from this point (seconds)
@@ -197,6 +207,9 @@ class Timeline(BaseModel):
     draft_instruction: Optional[str] = None  # User's AI instruction
     draft_selected_title: Optional[dict] = None  # User's selected title {index, main, sub, style}
     draft_thumbnail_url: Optional[str] = None  # Generated thumbnail URL
+
+    # Creative mode config (Remotion config for dynamic subtitles)
+    creative_config: Optional[dict] = None  # RemotionConfig as dict
 
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.now)

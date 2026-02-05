@@ -4,7 +4,7 @@
  * ReviewPage - Timeline review page with video player, timeline editor, and segment list
  */
 
-import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import VideoPlayer, { VideoPlayerRef } from "@/components/VideoPlayer";
@@ -14,8 +14,12 @@ import { useTimeline } from "@/hooks/useTimeline";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useTimelineKeyboard } from "@/hooks/useTimelineKeyboard";
 import { useMultiTrackWaveform, TrackType } from "@/hooks/useMultiTrackWaveform";
-import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress, setSubtitleAreaRatio, splitSegment } from "@/lib/api";
-import type { ExportStatusResponse, SubtitleStyleOptions } from "@/lib/types";
+import { useCardPopup } from "@/hooks/useCardPopup";
+import { useCreativeConfig } from "@/hooks/useCreativeConfig";
+import { useCreativeKeyboard } from "@/hooks/useCreativeKeyboard";
+import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress, setSubtitleAreaRatio, splitSegment, getTimelineAnnotations, setSubtitleLanguageMode } from "@/lib/api";
+import type { ExportStatusResponse, SubtitleStyleOptions, SegmentAnnotations } from "@/lib/types";
+import type { CreativeStyle } from "@/lib/creative-types";
 import { useToast, useConfirm } from "@/components/ui";
 import ReviewHeader from "./ReviewHeader";
 import ExportPanel from "./ExportPanel";
@@ -27,7 +31,15 @@ import SpeakerEditor from "./SpeakerEditor";
 import ObservationCapture from "./ObservationCapture";
 import ObservationList from "./ObservationList";
 import AIChatPanel from "./AIChatPanel";
+import StyleSelector from "./StyleSelector";
+import CreativeConfigPanel from "./CreativeConfigPanel";
+import CreativeAIChat from "./CreativeAIChat";
+import RemotionExportPanel from "./RemotionExportPanel";
 import type { Observation } from "@/lib/types";
+import type { RemotionConfig } from "@/lib/creative-types";
+
+// Lazy load RemotionPreview to avoid SSR issues with Remotion
+const RemotionPreview = lazy(() => import("./RemotionPreview"));
 
 export default function ReviewPage() {
   const params = useParams();
@@ -69,6 +81,25 @@ export default function ReviewPage() {
   // Observation capture state (for WATCHING mode)
   const [showObservationCapture, setShowObservationCapture] = useState(false);
   const [observations, setObservations] = useState<Observation[]>([]);
+
+  // NER annotations state (for LEARNING mode)
+  const [segmentAnnotations, setSegmentAnnotations] = useState<Map<number, SegmentAnnotations> | undefined>();
+  const [analyzingEntities, setAnalyzingEntities] = useState(false);
+
+  // Card popup state (shared between video and segment list)
+  const { state: cardState, openWordCard, openEntityCard, close: closeCard } = useCardPopup();
+
+  // Creative mode state
+  const [isCreativeMode, setIsCreativeMode] = useState(false);
+  const { config: creativeConfig, style: creativeStyle, setConfig: setCreativeConfig, setStyle: setCreativeStyle } = useCreativeConfig();
+
+  // Creative mode keyboard shortcuts
+  useCreativeKeyboard({
+    enabled: isCreativeMode,
+    config: creativeConfig,
+    onStyleChange: setCreativeStyle,
+    onConfigChange: setCreativeConfig,
+  });
 
   // Initialize observations from timeline
   useEffect(() => {
@@ -236,6 +267,17 @@ export default function ReviewPage() {
     }
   }, [timeline]);
 
+  // Handle subtitle language mode change (save to backend)
+  const handleSubtitleLanguageModeChange = useCallback(async (mode: "both" | "en" | "zh" | "none") => {
+    if (!timeline) return;
+    try {
+      await setSubtitleLanguageMode(timeline.timeline_id, mode);
+      console.log("[ReviewPage] Subtitle language mode saved:", mode);
+    } catch (err) {
+      console.error("[ReviewPage] Failed to save subtitle language mode:", err);
+    }
+  }, [timeline]);
+
   // Handle Chinese conversion
   const handleConvertChinese = useCallback(async (toTraditional: boolean) => {
     if (!timeline) return;
@@ -321,6 +363,28 @@ export default function ReviewPage() {
     }
   }, [timeline, refresh, toast]);
 
+  // Handle entity analysis
+  const handleAnalyzeEntities = useCallback(async () => {
+    if (!timeline) return;
+    setAnalyzingEntities(true);
+    try {
+      const annotations = await getTimelineAnnotations(timeline.timeline_id, 50, 30);
+      // Convert to Map for quick lookup by segment ID
+      const annotationsMap = new Map<number, SegmentAnnotations>();
+      for (const segAnnotation of annotations.segments) {
+        annotationsMap.set(segAnnotation.segment_id, segAnnotation);
+      }
+      setSegmentAnnotations(annotationsMap);
+      const totalEntities = annotations.segments.reduce((sum, s) => sum + s.entities.length, 0);
+      toast.success(`发现 ${totalEntities} 个实体`);
+    } catch (err) {
+      console.error("Failed to analyze entities:", err);
+      toast.error("分析失败: " + (err instanceof Error ? err.message : "Unknown error"));
+    } finally {
+      setAnalyzingEntities(false);
+    }
+  }, [timeline, toast]);
+
   // Handle timeline seek
   const handleTimelineSeek = useCallback((time: number) => {
     if (videoPlayerRef.current) {
@@ -392,8 +456,60 @@ export default function ReviewPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* Video panel */}
         <div className="flex-1 flex flex-col p-4 min-h-0 overflow-hidden">
+          {/* Mode toggle */}
+          <div className="flex items-center gap-2 mb-2 flex-shrink-0">
+            <button
+              onClick={() => setIsCreativeMode(false)}
+              className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                !isCreativeMode
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+              }`}
+            >
+              Review
+            </button>
+            <button
+              onClick={() => setIsCreativeMode(true)}
+              className={`px-3 py-1.5 text-sm rounded-lg transition-colors flex items-center gap-1.5 ${
+                isCreativeMode
+                  ? "bg-purple-600 text-white"
+                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+              </svg>
+              Creative
+            </button>
+            {isCreativeMode && (
+              <span className="text-xs text-gray-500 ml-2">
+                Remotion-powered dynamic subtitles
+              </span>
+            )}
+          </div>
+
           <div className="flex-1 min-h-0 h-0">
-            <VideoPlayer
+            {isCreativeMode ? (
+              <Suspense
+                fallback={
+                  <div className="w-full h-full flex items-center justify-center bg-gray-900 rounded-lg">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-2" />
+                      <p className="text-sm text-gray-400">Loading Creative Preview...</p>
+                    </div>
+                  </div>
+                }
+              >
+                <RemotionPreview
+                  jobId={timeline.job_id}
+                  segments={timeline.segments}
+                  config={creativeConfig}
+                  currentTime={currentVideoTime}
+                  onTimeUpdate={handleVideoTimeUpdate}
+                />
+              </Suspense>
+            ) : (
+              <VideoPlayer
               ref={videoPlayerRef}
               jobId={timeline.job_id}
               segments={timeline.segments}
@@ -416,7 +532,12 @@ export default function ReviewPage() {
               onPreviewExport={setExportPreviewType}
               subtitleAreaRatio={timeline.subtitle_area_ratio}
               onSubtitleAreaRatioChange={handleSubtitleAreaRatioChange}
+              subtitleLanguageMode={timeline.subtitle_language_mode}
+              onSubtitleLanguageModeChange={handleSubtitleLanguageModeChange}
+              cardState={cardState}
+              onCardClose={closeCard}
             />
+            )}
           </div>
 
           {/* Timeline Editor */}
@@ -438,11 +559,25 @@ export default function ReviewPage() {
             />
           </div>
 
-          <KeyboardHelp />
+          <KeyboardHelp isCreativeMode={isCreativeMode} />
         </div>
 
         {/* Segment list panel */}
         <div className="w-[480px] flex-shrink-0 border-l border-gray-700 flex flex-col">
+          {/* Style selector (for CREATIVE mode) */}
+          {isCreativeMode && (
+            <>
+              <StyleSelector
+                currentStyle={creativeStyle}
+                onStyleChange={setCreativeStyle}
+              />
+              <CreativeConfigPanel
+                config={creativeConfig}
+                onConfigChange={setCreativeConfig}
+              />
+            </>
+          )}
+
           <BulkActions
             timelineId={timelineId}
             currentTime={currentVideoTime}
@@ -453,6 +588,39 @@ export default function ReviewPage() {
           />
           <SpeakerEditor timelineId={timelineId} onSpeakerNamesChange={() => refresh()} />
 
+          {/* Entity analysis button (for LEARNING mode) */}
+          {timeline.mode === "learning" && (
+            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700 bg-gray-800/50">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h5c.256 0 .512.098.707.293l7 7zM5 6a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm text-gray-300">实体识别</span>
+                {segmentAnnotations && (
+                  <span className="px-1.5 py-0.5 text-xs bg-purple-500/20 text-purple-400 rounded">
+                    已分析
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={handleAnalyzeEntities}
+                disabled={analyzingEntities}
+                className="text-xs px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-500 disabled:bg-purple-600/50 disabled:cursor-not-allowed transition"
+              >
+                {analyzingEntities ? (
+                  <span className="flex items-center gap-1">
+                    <span className="animate-spin w-3 h-3 border border-white border-t-transparent rounded-full" />
+                    分析中...
+                  </span>
+                ) : segmentAnnotations ? (
+                  "重新分析"
+                ) : (
+                  "分析实体"
+                )}
+              </button>
+            </div>
+          )}
+
           {/* Segment list - scrollable */}
           <SegmentList
             segments={timeline.segments}
@@ -461,6 +629,9 @@ export default function ReviewPage() {
             onStateChange={setSegmentState}
             onTextChange={setSegmentText}
             onSplitSegment={handleSplitSegment}
+            segmentAnnotations={segmentAnnotations}
+            onWordClick={openWordCard}
+            onEntityClick={openEntityCard}
           />
 
           {/* Observations section (for WATCHING mode) - below segment list */}
@@ -495,12 +666,27 @@ export default function ReviewPage() {
           )}
 
           {/* AI Chat Panel - at the bottom */}
-          <AIChatPanel
-            timelineId={timelineId}
-            videoTitle={timeline.source_title}
-            currentTime={currentVideoTime}
-            observations={observations}
-          />
+          {isCreativeMode ? (
+            <>
+              <CreativeAIChat
+                timelineId={timelineId}
+                currentConfig={creativeConfig}
+                onConfigChange={setCreativeConfig}
+              />
+              <RemotionExportPanel
+                timelineId={timelineId}
+                jobId={timeline.job_id}
+                config={creativeConfig}
+              />
+            </>
+          ) : (
+            <AIChatPanel
+              timelineId={timelineId}
+              videoTitle={timeline.source_title}
+              currentTime={currentVideoTime}
+              observations={observations}
+            />
+          )}
         </div>
       </div>
 

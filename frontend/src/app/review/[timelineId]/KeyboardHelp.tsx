@@ -6,7 +6,11 @@
 
 import { useState } from "react";
 
-export default function KeyboardHelp() {
+interface KeyboardHelpProps {
+  isCreativeMode?: boolean;
+}
+
+export default function KeyboardHelp({ isCreativeMode = false }: KeyboardHelpProps) {
   const [showHelp, setShowHelp] = useState(false);
 
   return (
@@ -25,17 +29,37 @@ export default function KeyboardHelp() {
         </svg>
       </button>
       {showHelp && (
-        <div className="mt-2 text-xs text-gray-500 flex flex-wrap gap-4 bg-gray-800/50 rounded-lg p-3">
-          <span><kbd className="kbd">Space</kbd>/<kbd className="kbd">K</kbd> Play/Pause</span>
-          <span><kbd className="kbd">←</kbd>/<kbd className="kbd">→</kbd> ±5s</span>
-          <span><kbd className="kbd">Shift+←</kbd>/<kbd className="kbd">→</kbd> ±10s</span>
-          <span><kbd className="kbd">J</kbd> -10s</span>
-          <span><kbd className="kbd">L</kbd> Loop</span>
-          <span><kbd className="kbd">,</kbd>/<kbd className="kbd">.</kbd> Frame ±1</span>
-          <span><kbd className="kbd">[</kbd>/<kbd className="kbd">]</kbd> Segment boundary</span>
-          <span><kbd className="kbd">Shift+K</kbd> Keep</span>
-          <span><kbd className="kbd">D</kbd> Drop</span>
-          <span><kbd className="kbd">U</kbd> Undecided</span>
+        <div className="mt-2 text-xs text-gray-500 bg-gray-800/50 rounded-lg p-3">
+          {/* Common shortcuts */}
+          <div className="flex flex-wrap gap-4 mb-2">
+            <span><kbd className="kbd">Space</kbd>/<kbd className="kbd">K</kbd> Play/Pause</span>
+            <span><kbd className="kbd">←</kbd>/<kbd className="kbd">→</kbd> ±5s</span>
+            <span><kbd className="kbd">Shift+←</kbd>/<kbd className="kbd">→</kbd> ±10s</span>
+            <span><kbd className="kbd">J</kbd> -10s</span>
+            <span><kbd className="kbd">L</kbd> Loop</span>
+            <span><kbd className="kbd">,</kbd>/<kbd className="kbd">.</kbd> Frame ±1</span>
+          </div>
+
+          {isCreativeMode ? (
+            /* Creative mode shortcuts */
+            <div className="border-t border-gray-700 pt-2 mt-2">
+              <div className="text-purple-400 text-xs mb-1.5">Creative Mode</div>
+              <div className="flex flex-wrap gap-4">
+                <span><kbd className="kbd">1</kbd>-<kbd className="kbd">6</kbd> Style preset</span>
+                <span><kbd className="kbd">P</kbd> Cycle position</span>
+                <span><kbd className="kbd">[</kbd>/<kbd className="kbd">]</kbd> Entrance ±</span>
+                <span><kbd className="kbd">{"{"}</kbd>/<kbd className="kbd">{"}"}</kbd> Exit ±</span>
+              </div>
+            </div>
+          ) : (
+            /* Review mode shortcuts */
+            <div className="border-t border-gray-700 pt-2 mt-2 flex flex-wrap gap-4">
+              <span><kbd className="kbd">[</kbd>/<kbd className="kbd">]</kbd> Segment boundary</span>
+              <span><kbd className="kbd">Shift+K</kbd> Keep</span>
+              <span><kbd className="kbd">D</kbd> Drop</span>
+              <span><kbd className="kbd">U</kbd> Undecided</span>
+            </div>
+          )}
         </div>
       )}
     </div>

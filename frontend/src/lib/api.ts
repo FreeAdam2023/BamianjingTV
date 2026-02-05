@@ -43,6 +43,7 @@ import type {
   WordCardResponse,
   EntityCardResponse,
   CardGenerateResponse,
+  TimelineAnnotations,
   // Observations
   Observation,
   ObservationCreate,
@@ -281,7 +282,7 @@ export async function setSubtitleAreaRatio(
 }
 
 // Subtitle style mode APIs
-import type { SubtitleStyleMode } from "./types";
+import type { SubtitleStyleMode, SubtitleLanguageMode } from "./types";
 
 export interface SubtitleStyleModeResponse {
   timeline_id: string;
@@ -300,6 +301,28 @@ export async function setSubtitleStyleMode(
   mode: SubtitleStyleMode
 ): Promise<{ timeline_id: string; subtitle_style_mode: SubtitleStyleMode; message: string }> {
   return fetchAPI(`/timelines/${timelineId}/subtitle-style-mode?mode=${mode}`, {
+    method: "POST",
+  });
+}
+
+// Subtitle language mode APIs
+export interface SubtitleLanguageModeResponse {
+  timeline_id: string;
+  subtitle_language_mode: SubtitleLanguageMode;
+  modes: Record<SubtitleLanguageMode, string>;
+}
+
+export async function getSubtitleLanguageMode(
+  timelineId: string
+): Promise<SubtitleLanguageModeResponse> {
+  return fetchAPI(`/timelines/${timelineId}/subtitle-language-mode`);
+}
+
+export async function setSubtitleLanguageMode(
+  timelineId: string,
+  mode: SubtitleLanguageMode
+): Promise<{ timeline_id: string; subtitle_language_mode: SubtitleLanguageMode; message: string }> {
+  return fetchAPI(`/timelines/${timelineId}/subtitle-language-mode?mode=${mode}`, {
     method: "POST",
   });
 }
@@ -870,6 +893,16 @@ export async function getCardCacheStats(): Promise<{
   return fetchAPI(`/cards/cache/stats`);
 }
 
+export async function getTimelineAnnotations(
+  timelineId: string,
+  vocabularyLimit = 50,
+  entityLimit = 20
+): Promise<TimelineAnnotations> {
+  return fetchAPI<TimelineAnnotations>(
+    `/cards/timelines/${timelineId}/annotations?vocabulary_limit=${vocabularyLimit}&entity_limit=${entityLimit}`
+  );
+}
+
 // ============ Observations API (for WATCHING mode) ============
 
 export async function addObservation(
@@ -1167,4 +1200,122 @@ export async function triggerLipSync(
 
 export function getLipSyncedVideoUrl(timelineId: string): string {
   return `${getApiBase()}/timelines/${timelineId}/dubbing/lip-sync/output`;
+}
+
+// ============ Creative Mode API ============
+
+import type { RemotionConfig, CreativeStyle } from "./creative-types";
+
+export interface GenerateConfigRequest {
+  prompt: string;
+  style_preset?: CreativeStyle;
+  previous_config?: RemotionConfig;
+}
+
+export interface GenerateConfigResponse {
+  config: RemotionConfig;
+  explanation: string;
+  tokens_used: number;
+  cost_usd: number;
+}
+
+export interface SaveConfigResponse {
+  timeline_id: string;
+  message: string;
+}
+
+export interface GetConfigResponse {
+  timeline_id: string;
+  config: RemotionConfig | null;
+  has_config: boolean;
+}
+
+export async function generateCreativeConfig(
+  timelineId: string,
+  request: GenerateConfigRequest
+): Promise<GenerateConfigResponse> {
+  return fetchAPI<GenerateConfigResponse>(`/creative/${timelineId}/generate-config`, {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
+}
+
+export async function saveCreativeConfig(
+  timelineId: string,
+  config: RemotionConfig
+): Promise<SaveConfigResponse> {
+  return fetchAPI<SaveConfigResponse>(`/creative/${timelineId}/save-config`, {
+    method: "POST",
+    body: JSON.stringify({ config }),
+  });
+}
+
+export async function getCreativeConfig(
+  timelineId: string
+): Promise<GetConfigResponse> {
+  return fetchAPI<GetConfigResponse>(`/creative/${timelineId}/config`);
+}
+
+export async function deleteCreativeConfig(
+  timelineId: string
+): Promise<{ timeline_id: string; message: string }> {
+  return fetchAPI(`/creative/${timelineId}/config`, {
+    method: "DELETE",
+  });
+}
+
+// ============ Creative Render API ============
+
+export interface CreativeRenderOptions {
+  width?: number;
+  height?: number;
+  fps?: number;
+  quality?: "high" | "medium" | "low";
+}
+
+export interface CreativeRenderRequest {
+  config?: RemotionConfig;
+  options?: CreativeRenderOptions;
+}
+
+export interface CreativeRenderResponse {
+  timeline_id: string;
+  status: string;
+  message: string;
+}
+
+export interface CreativeRenderStatusResponse {
+  timeline_id: string;
+  status: "idle" | "queued" | "rendering" | "completed" | "failed";
+  progress: number;
+  error?: string;
+  output_path?: string;
+}
+
+export async function startCreativeRender(
+  timelineId: string,
+  request?: CreativeRenderRequest
+): Promise<CreativeRenderResponse> {
+  return fetchAPI<CreativeRenderResponse>(`/creative/${timelineId}/render`, {
+    method: "POST",
+    body: JSON.stringify(request || {}),
+  });
+}
+
+export async function getCreativeRenderStatus(
+  timelineId: string
+): Promise<CreativeRenderStatusResponse> {
+  return fetchAPI<CreativeRenderStatusResponse>(`/creative/${timelineId}/render/status`);
+}
+
+export async function cancelCreativeRender(
+  timelineId: string
+): Promise<{ timeline_id: string; message: string }> {
+  return fetchAPI(`/creative/${timelineId}/render`, {
+    method: "DELETE",
+  });
+}
+
+export function getCreativeExportUrl(jobId: string): string {
+  return `${getApiBase()}/jobs/${jobId}/output/creative/creative_export.mp4`;
 }
