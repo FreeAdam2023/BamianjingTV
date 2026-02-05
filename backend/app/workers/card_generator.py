@@ -442,13 +442,19 @@ class CardGeneratorWorker:
             logger.warning("TomTrove API not configured for entity search")
             return await self._search_entity_wikidata(query, lang)
 
-        url = f"{self.tomtrove_url}/entities/recognize"
+        # Strip trailing slash from base URL
+        base_url = self.tomtrove_url.rstrip("/")
+        url = f"{base_url}/entities/recognize"
 
         try:
             client = await self._get_client()
             response = await client.post(
                 url,
-                json={"text": query},
+                json={
+                    "text": query,
+                    "force_refresh": True,
+                    "extraction_method": "llm",
+                },
             )
 
             if response.status_code != 200:
