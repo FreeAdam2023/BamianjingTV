@@ -446,33 +446,45 @@ class CardGeneratorWorker:
         base_url = self.tomtrove_url.rstrip("/")
         url = f"{base_url}/entities/recognize"
 
+        request_body = {
+            "text": query,
+            "force_refresh": True,
+            "extraction_method": "llm",
+        }
+
+        logger.info(f"Searching entity via TomTrove: {url}, body={request_body}")
+
         try:
             client = await self._get_client()
-            response = await client.post(
-                url,
-                json={
-                    "text": query,
-                    "force_refresh": True,
-                    "extraction_method": "llm",
-                },
-            )
+            response = await client.post(url, json=request_body)
+
+            logger.info(f"TomTrove entity search response: status={response.status_code}")
 
             if response.status_code != 200:
-                logger.warning(f"TomTrove entity search failed for '{query}': {response.status_code}")
+                logger.warning(f"TomTrove entity search failed for '{query}': {response.status_code}, response: {response.text[:500]}")
                 return await self._search_entity_wikidata(query, lang)
 
             data = response.json()
 
             if not data.get("success"):
-                logger.warning(f"TomTrove entity search unsuccessful for '{query}'")
+                logger.warning(f"TomTrove entity search unsuccessful for '{query}': {data.get('message')}")
                 return await self._search_entity_wikidata(query, lang)
 
-            # Get first entity from results
+            # Get entities from response: data.data.entities[]
             entities = data.get("data", {}).get("entities", [])
+            meta = data.get("data", {}).get("meta", {})
+
+            logger.info(f"TomTrove found {len(entities)} entities, extraction_method: {meta.get('extraction_method')}")
+
             if entities:
-                entity_id = entities[0].get("entity_id")
+                # Get the first entity with highest confidence
+                first_entity = entities[0]
+                entity_id = first_entity.get("entity_id")
+                entity_type = first_entity.get("entity_type", "Unknown")
+                confidence = first_entity.get("confidence", 0)
+
                 if entity_id:
-                    logger.info(f"Found entity '{query}' -> {entity_id} (via TomTrove)")
+                    logger.info(f"Found entity '{query}' -> {entity_id} (type: {entity_type}, confidence: {confidence})")
                     return entity_id
 
             logger.debug(f"No entities found for '{query}' in TomTrove")
