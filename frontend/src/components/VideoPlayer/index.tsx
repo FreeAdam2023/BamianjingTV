@@ -402,32 +402,36 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   const isOverlayMode = subtitleStyle.displayMode === "overlay";
   const hasCardOpen = cardState?.isOpen === true;
 
+  // Calculate heights for split mode
+  const videoHeightPercent = isOverlayMode ? 100 : (1 - subtitleHeightRatio) * 100;
+  const subtitleHeightPercent = isOverlayMode ? 0 : subtitleHeightRatio * 100;
+
   return (
     <div
       ref={containerRef}
-      className="flex flex-col rounded-lg overflow-hidden h-full"
+      className="flex rounded-lg overflow-hidden h-full"
       style={{ backgroundColor: containerBgColor }}
     >
-      {/* Main content area with video and optional card panel */}
-      <div
-        className="flex flex-1 min-h-0"
-        style={{
-          height: isOverlayMode ? "calc(100% - 60px)" : `${(1 - subtitleHeightRatio) * 100}%`,
-          minHeight: "200px",
-        }}
-      >
-        {/* Video area - shrinks when card is open */}
+      {/* Left side: Video + Subtitle + Controls */}
+      <div className={`flex flex-col transition-all duration-300 ${hasCardOpen ? "w-[65%]" : "w-full"}`}>
+        {/* Video area */}
         <div
-          className={`relative flex-shrink-0 transition-all duration-300 ${
-            hasCardOpen ? "w-[60%]" : "w-full"
-          }`}
+          className="relative flex-shrink-0"
+          style={{
+            height: isOverlayMode ? "calc(100% - 60px)" : `${videoHeightPercent}%`,
+            minHeight: "150px",
+          }}
         >
           <video
             ref={videoRef}
             src={videoUrl}
-            key={videoUrl} // Force remount when URL changes
-            className="w-full h-full object-contain cursor-pointer"
-            style={{ backgroundColor: containerBgColor }}
+            key={videoUrl}
+            className="w-full h-full cursor-pointer"
+            style={{
+              backgroundColor: containerBgColor,
+              objectFit: "contain",
+              objectPosition: "left center",
+            }}
             preload="auto"
             onClick={toggle}
             playsInline
@@ -456,80 +460,88 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
           )}
         </div>
 
-        {/* Card side panel - beside video when open */}
-        {hasCardOpen && cardState && onCardClose && (
-          <div className="w-[40%] flex-shrink-0 border-l border-white/10 bg-black/60 backdrop-blur-sm">
-            <CardSidePanel
-              state={cardState}
-              onClose={onCardClose}
-              position="right"
-              inline={true}
+        {/* Drag handle to resize (only in split mode) */}
+        {!isOverlayMode && (
+          <div
+            className="h-1.5 bg-gray-600 hover:bg-blue-500 cursor-ns-resize flex-shrink-0 relative group"
+            onMouseDown={() => setIsDragging(true)}
+          >
+            <div className="absolute inset-x-0 -top-2 -bottom-2" />
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-1 bg-gray-400 rounded group-hover:bg-blue-400" />
+            {isDragging && (
+              <div className="absolute left-1/2 -translate-x-1/2 -top-8 px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded shadow-lg whitespace-nowrap z-10">
+                Subtitle: {Math.round(subtitleHeightRatio * 100)}%
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Split mode: subtitles below video */}
+        {!isOverlayMode && (
+          <div
+            className="flex-1 min-h-0"
+            style={{ height: `${subtitleHeightPercent}%` }}
+          >
+            <SubtitleOverlay
+              segment={currentSegment || null}
+              style={subtitleStyle}
+              subtitleHeightRatio={subtitleHeightRatio}
+              onStyleChange={handleStyleChange}
+              onStyleReset={resetSubtitleStyle}
+              overlayMode={false}
             />
           </div>
         )}
+
+        {/* Controls bar */}
+        <VideoControls
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={duration}
+          volume={volume}
+          isMuted={isMuted}
+          isLooping={isLooping}
+          watermarkUrl={watermarkUrl}
+          coverFrameTime={coverFrameTime ?? null}
+          trimStart={trimStart}
+          trimEnd={trimEnd}
+          sourceDuration={sourceDuration || duration}
+          useTraditional={useTraditional}
+          converting={converting}
+          segmentCount={segments.length}
+          onConvertChinese={onConvertChinese}
+          regenerating={regenerating}
+          regenerateProgress={regenerateProgress}
+          onRegenerateTranslation={onRegenerateTranslation}
+          hasExportFull={hasExportFull}
+          hasExportEssence={hasExportEssence}
+          onPreviewExport={onPreviewExport}
+          onTogglePlay={toggle}
+          onSeek={seekTo}
+          onVolumeChange={handleVolumeChange}
+          onToggleMute={handleToggleMute}
+          onToggleLoop={toggleLoop}
+          onWatermarkUpload={handleWatermarkUpload}
+          onWatermarkRemove={removeWatermark}
+          onSetCover={onSetCover ? () => onSetCover(currentTime) : undefined}
+        />
       </div>
 
-      {/* Drag handle to resize (only in split mode) */}
-      {!isOverlayMode && (
-        <div
-          className="h-1 bg-gray-600 hover:bg-blue-500 cursor-ns-resize flex-shrink-0 relative group"
-          onMouseDown={() => setIsDragging(true)}
-        >
-          <div className="absolute inset-x-0 -top-2 -bottom-2" />
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-1 bg-gray-400 rounded group-hover:bg-blue-400" />
-          {/* Percentage indicator shown during drag */}
-          {isDragging && (
-            <div className="absolute left-1/2 -translate-x-1/2 -top-8 px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded shadow-lg whitespace-nowrap">
-              Subtitle area: {Math.round(subtitleHeightRatio * 100)}%
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Split mode: subtitles below video */}
-      {!isOverlayMode && (
-        <SubtitleOverlay
-          segment={currentSegment || null}
-          style={subtitleStyle}
-          subtitleHeightRatio={subtitleHeightRatio}
-          onStyleChange={handleStyleChange}
-          onStyleReset={resetSubtitleStyle}
-          overlayMode={false}
-        />
-      )}
-
-      {/* Controls bar */}
-      <VideoControls
-        isPlaying={isPlaying}
-        currentTime={currentTime}
-        duration={duration}
-        volume={volume}
-        isMuted={isMuted}
-        isLooping={isLooping}
-        watermarkUrl={watermarkUrl}
-        coverFrameTime={coverFrameTime ?? null}
-        trimStart={trimStart}
-        trimEnd={trimEnd}
-        sourceDuration={sourceDuration || duration}
-        useTraditional={useTraditional}
-        converting={converting}
-        segmentCount={segments.length}
-        onConvertChinese={onConvertChinese}
-        regenerating={regenerating}
-        regenerateProgress={regenerateProgress}
-        onRegenerateTranslation={onRegenerateTranslation}
-        hasExportFull={hasExportFull}
-        hasExportEssence={hasExportEssence}
-        onPreviewExport={onPreviewExport}
-        onTogglePlay={toggle}
-        onSeek={seekTo}
-        onVolumeChange={handleVolumeChange}
-        onToggleMute={handleToggleMute}
-        onToggleLoop={toggleLoop}
-        onWatermarkUpload={handleWatermarkUpload}
-        onWatermarkRemove={removeWatermark}
-        onSetCover={onSetCover ? () => onSetCover(currentTime) : undefined}
-      />
+      {/* Right side: Card panel (always visible area, shows card when open) */}
+      <div
+        className={`flex-shrink-0 border-l border-white/10 transition-all duration-300 overflow-hidden ${
+          hasCardOpen ? "w-[35%] bg-black/60 backdrop-blur-sm" : "w-0"
+        }`}
+      >
+        {hasCardOpen && cardState && onCardClose && (
+          <CardSidePanel
+            state={cardState}
+            onClose={onCardClose}
+            position="right"
+            inline={true}
+          />
+        )}
+      </div>
     </div>
   );
 });
