@@ -1,10 +1,9 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
-import type { EditableSegment, SegmentState } from "@/lib/types";
+import type { EditableSegment, SegmentState, SegmentAnnotations, EntityAnnotation } from "@/lib/types";
 import { formatDuration } from "@/lib/api";
-import { ClickableSubtitle, CardPopupContainer } from "@/components/Cards";
-import { useCardPopup } from "@/hooks/useCardPopup";
+import { ClickableSubtitle, EntityBadges } from "@/components/Cards";
 import SplitSegmentModal from "./SplitSegmentModal";
 
 interface SegmentListProps {
@@ -14,6 +13,11 @@ interface SegmentListProps {
   onStateChange: (segmentId: number, state: SegmentState) => void | Promise<void>;
   onTextChange?: (segmentId: number, en: string, zh: string) => void | Promise<void>;
   onSplitSegment?: (segmentId: number, enIndex: number, zhIndex: number) => Promise<void>;
+  // NER annotations for segments (optional)
+  segmentAnnotations?: Map<number, SegmentAnnotations>;
+  // Card handlers (passed from parent to display cards in video area)
+  onWordClick?: (word: string, position: { x: number; y: number }) => void;
+  onEntityClick?: (entityIdOrText: string, position: { x: number; y: number }) => void;
 }
 
 export default function SegmentList({
@@ -23,6 +27,9 @@ export default function SegmentList({
   onStateChange,
   onTextChange,
   onSplitSegment,
+  segmentAnnotations,
+  onWordClick,
+  onEntityClick,
 }: SegmentListProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -31,9 +38,6 @@ export default function SegmentList({
   const [saving, setSaving] = useState(false);
   const [splittingSegment, setSplittingSegment] = useState<EditableSegment | null>(null);
 
-  // Card popup state
-  const { state: cardState, openWordCard, close: closeCard } = useCardPopup();
-
   // Check if segment is long enough to split (at least 50 chars EN or 25 chars ZH)
   const canSplit = (segment: EditableSegment) => {
     return segment.en.length >= 50 || segment.zh.length >= 25;
@@ -41,8 +45,15 @@ export default function SegmentList({
 
   // Handle word click in subtitle
   const handleWordClick = useCallback((word: string, position: { x: number; y: number }) => {
-    openWordCard(word, position);
-  }, [openWordCard]);
+    onWordClick?.(word, position);
+  }, [onWordClick]);
+
+  // Handle entity click in badges
+  const handleEntityClick = useCallback((entity: EntityAnnotation, position: { x: number; y: number }) => {
+    // Use entity_id if available, otherwise search by text
+    const entityIdOrText = entity.entity_id || entity.text;
+    onEntityClick?.(entityIdOrText, position);
+  }, [onEntityClick]);
 
   // Auto-scroll to current segment
   useEffect(() => {
@@ -228,6 +239,14 @@ export default function SegmentList({
               <div className="text-yellow-400 text-sm mb-2 group-hover:bg-gray-700/50 rounded px-1 -mx-1 transition">
                 {segment.zh}
               </div>
+              {/* Entity badges - show if annotations available */}
+              {segmentAnnotations?.get(segment.id)?.entities && (
+                <EntityBadges
+                  entities={segmentAnnotations.get(segment.id)!.entities}
+                  onEntityClick={handleEntityClick}
+                  className="mt-1"
+                />
+              )}
             </div>
           )}
 
@@ -281,12 +300,6 @@ export default function SegmentList({
         </div>
       ))}
     </div>
-
-    {/* Card popup for word definitions */}
-    <CardPopupContainer
-      state={cardState}
-      onClose={closeCard}
-    />
 
     {/* Split segment modal */}
     {splittingSegment && onSplitSegment && (

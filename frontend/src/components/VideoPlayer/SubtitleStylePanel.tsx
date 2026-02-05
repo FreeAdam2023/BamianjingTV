@@ -9,6 +9,7 @@ import {
   PRESET_COLORS,
   BACKGROUND_COLORS,
   DISPLAY_MODES,
+  LANGUAGE_MODES,
 } from "./constants";
 
 interface SubtitleStylePanelProps {
@@ -50,6 +51,27 @@ export default function SubtitleStylePanel({
               title={mode.description}
             >
               {mode.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Language mode */}
+      <div className="mb-3">
+        <label className="block text-gray-400 text-xs mb-1">字幕语言</label>
+        <div className="flex gap-1">
+          {LANGUAGE_MODES.map((mode) => (
+            <button
+              key={mode.value}
+              onClick={() => onStyleChange({ languageMode: mode.value })}
+              className={`flex-1 py-1.5 text-xs rounded ${
+                style.languageMode === mode.value
+                  ? "bg-blue-500 text-white"
+                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+              }`}
+              title={mode.label}
+            >
+              {mode.icon}
             </button>
           ))}
         </div>

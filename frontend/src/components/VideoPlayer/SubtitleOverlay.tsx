@@ -112,34 +112,38 @@ export default function SubtitleOverlay({
           </div>
         )}
 
-        {segment ? (
+        {segment && style.languageMode !== "none" ? (
           <div className="text-center">
             {/* English text */}
-            <div
-              className="leading-relaxed mb-2"
-              style={{
-                fontSize: `${englishFontSize}px`,
-                fontFamily: style.fontFamily,
-                fontWeight: style.fontWeight,
-                color: style.enColor,
-                textShadow: textShadowStyle,
-              }}
-            >
-              {segment.en}
-            </div>
+            {(style.languageMode === "both" || style.languageMode === "en") && (
+              <div
+                className={`leading-relaxed ${style.languageMode === "both" ? "mb-2" : ""}`}
+                style={{
+                  fontSize: `${englishFontSize}px`,
+                  fontFamily: style.fontFamily,
+                  fontWeight: style.fontWeight,
+                  color: style.enColor,
+                  textShadow: textShadowStyle,
+                }}
+              >
+                {segment.en}
+              </div>
+            )}
             {/* Chinese text */}
-            <div
-              className="leading-relaxed"
-              style={{
-                fontSize: `${chineseFontSize}px`,
-                fontFamily: style.fontFamily,
-                fontWeight: style.fontWeight,
-                color: style.zhColor,
-                textShadow: textShadowStyle,
-              }}
-            >
-              {segment.zh}
-            </div>
+            {(style.languageMode === "both" || style.languageMode === "zh") && (
+              <div
+                className="leading-relaxed"
+                style={{
+                  fontSize: `${chineseFontSize}px`,
+                  fontFamily: style.fontFamily,
+                  fontWeight: style.fontWeight,
+                  color: style.zhColor,
+                  textShadow: textShadowStyle,
+                }}
+              >
+                {segment.zh}
+              </div>
+            )}
           </div>
         ) : null}
       </div>
@@ -152,38 +156,42 @@ export default function SubtitleOverlay({
       className="flex-1 flex flex-col items-center justify-center px-8 py-4 min-h-0 relative"
       style={{ backgroundColor: style.backgroundColor }}
     >
-      {segment ? (
+      {segment && style.languageMode !== "none" ? (
         <>
           {/* English text */}
-          <div
-            className="text-center leading-relaxed mb-4"
-            style={{
-              fontSize: `${englishFontSize}px`,
-              fontFamily: style.fontFamily,
-              fontWeight: style.fontWeight,
-              color: style.enColor,
-              textShadow: textShadowStyle,
-            }}
-          >
-            {segment.en}
-          </div>
+          {(style.languageMode === "both" || style.languageMode === "en") && (
+            <div
+              className={`text-center leading-relaxed ${style.languageMode === "both" ? "mb-4" : ""}`}
+              style={{
+                fontSize: `${englishFontSize}px`,
+                fontFamily: style.fontFamily,
+                fontWeight: style.fontWeight,
+                color: style.enColor,
+                textShadow: textShadowStyle,
+              }}
+            >
+              {segment.en}
+            </div>
+          )}
           {/* Chinese text */}
-          <div
-            className="text-center leading-relaxed"
-            style={{
-              fontSize: `${chineseFontSize}px`,
-              fontFamily: style.fontFamily,
-              fontWeight: style.fontWeight,
-              color: style.zhColor,
-              textShadow: textShadowStyle,
-            }}
-          >
-            {segment.zh}
-          </div>
+          {(style.languageMode === "both" || style.languageMode === "zh") && (
+            <div
+              className="text-center leading-relaxed"
+              style={{
+                fontSize: `${chineseFontSize}px`,
+                fontFamily: style.fontFamily,
+                fontWeight: style.fontWeight,
+                color: style.zhColor,
+                textShadow: textShadowStyle,
+              }}
+            >
+              {segment.zh}
+            </div>
+          )}
         </>
       ) : (
         <div className="text-gray-500 text-center">
-          No subtitle
+          {style.languageMode === "none" ? "" : "No subtitle"}
         </div>
       )}
 

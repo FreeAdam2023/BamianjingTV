@@ -6,9 +6,11 @@
 
 import { useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
 import type { EditableSegment } from "@/lib/types";
+import type { CardPopupState } from "@/hooks/useCardPopup";
 import { useVideoState } from "./useVideoState";
 import SubtitleOverlay from "./SubtitleOverlay";
 import VideoControls from "./VideoControls";
+import { CardSidePanel } from "@/components/Cards";
 
 interface VideoPlayerProps {
   jobId: string;
@@ -37,6 +39,12 @@ interface VideoPlayerProps {
   // Subtitle area ratio (synced with backend)
   subtitleAreaRatio?: number;
   onSubtitleAreaRatioChange?: (ratio: number) => void;
+  // Subtitle language mode (synced with backend)
+  subtitleLanguageMode?: "both" | "en" | "zh" | "none";
+  onSubtitleLanguageModeChange?: (mode: "both" | "en" | "zh" | "none") => void;
+  // Card side panel
+  cardState?: CardPopupState;
+  onCardClose?: () => void;
 }
 
 export interface VideoPlayerRef {
@@ -69,6 +77,10 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   onPreviewExport,
   subtitleAreaRatio,
   onSubtitleAreaRatioChange,
+  subtitleLanguageMode,
+  onSubtitleLanguageModeChange,
+  cardState,
+  onCardClose,
 }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -105,6 +117,22 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
       setSubtitleHeightRatio(subtitleAreaRatio);
     }
   }, [subtitleAreaRatio, setSubtitleHeightRatio]);
+
+  // Sync subtitle language mode with prop (from backend)
+  useEffect(() => {
+    if (subtitleLanguageMode !== undefined && subtitleLanguageMode !== subtitleStyle.languageMode) {
+      updateSubtitleStyle({ languageMode: subtitleLanguageMode });
+    }
+  }, [subtitleLanguageMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Notify backend when language mode changes locally
+  const handleStyleChange = (updates: Partial<typeof subtitleStyle>) => {
+    updateSubtitleStyle(updates);
+    // If language mode changed, notify parent
+    if (updates.languageMode && onSubtitleLanguageModeChange) {
+      onSubtitleLanguageModeChange(updates.languageMode);
+    }
+  };
 
   // Calculate effective duration (for WYSIWYG trim)
   const effectiveDuration = (trimEnd ?? sourceDuration) - trimStart;
@@ -414,9 +442,18 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
             segment={currentSegment || null}
             style={subtitleStyle}
             subtitleHeightRatio={subtitleHeightRatio}
-            onStyleChange={updateSubtitleStyle}
+            onStyleChange={handleStyleChange}
             onStyleReset={resetSubtitleStyle}
             overlayMode={true}
+          />
+        )}
+
+        {/* Card side panel - overlays on video */}
+        {cardState && onCardClose && (
+          <CardSidePanel
+            state={cardState}
+            onClose={onCardClose}
+            position="right"
           />
         )}
       </div>
@@ -444,7 +481,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
           segment={currentSegment || null}
           style={subtitleStyle}
           subtitleHeightRatio={subtitleHeightRatio}
-          onStyleChange={updateSubtitleStyle}
+          onStyleChange={handleStyleChange}
           onStyleReset={resetSubtitleStyle}
           overlayMode={false}
         />

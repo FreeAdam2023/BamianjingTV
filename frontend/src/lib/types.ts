@@ -2,11 +2,12 @@
  * API types for SceneMind
  */
 
-export type JobMode = "learning" | "watching" | "dubbing";
+export type JobMode = "learning" | "watching" | "dubbing" | "creative";
 export type SegmentState = "keep" | "drop" | "undecided";
 export type ExportProfile = "full" | "essence" | "both";
 export type ExportStatus = "idle" | "exporting" | "uploading" | "completed" | "failed";
 export type SubtitleStyleMode = "half_screen" | "floating" | "none";
+export type SubtitleLanguageMode = "both" | "en" | "zh" | "none";
 
 // Mode-specific configurations
 export interface LearningConfig {
@@ -59,6 +60,7 @@ export interface Timeline {
   use_traditional_chinese: boolean;
   subtitle_area_ratio: number;  // 0.3-0.7, default 0.5
   subtitle_style_mode: SubtitleStyleMode;  // half_screen, floating, none
+  subtitle_language_mode: SubtitleLanguageMode;  // both, en, zh, none
   // Video-level trim (independent of subtitle segments)
   video_trim_start: number;  // Video starts from this time (seconds)
   video_trim_end: number | null;  // Video ends at this time (null = full duration)
@@ -710,4 +712,39 @@ export interface PreviewResponse {
   segment_id: number;
   audio_url: string;
   duration: number;
+}
+
+// ============ NER Annotation Types ============
+
+export interface WordAnnotation {
+  word: string;
+  lemma: string;
+  start_char: number;
+  end_char: number;
+  is_vocabulary: boolean;
+  difficulty_level: string | null;
+}
+
+export interface EntityAnnotation {
+  text: string;
+  entity_id: string | null;  // Wikidata QID if resolved
+  entity_type: string;  // person, place, organization, etc.
+  start_char: number;
+  end_char: number;
+  confidence: number;
+}
+
+export interface SegmentAnnotations {
+  segment_id: number;
+  words: WordAnnotation[];
+  entities: EntityAnnotation[];
+}
+
+export interface TimelineAnnotations {
+  timeline_id: string;
+  segments: SegmentAnnotations[];
+  unique_words: string[];
+  unique_entities: string[];
+  processed_at: string;
+  model_used: string;
 }

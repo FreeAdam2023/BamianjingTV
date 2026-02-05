@@ -11,6 +11,7 @@ from app.models.timeline import (
     Timeline,
     TimelineSummary,
     SubtitleStyleMode,
+    SubtitleLanguageMode,
     Observation,
     ObservationCreate,
 )
@@ -255,6 +256,60 @@ async def set_subtitle_style_mode(
         "timeline_id": timeline_id,
         "subtitle_style_mode": mode.value,
         "message": mode_descriptions.get(mode, f"Subtitle style set to {mode.value}"),
+    }
+
+
+@router.get("/{timeline_id}/subtitle-language-mode")
+async def get_subtitle_language_mode(timeline_id: str):
+    """Get current subtitle language mode for a timeline."""
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+    return {
+        "timeline_id": timeline_id,
+        "subtitle_language_mode": timeline.subtitle_language_mode.value,
+        "modes": {
+            "both": "Show both English and Chinese subtitles",
+            "en": "Show only English (original) subtitles",
+            "zh": "Show only Chinese (translation) subtitles",
+            "none": "Hide all subtitles",
+        },
+    }
+
+
+@router.post("/{timeline_id}/subtitle-language-mode")
+async def set_subtitle_language_mode(
+    timeline_id: str,
+    mode: SubtitleLanguageMode = Query(..., description="Subtitle language mode"),
+):
+    """Set which subtitle languages to display.
+
+    Modes:
+    - both: Show both English and Chinese subtitles (bilingual)
+    - en: Show only English (original) subtitles
+    - zh: Show only Chinese (translation) subtitles
+    - none: Hide all subtitles
+    """
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    timeline.subtitle_language_mode = mode
+    manager.save_timeline(timeline)
+
+    mode_descriptions = {
+        SubtitleLanguageMode.BOTH: "Bilingual: showing both EN and ZH",
+        SubtitleLanguageMode.EN: "Original only: showing English",
+        SubtitleLanguageMode.ZH: "Translation only: showing Chinese",
+        SubtitleLanguageMode.NONE: "Hidden: no subtitles",
+    }
+
+    return {
+        "timeline_id": timeline_id,
+        "subtitle_language_mode": mode.value,
+        "message": mode_descriptions.get(mode, f"Subtitle language set to {mode.value}"),
     }
 
 

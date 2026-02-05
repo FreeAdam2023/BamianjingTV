@@ -7,7 +7,7 @@ from typing import List, Optional, Tuple
 from loguru import logger
 
 from app.config import settings
-from app.models.timeline import EditableSegment, ExportProfile, SegmentState, SubtitleStyleMode, Timeline
+from app.models.timeline import EditableSegment, ExportProfile, SegmentState, SubtitleLanguageMode, SubtitleStyleMode, Timeline
 from app.workers.subtitle_styles import (
     SubtitleStyleConfig,
     SubtitleStyleMode as StyleMode,
@@ -61,6 +61,7 @@ class ExportWorker:
         output_path: Path,
         use_traditional: bool = True,
         time_offset: float = 0.0,
+        subtitle_language_mode: SubtitleLanguageMode = SubtitleLanguageMode.BOTH,
     ) -> Path:
         """Generate ASS subtitle file from segments.
 
@@ -69,12 +70,20 @@ class ExportWorker:
             output_path: Path to save ASS file
             use_traditional: Use Traditional Chinese
             time_offset: Time offset to apply to all timestamps (for essence export)
+            subtitle_language_mode: Which subtitles to include (both, en, zh, none)
 
         Returns:
             Path to ASS file
         """
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # If mode is NONE, return empty ASS file
+        if subtitle_language_mode == SubtitleLanguageMode.NONE:
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write("")
+            logger.info(f"Generated empty ASS subtitle (language_mode=none): {output_path}")
+            return output_path
 
         # Convert Simplified to Traditional if needed
         converter = None
@@ -92,22 +101,24 @@ class ExportWorker:
             start = _seconds_to_ass_time(seg.effective_start - time_offset)
             end = _seconds_to_ass_time(seg.effective_end - time_offset)
 
-            # English subtitle (top, white)
-            english_text = seg.en.replace("\n", "\\N")
-            if english_text:
-                lines.append(f"Dialogue: 0,{start},{end},English,,0,0,0,,{english_text}")
+            # English subtitle (top, white) - include if mode is BOTH or EN
+            if subtitle_language_mode in (SubtitleLanguageMode.BOTH, SubtitleLanguageMode.EN):
+                english_text = seg.en.replace("\n", "\\N")
+                if english_text:
+                    lines.append(f"Dialogue: 0,{start},{end},English,,0,0,0,,{english_text}")
 
-            # Chinese subtitle (bottom, yellow)
-            chinese_text = seg.zh.replace("\n", "\\N")
-            if chinese_text:
-                if converter:
-                    chinese_text = converter.convert(chinese_text)
-                lines.append(f"Dialogue: 0,{start},{end},Chinese,,0,0,0,,{chinese_text}")
+            # Chinese subtitle (bottom, yellow) - include if mode is BOTH or ZH
+            if subtitle_language_mode in (SubtitleLanguageMode.BOTH, SubtitleLanguageMode.ZH):
+                chinese_text = seg.zh.replace("\n", "\\N")
+                if chinese_text:
+                    if converter:
+                        chinese_text = converter.convert(chinese_text)
+                    lines.append(f"Dialogue: 0,{start},{end},Chinese,,0,0,0,,{chinese_text}")
 
         with open(output_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
 
-        logger.info(f"Generated ASS subtitle: {output_path}")
+        logger.info(f"Generated ASS subtitle (language_mode={subtitle_language_mode.value}): {output_path}")
         return output_path
 
     def _get_video_dimensions(self, video_path: Path) -> Tuple[int, int]:
@@ -158,6 +169,7 @@ class ExportWorker:
         subtitle_area_ratio: float = 0.5,
         subtitle_style=None,
         subtitle_style_mode: SubtitleStyleMode = SubtitleStyleMode.HALF_SCREEN,
+        subtitle_language_mode: SubtitleLanguageMode = SubtitleLanguageMode.BOTH,
     ) -> Path:
         """Generate ASS subtitle file with appropriate style based on mode.
 
@@ -170,6 +182,7 @@ class ExportWorker:
             subtitle_area_ratio: Ratio of subtitle area (for half_screen mode)
             subtitle_style: Optional subtitle style options (font size, colors, etc.)
             subtitle_style_mode: Subtitle rendering mode (half_screen, floating, none)
+            subtitle_language_mode: Which subtitles to include (both, en, zh, none)
 
         Returns:
             Path to ASS file
@@ -196,11 +209,11 @@ class ExportWorker:
             config=config,
         )
 
-        # If mode is NONE, return empty ASS file
-        if subtitle_style_mode == SubtitleStyleMode.NONE:
+        # If style mode is NONE or language mode is NONE, return empty ASS file
+        if subtitle_style_mode == SubtitleStyleMode.NONE or subtitle_language_mode == SubtitleLanguageMode.NONE:
             with open(output_path, "w", encoding="utf-8") as f:
                 f.write("")
-            logger.info(f"Generated empty ASS subtitle (mode=none): {output_path}")
+            logger.info(f"Generated empty ASS subtitle (style_mode={subtitle_style_mode.value}, language_mode={subtitle_language_mode.value}): {output_path}")
             return output_path
 
         # Convert Simplified to Traditional if needed
@@ -218,20 +231,24 @@ class ExportWorker:
             start = _seconds_to_ass_time(seg.effective_start - time_offset)
             end = _seconds_to_ass_time(seg.effective_end - time_offset)
 
-            english_text = seg.en.replace("\n", "\\N")
-            if english_text:
-                lines.append(f"Dialogue: 0,{start},{end},English,,0,0,0,,{english_text}")
+            # English subtitle - include if mode is BOTH or EN
+            if subtitle_language_mode in (SubtitleLanguageMode.BOTH, SubtitleLanguageMode.EN):
+                english_text = seg.en.replace("\n", "\\N")
+                if english_text:
+                    lines.append(f"Dialogue: 0,{start},{end},English,,0,0,0,,{english_text}")
 
-            chinese_text = seg.zh.replace("\n", "\\N")
-            if chinese_text:
-                if converter:
-                    chinese_text = converter.convert(chinese_text)
-                lines.append(f"Dialogue: 0,{start},{end},Chinese,,0,0,0,,{chinese_text}")
+            # Chinese subtitle - include if mode is BOTH or ZH
+            if subtitle_language_mode in (SubtitleLanguageMode.BOTH, SubtitleLanguageMode.ZH):
+                chinese_text = seg.zh.replace("\n", "\\N")
+                if chinese_text:
+                    if converter:
+                        chinese_text = converter.convert(chinese_text)
+                    lines.append(f"Dialogue: 0,{start},{end},Chinese,,0,0,0,,{chinese_text}")
 
         with open(output_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
 
-        logger.info(f"Generated ASS subtitle with mode={subtitle_style_mode.value}: {output_path}")
+        logger.info(f"Generated ASS subtitle (style_mode={subtitle_style_mode.value}, language_mode={subtitle_language_mode.value}): {output_path}")
         return output_path
 
     async def export_full_video(
@@ -274,6 +291,11 @@ class ExportWorker:
         if subtitle_style_mode is None:
             subtitle_style_mode = SubtitleStyleMode.HALF_SCREEN
 
+        # Get subtitle language mode (default to BOTH for backwards compatibility)
+        subtitle_language_mode = getattr(timeline, 'subtitle_language_mode', SubtitleLanguageMode.BOTH)
+        if subtitle_language_mode is None:
+            subtitle_language_mode = SubtitleLanguageMode.BOTH
+
         # Filter segments to only include those within trim range
         if trim_start > 0 or trim_end is not None:
             effective_trim_end = trim_end if trim_end is not None else float('inf')
@@ -297,6 +319,7 @@ class ExportWorker:
             subtitle_area_ratio=subtitle_ratio,
             subtitle_style=subtitle_style,
             subtitle_style_mode=subtitle_style_mode,
+            subtitle_language_mode=subtitle_language_mode,
         )
 
         # Build ffmpeg command based on mode
@@ -343,7 +366,8 @@ class ExportWorker:
         trim_info = ""
         if trim_start > 0 or trim_end is not None:
             trim_info = f", trim={trim_start:.1f}s-{trim_end or 'end'}"
-        logger.info(f"Exporting full video with {mode_name} mode{trim_info}: {output_path}")
+        lang_info = f", lang={subtitle_language_mode.value}"
+        logger.info(f"Exporting full video with {mode_name} mode{lang_info}{trim_info}: {output_path}")
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         if result.returncode != 0:
@@ -458,6 +482,11 @@ class ExportWorker:
         if subtitle_style_mode is None:
             subtitle_style_mode = SubtitleStyleMode.HALF_SCREEN
 
+        # Get subtitle language mode (default to BOTH for backwards compatibility)
+        subtitle_language_mode = getattr(timeline, 'subtitle_language_mode', SubtitleLanguageMode.BOTH)
+        if subtitle_language_mode is None:
+            subtitle_language_mode = SubtitleLanguageMode.BOTH
+
         # Get KEEP segments that are within the trim range
         keep_segments = [
             seg for seg in timeline.segments
@@ -510,6 +539,7 @@ class ExportWorker:
                 subtitle_area_ratio=subtitle_ratio,
                 subtitle_style=subtitle_style,
                 subtitle_style_mode=subtitle_style_mode,
+                subtitle_language_mode=subtitle_language_mode,
             )
 
             # Build ffmpeg filter based on mode
@@ -537,7 +567,7 @@ class ExportWorker:
 
             cmd.extend(["-c:a", "aac", "-b:a", "192k", "-y", str(output_path)])
 
-            logger.info(f"Exporting essence video with {mode_name} mode: {output_path}")
+            logger.info(f"Exporting essence video with {mode_name} mode, lang={subtitle_language_mode.value}: {output_path}")
             result = subprocess.run(cmd, capture_output=True, text=True)
 
             if result.returncode != 0:
@@ -660,6 +690,7 @@ class ExportWorker:
         subtitle_area_ratio: float = 0.5,
         subtitle_style=None,
         subtitle_style_mode: SubtitleStyleMode = SubtitleStyleMode.HALF_SCREEN,
+        subtitle_language_mode: SubtitleLanguageMode = SubtitleLanguageMode.BOTH,
     ) -> Path:
         """Generate ASS subtitles for retimed essence segments based on mode."""
         output_path = Path(output_path)
@@ -683,11 +714,11 @@ class ExportWorker:
             config=config,
         )
 
-        # If mode is NONE, return empty ASS file
-        if subtitle_style_mode == SubtitleStyleMode.NONE:
+        # If style mode is NONE or language mode is NONE, return empty ASS file
+        if subtitle_style_mode == SubtitleStyleMode.NONE or subtitle_language_mode == SubtitleLanguageMode.NONE:
             with open(output_path, "w", encoding="utf-8") as f:
                 f.write("")
-            logger.info(f"Generated empty essence ASS subtitle (mode=none): {output_path}")
+            logger.info(f"Generated empty essence ASS subtitle (style_mode={subtitle_style_mode.value}, language_mode={subtitle_language_mode.value}): {output_path}")
             return output_path
 
         # Convert Simplified to Traditional if needed
@@ -705,20 +736,22 @@ class ExportWorker:
             start_str = _seconds_to_ass_time(start)
             end_str = _seconds_to_ass_time(end)
 
-            # English subtitle
-            english_text = en.replace("\n", "\\N")
-            if english_text:
-                lines.append(f"Dialogue: 0,{start_str},{end_str},English,,0,0,0,,{english_text}")
+            # English subtitle - include if mode is BOTH or EN
+            if subtitle_language_mode in (SubtitleLanguageMode.BOTH, SubtitleLanguageMode.EN):
+                english_text = en.replace("\n", "\\N")
+                if english_text:
+                    lines.append(f"Dialogue: 0,{start_str},{end_str},English,,0,0,0,,{english_text}")
 
-            # Chinese subtitle
-            chinese_text = zh.replace("\n", "\\N")
-            if chinese_text:
-                if converter:
-                    chinese_text = converter.convert(chinese_text)
-                lines.append(f"Dialogue: 0,{start_str},{end_str},Chinese,,0,0,0,,{chinese_text}")
+            # Chinese subtitle - include if mode is BOTH or ZH
+            if subtitle_language_mode in (SubtitleLanguageMode.BOTH, SubtitleLanguageMode.ZH):
+                chinese_text = zh.replace("\n", "\\N")
+                if chinese_text:
+                    if converter:
+                        chinese_text = converter.convert(chinese_text)
+                    lines.append(f"Dialogue: 0,{start_str},{end_str},Chinese,,0,0,0,,{chinese_text}")
 
         with open(output_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
 
-        logger.info(f"Generated essence ASS subtitle with mode={subtitle_style_mode.value}: {output_path}")
+        logger.info(f"Generated essence ASS subtitle (style_mode={subtitle_style_mode.value}, language_mode={subtitle_language_mode.value}): {output_path}")
         return output_path

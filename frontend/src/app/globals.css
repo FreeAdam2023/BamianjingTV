@@ -296,3 +296,34 @@ video::-webkit-media-controls {
 .animate-fade-out {
   animation: fadeOut 0.15s ease-in forwards;
 }
+
+/* Card side panel slide animations */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.25s ease-out;
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.25s ease-out;
+}

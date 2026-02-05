@@ -3,6 +3,7 @@
  */
 
 export type SubtitleDisplayMode = "split" | "overlay";
+export type SubtitleLanguageMode = "both" | "en" | "zh" | "none";
 
 export interface SubtitleStyle {
   fontFamily: string;
@@ -14,6 +15,7 @@ export interface SubtitleStyle {
   textShadow: boolean;
   backgroundColor: string;
   displayMode: SubtitleDisplayMode;
+  languageMode: SubtitleLanguageMode;
 }
 
 export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
@@ -26,11 +28,19 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   textShadow: true,
   backgroundColor: "#1a2744",
   displayMode: "split", // "split" = below video, "overlay" = on video
+  languageMode: "both", // "both" | "en" | "zh" | "none"
 };
 
 export const DISPLAY_MODES: { value: SubtitleDisplayMode; label: string; description: string }[] = [
   { value: "split", label: "分屏", description: "字幕在视频下方" },
   { value: "overlay", label: "悬浮", description: "字幕叠加在视频上" },
+];
+
+export const LANGUAGE_MODES: { value: SubtitleLanguageMode; label: string; icon: string }[] = [
+  { value: "both", label: "双语", icon: "EN+中" },
+  { value: "en", label: "原文", icon: "EN" },
+  { value: "zh", label: "翻译", icon: "中" },
+  { value: "none", label: "无", icon: "—" },
 ];
 
 export const FONT_FAMILIES = [
