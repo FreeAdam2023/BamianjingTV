@@ -110,23 +110,25 @@ class CardGeneratorWorker:
     def _normalize_lang_for_tomtrove(self, lang: Optional[str]) -> str:
         """Normalize language code for TomTrove API.
 
-        TomTrove uses: zh-Hans (simplified), zh-Hant (traditional)
+        TomTrove Public API currently only supports zh-Hans (simplified).
         BamianjingTV uses: zh-TW (traditional), zh-CN (simplified)
-        Default to zh-Hant (Traditional Chinese) for learning materials.
+        Default to zh-Hans until TomTrove adds zh-Hant support.
         """
         if not lang:
-            return "zh-Hant"  # Default to Traditional Chinese
+            return "zh-Hans"  # TomTrove Public API only supports simplified for now
 
         lang_map = {
-            "zh-TW": "zh-Hant",
+            "zh-TW": "zh-Hans",  # Map to simplified (TomTrove limitation)
             "zh-CN": "zh-Hans",
-            "zh-tw": "zh-Hant",
+            "zh-tw": "zh-Hans",
             "zh-cn": "zh-Hans",
-            "zh_TW": "zh-Hant",
+            "zh_TW": "zh-Hans",
             "zh_CN": "zh-Hans",
-            "zh": "zh-Hant",  # Default Chinese to Traditional
+            "zh": "zh-Hans",
+            "zh-Hant": "zh-Hans",  # Map traditional to simplified
+            "zh-Hans": "zh-Hans",
         }
-        return lang_map.get(lang, lang)
+        return lang_map.get(lang, "zh-Hans")
 
     async def _fetch_word_from_tomtrove(
         self,
@@ -147,23 +149,29 @@ class CardGeneratorWorker:
             return await self._fetch_word_from_free_dictionary(word)
 
         # TomTrove Public API endpoint: /api/v1/public/dictionary/{word}
-        url = f"{self.tomtrove_url}/dictionary/{word}"
+        # Strip trailing slash from base URL to avoid double slashes
+        base_url = self.tomtrove_url.rstrip("/")
+        url = f"{base_url}/dictionary/{word}"
         params = {
             "from_lang": "en",
             "to_langs": target_lang,
         }
 
+        logger.info(f"Fetching word from TomTrove: {url} params={params}")
+
         try:
             client = await self._get_client()
             response = await client.get(url, params=params)
 
+            logger.info(f"TomTrove response for {word}: status={response.status_code}")
+
             if response.status_code == 404:
-                logger.debug(f"Word not found in TomTrove: {word}")
-                return None
+                logger.warning(f"Word not found in TomTrove: {word}, URL: {url}")
+                return await self._fetch_word_from_free_dictionary(word)
 
             if response.status_code != 200:
-                logger.warning(f"TomTrove API error for {word}: {response.status_code}")
-                return None
+                logger.warning(f"TomTrove API error for {word}: {response.status_code}, response: {response.text[:500]}")
+                return await self._fetch_word_from_free_dictionary(word)
 
             data = response.json()
 
