@@ -101,11 +101,6 @@ class CardGeneratorWorker:
         # Fetch from TomTrove API
         card = await self._fetch_word_from_tomtrove(word, tomtrove_lang)
 
-        # Fallback to free dictionary if TomTrove has no translations
-        if not card:
-            logger.info(f"TomTrove has no translations for {word}, falling back to free dictionary")
-            card = await self._fetch_word_from_free_dictionary(word)
-
         # Cache result
         if card and use_cache:
             self.cache.set_word_card(card, cache_key=cache_key)
@@ -178,16 +173,7 @@ class CardGeneratorWorker:
                 logger.warning(f"TomTrove API error for {word}: {response.status_code}, response: {response.text[:500]}")
                 return await self._fetch_word_from_free_dictionary(word)
 
-            response_data = response.json()
-
-            # Check for API-level success
-            if not response_data.get("success", True):
-                error = response_data.get("error", {})
-                logger.warning(f"TomTrove API returned error for {word}: {error.get('code')} - {error.get('message')}")
-                return await self._fetch_word_from_free_dictionary(word)
-
-            # TomTrove wraps data in "data" field
-            data = response_data.get("data") or response_data
+            data = response.json()
 
             # Parse TomTrove response into WordCard
             return self._parse_tomtrove_word_response(word, data, target_lang)
