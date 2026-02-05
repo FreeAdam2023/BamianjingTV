@@ -538,7 +538,7 @@ class CardGeneratorWorker:
         url = f"{base_url}/entities/details"
         params = {
             "entity_id": entity_id,
-            "lang": "zh-Hans",  # Request Simplified Chinese localization
+            "lang": "zh_cn",  # Request Simplified Chinese localization
         }
 
         try:
@@ -578,15 +578,14 @@ class CardGeneratorWorker:
             "success": true,
             "data": {
                 "resolution": {
-                    "wikidata_id": "Q937",
+                    "wikidata_id": "Q235328",
                     "localizations": {
                         "zh_cn": {
-                            "title": "阿尔伯特·爱因斯坦",
-                            "description": "物理学家",
+                            "title": "爱丽森·布里",
+                            "description": "爱丽森·布里·薛默霍恩，美国女演员。",
                             "url": "https://zh.wikipedia.org/wiki/...",
                             "thumbnail": "https://..."
-                        },
-                        "en": {...}
+                        }
                     },
                     "images": [{"url": "..."}]
                 }
@@ -598,29 +597,50 @@ class CardGeneratorWorker:
             localizations_data = resolution.get("localizations", {})
             images = resolution.get("images", [])
 
-            # Get English localization as base
-            en_loc = localizations_data.get("en", {})
-            name = en_loc.get("title", entity_id)
-            description = en_loc.get("description", "")
-            wikipedia_url = en_loc.get("url")
+            logger.info(f"Parsing entity {entity_id}, localizations: {list(localizations_data.keys())}")
 
-            # Get image URL
+            # Get Chinese localization first (zh_cn preferred)
+            zh_loc = None
+            for lang_key in ["zh_cn", "zh_hans", "zh_tw", "zh_hant", "zh"]:
+                zh_loc = localizations_data.get(lang_key)
+                if zh_loc:
+                    logger.info(f"Found Chinese localization: {lang_key}")
+                    break
+
+            # Get English localization as fallback
+            en_loc = localizations_data.get("en", {})
+
+            # Use Chinese as primary if available, otherwise English
+            if zh_loc:
+                name = zh_loc.get("title", entity_id)
+                description = zh_loc.get("description", "")
+                wikipedia_url = zh_loc.get("url")
+                thumbnail = zh_loc.get("thumbnail")
+            else:
+                name = en_loc.get("title", entity_id)
+                description = en_loc.get("description", "")
+                wikipedia_url = en_loc.get("url")
+                thumbnail = en_loc.get("thumbnail")
+
+            # Get image URL from images array first, then thumbnail
             image_url = None
             if images:
                 image_url = images[0].get("url")
             if not image_url:
-                image_url = en_loc.get("thumbnail")
+                image_url = thumbnail
 
-            # Build localizations for Chinese
+            # Build localizations (store both Chinese and English)
             localizations = {}
-            for lang_key in ["zh_cn", "zh_tw", "zh-cn", "zh-tw", "zh"]:
-                zh_loc = localizations_data.get(lang_key)
-                if zh_loc:
-                    localizations["zh"] = EntityLocalization(
-                        name=zh_loc.get("title", name),
-                        description=zh_loc.get("description"),
-                    )
-                    break
+            if zh_loc:
+                localizations["zh"] = EntityLocalization(
+                    name=zh_loc.get("title", name),
+                    description=zh_loc.get("description"),
+                )
+            if en_loc:
+                localizations["en"] = EntityLocalization(
+                    name=en_loc.get("title", name),
+                    description=en_loc.get("description"),
+                )
 
             # Infer entity type (TomTrove doesn't provide this directly)
             entity_type = EntityType.OTHER
