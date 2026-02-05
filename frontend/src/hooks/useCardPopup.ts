@@ -16,7 +16,7 @@ export interface CardPopupState {
   position: { x: number; y: number };
 }
 
-interface OpenWordCardOptions {
+export interface OpenWordCardOptions {
   position?: { x: number; y: number };
   lang?: string; // "zh-TW" for Traditional Chinese, "zh-CN" for Simplified Chinese
 }

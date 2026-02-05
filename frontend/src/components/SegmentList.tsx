@@ -5,6 +5,7 @@ import type { EditableSegment, SegmentState, SegmentAnnotations, EntityAnnotatio
 import { formatDuration } from "@/lib/api";
 import { ClickableSubtitle, EntityBadges } from "@/components/Cards";
 import SplitSegmentModal from "./SplitSegmentModal";
+import type { OpenWordCardOptions } from "@/hooks/useCardPopup";
 
 interface SegmentListProps {
   segments: EditableSegment[];
@@ -16,8 +17,8 @@ interface SegmentListProps {
   // NER annotations for segments (optional)
   segmentAnnotations?: Map<number, SegmentAnnotations>;
   // Card handlers (passed from parent to display cards in video area)
-  onWordClick?: (word: string, position: { x: number; y: number }) => void;
-  onEntityClick?: (entityIdOrText: string, position: { x: number; y: number }) => void;
+  onWordClick?: (word: string, options?: OpenWordCardOptions) => void | Promise<void>;
+  onEntityClick?: (entityIdOrText: string, position?: { x: number; y: number }) => void | Promise<void>;
 }
 
 export default function SegmentList({
@@ -45,7 +46,7 @@ export default function SegmentList({
 
   // Handle word click in subtitle
   const handleWordClick = useCallback((word: string, position: { x: number; y: number }) => {
-    onWordClick?.(word, position);
+    onWordClick?.(word, { position });
   }, [onWordClick]);
 
   // Handle entity click in badges
