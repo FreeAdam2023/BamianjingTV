@@ -533,8 +533,13 @@ class CardGeneratorWorker:
             logger.warning("TomTrove API not configured, falling back to Wikidata")
             return await self._fetch_entity_from_wikidata(entity_id)
 
-        url = f"{self.tomtrove_url}/entities/details"
-        params = {"entity_id": entity_id}
+        # Strip trailing slash from base URL
+        base_url = self.tomtrove_url.rstrip("/")
+        url = f"{base_url}/entities/details"
+        params = {
+            "entity_id": entity_id,
+            "lang": "zh-Hans",  # Request Simplified Chinese localization
+        }
 
         try:
             client = await self._get_client()
