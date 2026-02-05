@@ -77,7 +77,7 @@ pipeline {
                 script {
                     sleep 15
                     def response = sh(
-                        script: 'curl -sf http://localhost:8000/stats || echo "FAILED"',
+                        script: 'curl -sf http://localhost:8001/stats || echo "FAILED"',
                         returnStdout: true
                     ).trim()
 
