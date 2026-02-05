@@ -120,11 +120,15 @@ async def delete_word_card(word: str):
 
 # ============ Entity Card Endpoints ============
 
-@router.get("/entities/{entity_id}", response_model=EntityCardResponse)
-async def get_entity_card(entity_id: str):
-    """Get an entity card by Wikidata QID.
+@router.get("/entities/details", response_model=EntityCardResponse)
+async def get_entity_details(entity_id: str):
+    """Get entity details by Wikidata QID.
 
-    Fetches from cache first, then from Wikidata API if not cached.
+    Step 2: Called when user clicks on an entity tag.
+    Uses TomTrove /entities/details?entity_id=... internally.
+
+    Args:
+        entity_id: Wikidata QID (e.g., Q235328)
     """
     generator = _get_card_generator()
 
@@ -141,26 +145,111 @@ async def get_entity_card(entity_id: str):
         return EntityCardResponse(entity_id=entity_id, found=False, error=str(e))
 
 
-@router.get("/entities/search/{query}")
-async def search_entity(query: str, lang: str = "en"):
-    """Step 1: Search for an entity by name and return its QID.
+# Keep old endpoint for backwards compatibility
+@router.get("/entities/{entity_id}", response_model=EntityCardResponse)
+async def get_entity_card(entity_id: str):
+    """Get an entity card by Wikidata QID (legacy path parameter version)."""
+    return await get_entity_details(entity_id)
 
-    Called when user clicks on a subtitle line to identify entities.
-    Returns entity_id which can be used to fetch full details later.
+
+from pydantic import BaseModel
+from typing import List, Optional as Opt
+
+class EntityRecognizeRequest(BaseModel):
+    """Request body for entity recognition."""
+    text: str
+    force_refresh: bool = True
+    extraction_method: str = "llm"
+
+class RecognizedEntity(BaseModel):
+    """A recognized entity."""
+    entity_id: str
+    entity_type: str
+    text: str
+    confidence: float
+
+class EntityRecognizeResponse(BaseModel):
+    """Response from entity recognition."""
+    success: bool
+    entities: List[RecognizedEntity]
+    message: Opt[str] = None
+
+@router.post("/entities/recognize", response_model=EntityRecognizeResponse)
+async def recognize_entities(request: EntityRecognizeRequest):
+    """Recognize entities in text.
+
+    Step 1: Called when user clicks on a subtitle line.
+    Uses TomTrove /entities/recognize internally.
+
+    Returns list of entities with their QIDs and types.
     """
     generator = _get_card_generator()
 
     try:
-        entity_id = await generator.search_entity(query, lang)
+        # Call TomTrove entity recognition
+        import httpx
 
-        if entity_id:
-            return {"query": query, "found": True, "entity_id": entity_id}
-        else:
-            return {"query": query, "found": False, "entity_id": None}
+        base_url = generator.tomtrove_url.rstrip("/")
+        url = f"{base_url}/entities/recognize"
+
+        client = await generator._get_client()
+        response = await client.post(
+            url,
+            json={
+                "text": request.text,
+                "force_refresh": request.force_refresh,
+                "extraction_method": request.extraction_method,
+            },
+        )
+
+        if response.status_code != 200:
+            logger.warning(f"TomTrove entity recognition failed: {response.status_code}")
+            return EntityRecognizeResponse(
+                success=False,
+                entities=[],
+                message=f"Recognition failed: {response.status_code}"
+            )
+
+        data = response.json()
+
+        if not data.get("success"):
+            return EntityRecognizeResponse(
+                success=False,
+                entities=[],
+                message=data.get("message", "Recognition unsuccessful")
+            )
+
+        # Parse entities from response
+        raw_entities = data.get("data", {}).get("entities", [])
+        entities = []
+
+        for e in raw_entities:
+            # Get the first mention text
+            mentions = e.get("mentions", [])
+            text = mentions[0].get("text", "") if mentions else ""
+
+            entities.append(RecognizedEntity(
+                entity_id=e.get("entity_id", ""),
+                entity_type=e.get("entity_type", "Unknown"),
+                text=text,
+                confidence=e.get("confidence", 0.0),
+            ))
+
+        logger.info(f"Recognized {len(entities)} entities in text")
+
+        return EntityRecognizeResponse(
+            success=True,
+            entities=entities,
+            message=f"Found {len(entities)} entities"
+        )
 
     except Exception as e:
-        logger.error(f"Error searching entity for {query}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error recognizing entities: {e}")
+        return EntityRecognizeResponse(
+            success=False,
+            entities=[],
+            message=str(e)
+        )
 
 
 @router.delete("/entities/{entity_id}")
