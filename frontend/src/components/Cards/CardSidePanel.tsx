@@ -173,32 +173,6 @@ function SidePanelEntityCard({ card, onClose }: { card: EntityCard; onClose: () 
           <p className="text-white/60 text-sm mb-4">{zhLocalization.description}</p>
         )}
 
-        {/* Type-specific info */}
-        <div className="space-y-1.5 text-sm">
-          {card.entity_type === "person" && (
-            <>
-              {card.birth_date && (
-                <div className="flex gap-2">
-                  <span className="text-white/40">Born:</span>
-                  <span className="text-white/80">{card.birth_date}</span>
-                </div>
-              )}
-              {card.nationality && (
-                <div className="flex gap-2">
-                  <span className="text-white/40">Nationality:</span>
-                  <span className="text-white/80">{card.nationality}</span>
-                </div>
-              )}
-            </>
-          )}
-          {card.entity_type === "place" && card.location && (
-            <div className="flex gap-2">
-              <span className="text-white/40">Location:</span>
-              <span className="text-white/80">{card.location}</span>
-            </div>
-          )}
-        </div>
-
         {/* Links */}
         <div className="mt-4 flex flex-wrap gap-2">
           {card.wikipedia_url && (
@@ -211,14 +185,14 @@ function SidePanelEntityCard({ card, onClose }: { card: EntityCard; onClose: () 
               Wikipedia
             </a>
           )}
-          {card.official_website && (
+          {card.wikidata_url && (
             <a
-              href={card.official_website}
+              href={card.wikidata_url}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 px-2 py-1 bg-white/10 hover:bg-white/20 text-white/80 text-xs rounded transition"
             >
-              Website
+              Wikidata
             </a>
           )}
         </div>
