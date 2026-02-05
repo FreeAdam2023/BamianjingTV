@@ -141,18 +141,39 @@ async def get_entity_card(entity_id: str):
         return EntityCardResponse(entity_id=entity_id, found=False, error=str(e))
 
 
-@router.get("/entities/search/{query}")
+@router.get("/entities/search/{query}", response_model=EntityCardResponse)
 async def search_entity(query: str, lang: str = "en"):
-    """Search for an entity by name and return its QID."""
+    """Search for an entity by name and return its full card.
+
+    Flow:
+    1. Search entity name via TomTrove /entities/recognize
+    2. Get entity details via TomTrove /entities/details?entity_id=...
+    3. Return full EntityCard with Chinese localization
+    """
     generator = _get_card_generator()
 
     try:
+        # Step 1: Search for entity QID
         entity_id = await generator.search_entity(query, lang)
 
-        if entity_id:
-            return {"query": query, "found": True, "entity_id": entity_id}
+        if not entity_id:
+            return EntityCardResponse(
+                entity_id=query,
+                found=False,
+                error=f"Entity '{query}' not found"
+            )
+
+        # Step 2: Get full entity details
+        card = await generator.get_entity_card(entity_id)
+
+        if card:
+            return EntityCardResponse(entity_id=entity_id, found=True, card=card)
         else:
-            return {"query": query, "found": False, "entity_id": None}
+            return EntityCardResponse(
+                entity_id=entity_id,
+                found=False,
+                error=f"Entity details not found for {entity_id}"
+            )
 
     except Exception as e:
         logger.error(f"Error searching entity for {query}: {e}")
