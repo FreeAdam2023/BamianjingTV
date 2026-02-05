@@ -88,10 +88,10 @@ export interface SceneMindStats {
 
 function getApiBase(): string {
   if (typeof window === "undefined") {
-    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
   }
   const { protocol, hostname } = window.location;
-  return `${protocol}//${hostname}:8000`;
+  return `${protocol}//${hostname}:8001`;
 }
 
 const API_BASE = getApiBase();

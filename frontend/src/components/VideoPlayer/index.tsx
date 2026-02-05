@@ -394,7 +394,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
 
   // Video source URL (always source video, export preview in modal)
   const videoUrl = typeof window !== "undefined"
-    ? `${window.location.protocol}//${window.location.hostname}:8000/jobs/${jobId}/video`
+    ? `${window.location.protocol}//${window.location.hostname}:8001/jobs/${jobId}/video`
     : `/api/jobs/${jobId}/video`;
 
   // Dark blue color matching subtitle area and export

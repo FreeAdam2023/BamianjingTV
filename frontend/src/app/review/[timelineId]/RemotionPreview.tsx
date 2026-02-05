@@ -64,7 +64,7 @@ export default function RemotionPreview({
   // Video source URL
   const videoSrc = useMemo(() => {
     if (typeof window === "undefined") return "";
-    return `${window.location.protocol}//${window.location.hostname}:8000/jobs/${jobId}/video`;
+    return `${window.location.protocol}//${window.location.hostname}:8001/jobs/${jobId}/video`;
   }, [jobId]);
 
   // Sync external time changes

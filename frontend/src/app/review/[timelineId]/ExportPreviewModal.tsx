@@ -46,7 +46,7 @@ export default function ExportPreviewModal({
 
   const getBaseUrl = () => {
     const { protocol, hostname } = window.location;
-    return `${protocol}//${hostname}:8000`;
+    return `${protocol}//${hostname}:8001`;
   };
 
   const videoUrl = `${getBaseUrl()}/jobs/${jobId}/video/preview/${type}`;

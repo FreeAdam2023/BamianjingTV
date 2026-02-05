@@ -204,7 +204,7 @@ export default function ExportPanel({
 
   const getBaseUrl = () => {
     const { protocol, hostname } = window.location;
-    return `${protocol}//${hostname}:8000`;
+    return `${protocol}//${hostname}:8001`;
   };
 
   // Unified generation: YouTube metadata + thumbnail titles together

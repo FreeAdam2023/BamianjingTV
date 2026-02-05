@@ -65,7 +65,7 @@ export default function PreviewUploadPanel({
 
   const getBaseUrl = () => {
     const { protocol, hostname } = window.location;
-    return `${protocol}//${hostname}:8000`;
+    return `${protocol}//${hostname}:8001`;
   };
 
   const handleUpload = async () => {

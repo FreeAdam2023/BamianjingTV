@@ -41,10 +41,10 @@ function OAuthCallbackContent() {
         // Google OAuth redirects to localhost, but backend may be on LAN IP
         const backendUrls = hostname === "localhost" || hostname === "127.0.0.1"
           ? [
-              `${protocol}//192.168.2.64:8000`,  // LAN backend
-              `${protocol}//${hostname}:8000`,   // Local backend
+              `${protocol}//192.168.2.64:8001`,  // LAN backend
+              `${protocol}//${hostname}:8001`,   // Local backend
             ]
-          : [`${protocol}//${hostname}:8000`];
+          : [`${protocol}//${hostname}:8001`];
 
         let response: Response | null = null;
         let lastError: Error | null = null;
