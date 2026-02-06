@@ -10,14 +10,29 @@ import { addManualEntity, deleteSegmentEntity } from "@/lib/api";
 
 /**
  * Extract article title from Wikipedia URL
+ * Supports formats:
+ * - https://en.wikipedia.org/wiki/Article_Name
+ * - https://zh.wikipedia.org/wiki/Article_Name
+ * - https://zh.wikipedia.org/zh-cn/Article_Name (Chinese variants)
+ * - https://zh.wikipedia.org/zh-tw/Article_Name
  */
 function extractWikipediaTitle(url: string): { title: string; lang: string } | null {
   try {
-    const match = url.match(/(\w+)\.wikipedia\.org\/wiki\/(.+)/);
-    if (match) {
+    // Standard wiki path: /wiki/Title
+    const wikiMatch = url.match(/(\w+)\.wikipedia\.org\/wiki\/(.+?)(?:\?|#|$)/);
+    if (wikiMatch) {
       return {
-        lang: match[1],
-        title: decodeURIComponent(match[2].replace(/_/g, " ")),
+        lang: wikiMatch[1],
+        title: decodeURIComponent(wikiMatch[2].replace(/_/g, " ")),
+      };
+    }
+
+    // Chinese variant paths: /zh-cn/Title, /zh-tw/Title, etc.
+    const zhMatch = url.match(/(\w+)\.wikipedia\.org\/zh-\w+\/(.+?)(?:\?|#|$)/);
+    if (zhMatch) {
+      return {
+        lang: zhMatch[1], // "zh"
+        title: decodeURIComponent(zhMatch[2].replace(/_/g, " ")),
       };
     }
   } catch {
@@ -112,7 +127,8 @@ export default function EntityEditModal({
     }
 
     // Check if URL looks like a Wikipedia URL
-    if (!wikipediaUrl || !wikipediaUrl.includes("wikipedia.org/wiki/")) {
+    // Check if URL looks like a Wikipedia URL (including Chinese variants like /zh-cn/)
+    if (!wikipediaUrl || !wikipediaUrl.includes("wikipedia.org/")) {
       return;
     }
 
