@@ -46,11 +46,11 @@ function SidePanelWordCard({ card, onClose }: { card: WordCard; onClose: () => v
     <div className="h-full flex flex-col">
       {/* Image Header */}
       {primaryImage && !imageError && (
-        <div className="relative h-40 flex-shrink-0 overflow-hidden">
+        <div className="relative h-40 flex-shrink-0 overflow-hidden bg-black/30">
           <img
             src={primaryImage}
             alt={card.word}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
             onError={() => setImageError(true)}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
