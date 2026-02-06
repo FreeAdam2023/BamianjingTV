@@ -290,6 +290,30 @@ export default function ReviewPage() {
     }
   }, [timeline, segmentAnnotations]);
 
+  // Handle force refresh entity recognition for a segment
+  const handleRefreshAnnotations = useCallback(async (segmentId: number) => {
+    if (!timeline) return;
+    const segment = timeline.segments.find((s) => s.id === segmentId);
+    if (!segment) return;
+
+    try {
+      const annotation = await getSegmentAnnotations(segment.en, {
+        timelineId: timeline.timeline_id,
+        segmentId: segmentId,
+        forceRefresh: true,
+      });
+      setSegmentAnnotations((prev) => {
+        const newMap = new Map(prev || []);
+        newMap.set(segmentId, annotation);
+        return newMap;
+      });
+      toast.success("实体识别已刷新");
+    } catch (err) {
+      console.error("Failed to refresh segment entities:", err);
+      toast.error("刷新失败");
+    }
+  }, [timeline, toast]);
+
   // Handle video time update
   const handleVideoTimeUpdate = useCallback((time: number) => {
     setCurrentVideoTime(time);
@@ -657,6 +681,7 @@ export default function ReviewPage() {
             onTextChange={setSegmentText}
             onSplitSegment={handleSplitSegment}
             segmentAnnotations={segmentAnnotations}
+            onRefreshAnnotations={handleRefreshAnnotations}
             onWordClick={openWordCard}
             onEntityClick={openEntityCard}
           />
