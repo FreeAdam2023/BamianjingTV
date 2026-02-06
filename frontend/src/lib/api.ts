@@ -906,12 +906,24 @@ export async function getTimelineAnnotations(
 }
 
 export async function getSegmentAnnotations(
-  timelineId: string,
-  segmentId: number
+  text: string,
+  options?: {
+    timelineId?: string;
+    segmentId?: number;
+    forceRefresh?: boolean;
+    extractionMethod?: string;
+  }
 ): Promise<SegmentAnnotations> {
-  return fetchAPI<SegmentAnnotations>(
-    `/cards/timelines/${timelineId}/segments/${segmentId}/annotations`
-  );
+  return fetchAPI<SegmentAnnotations>(`/cards/segments/annotations`, {
+    method: "POST",
+    body: JSON.stringify({
+      text,
+      force_refresh: options?.forceRefresh ?? false,
+      extraction_method: options?.extractionMethod ?? "llm",
+      timeline_id: options?.timelineId,
+      segment_id: options?.segmentId,
+    }),
+  });
 }
 
 // ============ Observations API (for WATCHING mode) ============

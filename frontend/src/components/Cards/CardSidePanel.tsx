@@ -46,7 +46,7 @@ function SidePanelWordCard({ card, onClose }: { card: WordCard; onClose: () => v
     <div className="h-full flex flex-col">
       {/* Image Header */}
       {primaryImage && !imageError && (
-        <div className="relative h-28 flex-shrink-0 overflow-hidden">
+        <div className="relative h-40 flex-shrink-0 overflow-hidden">
           <img
             src={primaryImage}
             alt={card.word}
@@ -58,7 +58,7 @@ function SidePanelWordCard({ card, onClose }: { card: WordCard; onClose: () => v
       )}
 
       {/* Header */}
-      <div className={`flex items-start justify-between p-4 border-b border-white/10 ${primaryImage && !imageError ? '-mt-12 relative z-10' : ''}`}>
+      <div className={`flex items-start justify-between p-4 border-b border-white/10 ${primaryImage && !imageError ? '-mt-14 relative z-10' : ''}`}>
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-2xl font-bold text-white">{card.word}</h2>

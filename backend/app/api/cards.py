@@ -82,7 +82,11 @@ def _get_timeline_manager() -> TimelineManager:
 # ============ Word Card Endpoints ============
 
 @router.get("/words/{word}", response_model=WordCardResponse)
-async def get_word_card(word: str, lang: Optional[str] = None):
+async def get_word_card(
+    word: str,
+    lang: Optional[str] = None,
+    force_refresh: bool = False,
+):
     """Get a word card by word.
 
     Fetches from cache first, then from dictionary API if not cached.
@@ -91,11 +95,16 @@ async def get_word_card(word: str, lang: Optional[str] = None):
         word: The word to look up.
         lang: Target language for translations (zh-TW for Traditional Chinese,
               zh-CN for Simplified Chinese). If None, returns English only.
+        force_refresh: If True, bypass cache and fetch fresh data.
     """
     generator = _get_card_generator()
 
     try:
-        card = await generator.get_word_card(word, target_lang=lang)
+        card = await generator.get_word_card(
+            word,
+            use_cache=not force_refresh,
+            target_lang=lang,
+        )
 
         if card:
             return WordCardResponse(word=word, found=True, card=card)
@@ -121,7 +130,10 @@ async def delete_word_card(word: str):
 # ============ Entity Card Endpoints ============
 
 @router.get("/entities/details", response_model=EntityCardResponse)
-async def get_entity_details(entity_id: str):
+async def get_entity_details(
+    entity_id: str,
+    force_refresh: bool = False,
+):
     """Get entity details by Wikidata QID.
 
     Step 2: Called when user clicks on an entity tag.
@@ -129,11 +141,15 @@ async def get_entity_details(entity_id: str):
 
     Args:
         entity_id: Wikidata QID (e.g., Q235328)
+        force_refresh: If True, bypass cache and fetch fresh data.
     """
     generator = _get_card_generator()
 
     try:
-        card = await generator.get_entity_card(entity_id)
+        card = await generator.get_entity_card(
+            entity_id,
+            use_cache=not force_refresh,
+        )
 
         if card:
             return EntityCardResponse(entity_id=entity_id, found=True, card=card)
@@ -147,9 +163,9 @@ async def get_entity_details(entity_id: str):
 
 # Keep old endpoint for backwards compatibility
 @router.get("/entities/{entity_id}", response_model=EntityCardResponse)
-async def get_entity_card(entity_id: str):
+async def get_entity_card(entity_id: str, force_refresh: bool = False):
     """Get an entity card by Wikidata QID (legacy path parameter version)."""
-    return await get_entity_details(entity_id)
+    return await get_entity_details(entity_id, force_refresh)
 
 
 from pydantic import BaseModel
@@ -359,70 +375,111 @@ async def get_timeline_annotations(
     return annotations
 
 
-@router.get("/timelines/{timeline_id}/segments/{segment_id}/annotations")
-async def get_segment_annotations(
-    timeline_id: str,
-    segment_id: int,
-    resolve_entity_ids: bool = True,
-):
-    """Get NER annotations for a single segment.
+class SegmentAnnotationRequest(BaseModel):
+    """Request body for segment annotation."""
+    text: str
+    force_refresh: bool = False
+    extraction_method: str = "llm"
+    # Optional: for caching in timeline
+    timeline_id: Opt[str] = None
+    segment_id: Opt[int] = None
 
-    Returns vocabulary words and entities extracted from the segment.
-    Used for on-demand analysis when user clicks a segment.
-    Results are cached in the timeline for future use.
+
+@router.post("/segments/annotations")
+async def get_segment_annotations(request: SegmentAnnotationRequest):
+    """Get NER annotations for text.
+
+    Uses TomTrove /entities/recognize for entity recognition.
+    Optionally caches results in timeline if timeline_id and segment_id provided.
 
     Args:
-        resolve_entity_ids: If True, resolve entity names to Wikidata QIDs.
+        text: The text to analyze.
+        force_refresh: If True, bypass cache and re-recognize entities.
+        extraction_method: Entity extraction method (llm, azure, auto).
+        timeline_id: Optional timeline ID for caching.
+        segment_id: Optional segment ID for caching.
     """
-    manager = _get_timeline_manager()
-    timeline = manager.get_timeline(timeline_id)
+    from app.models.card import SegmentAnnotations, EntityAnnotation, EntityType
 
-    if not timeline:
-        raise HTTPException(status_code=404, detail="Timeline not found")
+    # Check cache if timeline_id and segment_id provided
+    manager = None
+    timeline = None
+    if request.timeline_id and request.segment_id is not None:
+        manager = _get_timeline_manager()
+        timeline = manager.get_timeline(request.timeline_id)
 
-    # Check if we have cached annotations for this segment
-    if segment_id in timeline.segment_annotations:
-        logger.info(f"Using cached annotations for segment {segment_id}")
-        from app.models.card import SegmentAnnotations
-        cached = timeline.segment_annotations[segment_id]
-        return SegmentAnnotations(**cached)
+        if timeline and not request.force_refresh and request.segment_id in timeline.segment_annotations:
+            logger.info(f"Using cached annotations for segment {request.segment_id}")
+            cached = timeline.segment_annotations[request.segment_id]
+            return SegmentAnnotations(**cached)
 
-    # Find the segment
-    segment = None
-    for seg in timeline.segments:
-        if seg.id == segment_id:
-            segment = seg
-            break
+    # Use TomTrove for entity recognition
+    generator = _get_card_generator()
+    entities = []
 
-    if not segment:
-        raise HTTPException(status_code=404, detail="Segment not found")
+    try:
+        base_url = generator.tomtrove_url.rstrip("/")
+        url = f"{base_url}/entities/recognize"
 
+        client = await generator._get_client()
+        response = await client.post(
+            url,
+            json={
+                "text": request.text,
+                "force_refresh": request.force_refresh,
+                "extraction_method": request.extraction_method,
+            },
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("success"):
+                raw_entities = data.get("data", {}).get("entities", [])
+                for e in raw_entities:
+                    mentions = e.get("mentions", [])
+                    if mentions:
+                        mention = mentions[0]
+                        entity_type_str = e.get("entity_type", "other").lower()
+                        try:
+                            entity_type = EntityType(entity_type_str)
+                        except ValueError:
+                            entity_type = EntityType.OTHER
+
+                        entities.append(EntityAnnotation(
+                            text=mention.get("text", ""),
+                            entity_id=e.get("entity_id"),
+                            entity_type=entity_type,
+                            start_char=mention.get("char_start", 0),
+                            end_char=mention.get("char_end", 0),
+                            confidence=e.get("confidence", 0.0),
+                        ))
+                logger.info(f"TomTrove recognized {len(entities)} entities")
+        else:
+            logger.warning(f"TomTrove entity recognition failed: {response.status_code}")
+    except Exception as e:
+        logger.error(f"Failed to call TomTrove entity recognition: {e}")
+
+    # Use local NER worker for vocabulary words only
     ner_worker = _get_ner_worker()
-
-    annotation = ner_worker.process_segment(
-        segment_id=segment.id,
-        text=segment.en,
+    vocab_annotation = ner_worker.process_segment(
+        segment_id=request.segment_id or 0,
+        text=request.text,
         extract_vocabulary=True,
-        extract_entities=True,
+        extract_entities=False,
     )
 
-    # Resolve entity IDs if requested
-    if resolve_entity_ids and annotation.entities:
-        generator = _get_card_generator()
-        for entity in annotation.entities:
-            if not entity.entity_id:
-                try:
-                    qid = await generator.search_entity(entity.text)
-                    if qid:
-                        entity.entity_id = qid
-                        logger.info(f"Resolved entity '{entity.text}' -> {qid}")
-                except Exception as e:
-                    logger.warning(f"Failed to resolve entity '{entity.text}': {e}")
+    # Create final annotation
+    annotation = SegmentAnnotations(
+        segment_id=request.segment_id or 0,
+        words=vocab_annotation.words,
+        entities=entities,
+    )
 
-    # Cache the annotation in timeline
-    timeline.segment_annotations[segment_id] = annotation.model_dump()
-    manager.save_timeline(timeline)
-    logger.info(f"Cached annotations for segment {segment_id} in timeline {timeline_id}")
+    # Cache if timeline provided
+    if timeline and manager and request.segment_id is not None:
+        timeline.segment_annotations[request.segment_id] = annotation.model_dump()
+        manager.save_timeline(timeline)
+        logger.info(f"Cached annotations for segment {request.segment_id}")
 
     return annotation
 

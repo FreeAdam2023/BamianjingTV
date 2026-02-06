@@ -245,9 +245,12 @@ export default function ReviewPage() {
       }
 
       // Auto-analyze entities for this segment if not already done
-      if (!segmentAnnotations?.has(segmentId)) {
+      if (segment && !segmentAnnotations?.has(segmentId)) {
         try {
-          const annotation = await getSegmentAnnotations(timeline.timeline_id, segmentId);
+          const annotation = await getSegmentAnnotations(segment.en, {
+            timelineId: timeline.timeline_id,
+            segmentId: segmentId,
+          });
           setSegmentAnnotations((prev) => {
             const newMap = new Map(prev || []);
             newMap.set(segmentId, annotation);
