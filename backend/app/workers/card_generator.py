@@ -7,7 +7,6 @@ Auto-translates entity descriptions when Chinese localization is missing.
 import asyncio
 from typing import List, Optional
 import httpx
-from openai import AsyncOpenAI
 from loguru import logger
 
 from app.config import settings
@@ -20,6 +19,7 @@ from app.models.card import (
     EntityLocalization,
 )
 from app.services.card_cache import CardCache
+from app.services.azure_translator import azure_translator
 
 
 class CardGeneratorWorker:
@@ -38,15 +38,10 @@ class CardGeneratorWorker:
         """
         self.cache = card_cache or CardCache()
         self.http_client: Optional[httpx.AsyncClient] = None
-        self.openai_client: Optional[AsyncOpenAI] = None
 
         # TomTrove API settings
         self.tomtrove_url = settings.tomtrove_api_url
         self.tomtrove_key = settings.tomtrove_api_key
-
-        # OpenAI for auto-translation
-        if settings.openai_api_key:
-            self.openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client with TomTrove auth headers."""
@@ -69,39 +64,28 @@ class CardGeneratorWorker:
             await self.http_client.aclose()
 
     async def _translate_to_chinese(self, text: str, context: Optional[str] = None) -> Optional[str]:
-        """Translate text to Simplified Chinese using OpenAI.
+        """Translate text to Simplified Chinese using Azure Translator.
 
         Args:
             text: English text to translate.
-            context: Optional context (e.g., entity name) for better translation.
+            context: Optional context (unused, kept for API compatibility).
 
         Returns:
             Chinese translation or None if failed.
         """
-        if not self.openai_client or not text:
+        if not text or not azure_translator.is_available():
             return None
 
         try:
-            prompt = f"""将以下英文翻译成简体中文。只输出翻译结果，不要解释。
-
-{f'上下文：{context}' if context else ''}
-
-英文：{text}
-
-中文翻译："""
-
-            response = await self.openai_client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": "你是一个专业翻译。只输出翻译结果，不要其他内容。"},
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=500,
-                temperature=0.3,
+            translation = await azure_translator.translate_text(
+                text,
+                target_lang="zh-Hans",
+                source_lang="en",
             )
 
-            translation = response.choices[0].message.content.strip()
-            logger.debug(f"Translated '{text[:50]}...' to '{translation[:50]}...'")
+            if translation:
+                logger.debug(f"Translated '{text[:50]}...' to '{translation[:50]}...'")
+
             return translation
 
         except Exception as e:
@@ -685,7 +669,7 @@ class CardGeneratorWorker:
                 thumbnail = en_loc.get("thumbnail")
 
                 # Auto-translate if English available but no Chinese
-                if en_loc and self.openai_client:
+                if en_loc and azure_translator.is_available():
                     logger.info(f"No Chinese localization for {entity_id}, auto-translating...")
 
                     # Translate name if it's not just the entity ID
