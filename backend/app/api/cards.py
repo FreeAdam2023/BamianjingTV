@@ -459,19 +459,10 @@ async def get_segment_annotations(request: SegmentAnnotationRequest):
     except Exception as e:
         logger.error(f"Failed to call TomTrove entity recognition: {e}")
 
-    # Use local NER worker for vocabulary words only
-    ner_worker = _get_ner_worker()
-    vocab_annotation = ner_worker.process_segment(
-        segment_id=request.segment_id or 0,
-        text=request.text,
-        extract_vocabulary=True,
-        extract_entities=False,
-    )
-
-    # Create final annotation
+    # Create annotation with entities only (skip vocabulary extraction)
     annotation = SegmentAnnotations(
         segment_id=request.segment_id or 0,
-        words=vocab_annotation.words,
+        words=[],  # Skip vocabulary - users click words directly for lookup
         entities=entities,
     )
 
