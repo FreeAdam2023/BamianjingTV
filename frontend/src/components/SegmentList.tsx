@@ -21,6 +21,9 @@ interface SegmentListProps {
   // Card handlers (passed from parent to display cards in video area)
   onWordClick?: (word: string, options?: OpenWordCardOptions) => void | Promise<void>;
   onEntityClick?: (entityIdOrText: string, position?: { x: number; y: number }) => void | Promise<void>;
+  // Entity editing handlers
+  onAddEntity?: (segmentId: number, segmentText: string) => void;
+  onEditEntity?: (segmentId: number, segmentText: string, entity: EntityAnnotation) => void;
 }
 
 export default function SegmentList({
@@ -34,6 +37,8 @@ export default function SegmentList({
   onRefreshAnnotations,
   onWordClick,
   onEntityClick,
+  onAddEntity,
+  onEditEntity,
 }: SegmentListProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -59,6 +64,11 @@ export default function SegmentList({
     const entityIdOrText = entity.entity_id || entity.text;
     onEntityClick?.(entityIdOrText, position);
   }, [onEntityClick]);
+
+  // Handle entity edit (right-click on badge)
+  const handleEditEntity = useCallback((segmentId: number, segmentText: string, entity: EntityAnnotation) => {
+    onEditEntity?.(segmentId, segmentText, entity);
+  }, [onEditEntity]);
 
   // Auto-scroll to current segment
   useEffect(() => {
@@ -274,11 +284,44 @@ export default function SegmentList({
               </div>
               {/* Entity badges - show if annotations available */}
               {segmentAnnotations?.get(segment.id)?.entities && (
-                <EntityBadges
-                  entities={segmentAnnotations.get(segment.id)!.entities}
-                  onEntityClick={handleEntityClick}
-                  className="mt-1"
-                />
+                <div className="flex items-center gap-1 mt-1">
+                  <EntityBadges
+                    entities={segmentAnnotations.get(segment.id)!.entities}
+                    onEntityClick={handleEntityClick}
+                    onEditEntity={onEditEntity ? (entity) => handleEditEntity(segment.id, segment.en, entity) : undefined}
+                    className="flex-1"
+                  />
+                  {onAddEntity && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAddEntity(segment.id, segment.en);
+                      }}
+                      className="p-1 text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/20 rounded transition-colors"
+                      title="添加实体"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              )}
+              {/* Show add button even when no entities exist */}
+              {!segmentAnnotations?.get(segment.id)?.entities && segment.id === currentSegmentId && onAddEntity && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAddEntity(segment.id, segment.en);
+                  }}
+                  className="mt-1 px-2 py-0.5 text-xs text-gray-400 hover:text-cyan-400 border border-dashed border-gray-600 hover:border-cyan-500 rounded-full transition-colors flex items-center gap-1"
+                  title="添加实体"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>添加实体</span>
+                </button>
               )}
             </div>
           )}

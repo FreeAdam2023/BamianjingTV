@@ -36,8 +36,9 @@ import CreativeConfigPanel from "./CreativeConfigPanel";
 import CreativeAIChat from "./CreativeAIChat";
 import RemotionExportPanel from "./RemotionExportPanel";
 import PinnedCardsList from "./PinnedCardsList";
-import type { Observation } from "@/lib/types";
+import type { Observation, EntityAnnotation } from "@/lib/types";
 import type { RemotionConfig } from "@/lib/creative-types";
+import { EntityEditModal } from "@/components/Cards";
 
 // Lazy load RemotionPreview to avoid SSR issues with Remotion
 const RemotionPreview = lazy(() => import("./RemotionPreview"));
@@ -86,6 +87,14 @@ export default function ReviewPage() {
   // NER annotations state - populated on-demand when segments are clicked
   const [segmentAnnotations, setSegmentAnnotations] = useState<Map<number, SegmentAnnotations> | undefined>();
   const [analyzingEntities, setAnalyzingEntities] = useState(false);
+
+  // Entity editing modal state
+  const [entityEditModal, setEntityEditModal] = useState<{
+    isOpen: boolean;
+    segmentId: number;
+    segmentText: string;
+    entity: EntityAnnotation | null;
+  } | null>(null);
 
   // Card popup state (shared between video and segment list)
   const { state: cardState, openWordCard, openEntityCard, close: closeCard } = useCardPopup();
@@ -314,6 +323,47 @@ export default function ReviewPage() {
       toast.error("刷新失败");
     }
   }, [timeline, toast]);
+
+  // Handle add entity (open modal for adding new entity)
+  const handleAddEntity = useCallback((segmentId: number, segmentText: string) => {
+    setEntityEditModal({
+      isOpen: true,
+      segmentId,
+      segmentText,
+      entity: null,
+    });
+  }, []);
+
+  // Handle edit entity (open modal for editing existing entity)
+  const handleEditEntity = useCallback((segmentId: number, segmentText: string, entity: EntityAnnotation) => {
+    setEntityEditModal({
+      isOpen: true,
+      segmentId,
+      segmentText,
+      entity,
+    });
+  }, []);
+
+  // Handle entity edit success
+  const handleEntityEditSuccess = useCallback(async () => {
+    // Refresh the segment annotations after edit
+    if (entityEditModal && timeline) {
+      const segment = timeline.segments.find((s) => s.id === entityEditModal.segmentId);
+      if (segment) {
+        const annotation = await getSegmentAnnotations(segment.en, {
+          timelineId: timeline.timeline_id,
+          segmentId: entityEditModal.segmentId,
+          forceRefresh: true,
+        });
+        setSegmentAnnotations((prev) => {
+          const newMap = new Map(prev || []);
+          newMap.set(entityEditModal.segmentId, annotation);
+          return newMap;
+        });
+      }
+    }
+    toast.success("实体已更新");
+  }, [entityEditModal, timeline, toast]);
 
   // Handle full-text entity analysis
   const handleAnalyzeAllEntities = useCallback(async () => {
@@ -702,6 +752,8 @@ export default function ReviewPage() {
             onRefreshAnnotations={handleRefreshAnnotations}
             onWordClick={openWordCard}
             onEntityClick={openEntityCard}
+            onAddEntity={handleAddEntity}
+            onEditEntity={handleEditEntity}
           />
 
           {/* Observations section (for WATCHING mode) - below segment list */}
@@ -808,6 +860,19 @@ export default function ReviewPage() {
           timecode={currentVideoTime}
           onSave={handleObservationSave}
           onCancel={() => setShowObservationCapture(false)}
+        />
+      )}
+
+      {/* Entity Edit Modal */}
+      {entityEditModal && (
+        <EntityEditModal
+          isOpen={entityEditModal.isOpen}
+          onClose={() => setEntityEditModal(null)}
+          timelineId={timeline.timeline_id}
+          segmentId={entityEditModal.segmentId}
+          segmentText={entityEditModal.segmentText}
+          entity={entityEditModal.entity}
+          onSuccess={handleEntityEditSuccess}
         />
       )}
     </main>

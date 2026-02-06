@@ -10,6 +10,7 @@ import type { EntityAnnotation } from "@/lib/types";
 interface EntityBadgesProps {
   entities: EntityAnnotation[];
   onEntityClick: (entity: EntityAnnotation, position: { x: number; y: number }) => void;
+  onEditEntity?: (entity: EntityAnnotation) => void;
   className?: string;
 }
 
@@ -46,6 +47,7 @@ function getEntityTypeIcon(entityType: string): string {
 export default function EntityBadges({
   entities,
   onEntityClick,
+  onEditEntity,
   className = "",
 }: EntityBadgesProps) {
   if (!entities || entities.length === 0) {
@@ -65,18 +67,30 @@ export default function EntityBadges({
     onEntityClick(entity, position);
   };
 
+  const handleContextMenu = (
+    e: React.MouseEvent<HTMLButtonElement>,
+    entity: EntityAnnotation
+  ) => {
+    if (onEditEntity) {
+      e.preventDefault();
+      e.stopPropagation();
+      onEditEntity(entity);
+    }
+  };
+
   return (
     <div className={`flex flex-wrap gap-1 ${className}`}>
       {entities.map((entity, idx) => (
         <button
           key={`${entity.text}-${idx}`}
           onClick={(e) => handleClick(e, entity)}
+          onContextMenu={(e) => handleContextMenu(e, entity)}
           className={`
             inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full
             border transition-colors cursor-pointer
             ${getEntityTypeColor(entity.entity_type)}
           `}
-          title={`${entity.entity_type}: ${entity.text}${entity.entity_id ? ` (${entity.entity_id})` : ""}`}
+          title={`${entity.entity_type}: ${entity.text}${entity.entity_id ? ` (${entity.entity_id})` : ""}${onEditEntity ? " (右键编辑)" : ""}`}
         >
           <span>{getEntityTypeIcon(entity.entity_type)}</span>
           <span className="max-w-[120px] truncate">{entity.text}</span>

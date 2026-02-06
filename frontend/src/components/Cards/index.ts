@@ -4,3 +4,4 @@ export { default as ClickableSubtitle } from "./ClickableSubtitle";
 export { default as CardPopupContainer } from "./CardPopupContainer";
 export { default as EntityBadges, EntityBadgesSkeleton } from "./EntityBadges";
 export { default as CardSidePanel } from "./CardSidePanel";
+export { default as EntityEditModal } from "./EntityEditModal";
