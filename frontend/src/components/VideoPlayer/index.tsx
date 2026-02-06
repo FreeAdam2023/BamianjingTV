@@ -477,23 +477,23 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
               </div>
 
               {/* Title */}
-              <h3 className="text-white/70 font-medium text-lg">Learning Cards</h3>
+              <h3 className="text-white/70 font-medium text-lg">学习卡片</h3>
 
               {/* Description */}
               <p className="text-white/40 text-sm leading-relaxed max-w-[200px]">
-                Click on highlighted words or entities in subtitles to view detailed cards
+                点击字幕中高亮的单词或实体查看详细卡片
               </p>
 
               {/* Hint badges */}
               <div className="flex flex-wrap justify-center gap-2 pt-2">
                 <span className="px-2 py-1 bg-blue-500/10 text-blue-400/60 text-xs rounded-full">
-                  Words
+                  单词
                 </span>
                 <span className="px-2 py-1 bg-purple-500/10 text-purple-400/60 text-xs rounded-full">
-                  Entities
+                  实体
                 </span>
                 <span className="px-2 py-1 bg-green-500/10 text-green-400/60 text-xs rounded-full">
-                  Places
+                  地点
                 </span>
               </div>
             </div>
@@ -529,7 +529,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-1 bg-gray-400 rounded group-hover:bg-blue-400" />
           {isDragging && (
             <div className="absolute left-1/2 -translate-x-1/2 -top-8 px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded shadow-lg whitespace-nowrap z-10">
-              Subtitle: {Math.round(subtitleHeightRatio * 100)}%
+              字幕: {Math.round(subtitleHeightRatio * 100)}%
             </div>
           )}
         </div>

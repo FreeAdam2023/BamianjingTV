@@ -47,7 +47,7 @@ export default function MemoryBookList({ defaultBookId }: MemoryBookListProps) {
         setSelectedBook(fullBook);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load books");
+      setError(err instanceof Error ? err.message : "加载收藏夹失败");
     } finally {
       setLoading(false);
     }
@@ -63,7 +63,7 @@ export default function MemoryBookList({ defaultBookId }: MemoryBookListProps) {
       const book = await getMemoryBook(bookId);
       setSelectedBook(book);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load book");
+      setError(err instanceof Error ? err.message : "加载收藏夹失败");
     } finally {
       setLoading(false);
     }
@@ -89,14 +89,14 @@ export default function MemoryBookList({ defaultBookId }: MemoryBookListProps) {
       setShowCreateDialog(false);
       setNewBookName("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create book");
+      setError(err instanceof Error ? err.message : "创建收藏夹失败");
     } finally {
       setCreating(false);
     }
   };
 
   const handleDeleteBook = async (bookId: string) => {
-    if (!confirm("Delete this memory book? This cannot be undone.")) return;
+    if (!confirm("确定删除此收藏夹？此操作无法撤销。")) return;
     try {
       await deleteMemoryBook(bookId);
       setBooks((prev) => prev.filter((b) => b.book_id !== bookId));
@@ -104,7 +104,7 @@ export default function MemoryBookList({ defaultBookId }: MemoryBookListProps) {
         setSelectedBook(null);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete book");
+      setError(err instanceof Error ? err.message : "删除收藏夹失败");
     }
   };
 
@@ -153,12 +153,12 @@ export default function MemoryBookList({ defaultBookId }: MemoryBookListProps) {
       {/* Sidebar - Book List */}
       <div className="w-64 border-r border-gray-700 flex flex-col">
         <div className="p-4 border-b border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-100">Memory Books</h2>
+          <h2 className="text-lg font-semibold text-gray-100">记忆收藏夹</h2>
           <button
             onClick={() => setShowCreateDialog(true)}
             className="mt-2 w-full px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 text-sm"
           >
-            + New Collection
+            + 新建收藏夹
           </button>
         </div>
 
@@ -180,7 +180,7 @@ export default function MemoryBookList({ defaultBookId }: MemoryBookListProps) {
 
           {books.length === 0 && (
             <div className="p-4 text-center text-gray-500 text-sm">
-              No collections yet. Create one to get started.
+              暂无收藏夹，创建一个开始吧。
             </div>
           )}
         </div>
@@ -195,7 +195,7 @@ export default function MemoryBookList({ defaultBookId }: MemoryBookListProps) {
               <div>
                 <h1 className="text-xl font-semibold text-gray-100">{selectedBook.name}</h1>
                 <p className="text-sm text-gray-500">
-                  {selectedBook.item_count} items
+                  {selectedBook.item_count} 个项目
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -205,10 +205,10 @@ export default function MemoryBookList({ defaultBookId }: MemoryBookListProps) {
                   onChange={(e) => setFilterType(e.target.value as typeof filterType)}
                   className="px-3 py-1.5 bg-gray-800 border border-gray-600 rounded text-sm text-gray-200"
                 >
-                  <option value="all">All Types</option>
-                  <option value="word">Words</option>
-                  <option value="entity">Entities</option>
-                  <option value="observation">Observations</option>
+                  <option value="all">全部类型</option>
+                  <option value="word">单词</option>
+                  <option value="entity">实体</option>
+                  <option value="observation">观察</option>
                 </select>
 
                 {/* Export button */}
@@ -220,15 +220,15 @@ export default function MemoryBookList({ defaultBookId }: MemoryBookListProps) {
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
-                  Export to Anki
+                  导出到 Anki
                 </button>
 
                 {/* Delete book */}
                 <button
                   onClick={() => handleDeleteBook(selectedBook.book_id)}
                   className="p-1.5 rounded hover:bg-red-500/20 text-gray-500 hover:text-red-400"
-                  title="Delete collection"
-                  aria-label="Delete collection"
+                  title="删除收藏夹"
+                  aria-label="删除收藏夹"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -254,15 +254,15 @@ export default function MemoryBookList({ defaultBookId }: MemoryBookListProps) {
               ) : (
                 <div className="h-full flex items-center justify-center text-gray-500">
                   {filterType === "all"
-                    ? "No items in this collection yet."
-                    : `No ${filterType}s in this collection.`}
+                    ? "此收藏夹中暂无项目。"
+                    : `此收藏夹中暂无${filterType === "word" ? "单词" : filterType === "entity" ? "实体" : "观察"}。`}
                 </div>
               )}
             </div>
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-gray-500">
-            Select a collection to view items
+            选择一个收藏夹查看内容
           </div>
         )}
       </div>
@@ -272,13 +272,13 @@ export default function MemoryBookList({ defaultBookId }: MemoryBookListProps) {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-gray-800 rounded-lg p-6 w-96 border border-gray-700">
             <h3 className="text-lg font-semibold text-gray-100 mb-4">
-              Create New Collection
+              新建收藏夹
             </h3>
             <input
               type="text"
               value={newBookName}
               onChange={(e) => setNewBookName(e.target.value)}
-              placeholder="Collection name"
+              placeholder="收藏夹名称"
               className="w-full px-4 py-2 bg-gray-900 border border-gray-600 rounded text-gray-200 focus:outline-none focus:border-blue-500"
               autoFocus
               onKeyDown={(e) => {
@@ -294,14 +294,14 @@ export default function MemoryBookList({ defaultBookId }: MemoryBookListProps) {
                 }}
                 className="px-4 py-2 text-gray-400 hover:text-gray-200"
               >
-                Cancel
+                取消
               </button>
               <button
                 onClick={handleCreateBook}
                 disabled={!newBookName.trim() || creating}
                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-50"
               >
-                {creating ? "Creating..." : "Create"}
+                {creating ? "创建中..." : "创建"}
               </button>
             </div>
           </div>

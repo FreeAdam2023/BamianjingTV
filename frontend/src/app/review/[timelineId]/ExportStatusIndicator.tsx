@@ -153,13 +153,13 @@ export default function ExportStatusIndicator({
   const getStatusLabel = () => {
     switch (currentStatus) {
       case "exporting":
-        return "Exporting";
+        return "导出中";
       case "uploading":
-        return "Uploading";
+        return "上传中";
       case "completed":
-        return "Complete";
+        return "完成";
       case "failed":
-        return "Failed";
+        return "失败";
       default:
         return "";
     }

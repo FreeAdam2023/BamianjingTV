@@ -76,7 +76,7 @@ export function useCardPopup(): UseCardPopupReturn {
         isOpen: true,
         type: "word",
         loading: false,
-        error: cached ? null : "Word not found",
+        error: cached ? null : "未找到单词",
         wordCard: cached,
         entityCard: null,
         position: position || { x: 0, y: 0 },
@@ -104,7 +104,7 @@ export function useCardPopup(): UseCardPopupReturn {
       setState((prev) => ({
         ...prev,
         loading: false,
-        error: response.found ? null : "Word not found in dictionary",
+        error: response.found ? null : "词典中未找到该单词",
         wordCard: response.card,
       }));
     } catch (err) {
@@ -113,7 +113,7 @@ export function useCardPopup(): UseCardPopupReturn {
       setState((prev) => ({
         ...prev,
         loading: false,
-        error: err instanceof Error ? err.message : "Failed to fetch word card",
+        error: err instanceof Error ? err.message : "获取单词卡片失败",
       }));
     }
   }, []);
@@ -136,7 +136,7 @@ export function useCardPopup(): UseCardPopupReturn {
         isOpen: true,
         type: "entity",
         loading: false,
-        error: cached ? null : "Entity not found",
+        error: cached ? null : "未找到实体",
         wordCard: null,
         entityCard: cached,
         position: position || { x: 0, y: 0 },
@@ -165,7 +165,7 @@ export function useCardPopup(): UseCardPopupReturn {
           setState((prev) => ({
             ...prev,
             loading: false,
-            error: "Entity not found",
+            error: "未找到实体",
           }));
           return;
         }
@@ -181,7 +181,7 @@ export function useCardPopup(): UseCardPopupReturn {
       setState((prev) => ({
         ...prev,
         loading: false,
-        error: response.found ? null : "Entity not found",
+        error: response.found ? null : "未找到实体",
         entityCard: response.card,
       }));
     } catch (err) {
@@ -190,7 +190,7 @@ export function useCardPopup(): UseCardPopupReturn {
       setState((prev) => ({
         ...prev,
         loading: false,
-        error: err instanceof Error ? err.message : "Failed to fetch entity card",
+        error: err instanceof Error ? err.message : "获取实体卡片失败",
       }));
     }
   }, []);

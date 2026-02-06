@@ -489,7 +489,7 @@ export default function Home() {
                       : "text-gray-400 hover:text-gray-300"
                   }`}
                 >
-                  📁 Upload
+                  📁 上传
                 </button>
               </div>
 
@@ -500,7 +500,7 @@ export default function Home() {
                     type="url"
                     value={newUrl}
                     onChange={(e) => setNewUrl(e.target.value)}
-                    placeholder="Paste YouTube or video URL..."
+                    placeholder="粘贴 YouTube 或视频链接..."
                     className="input"
                     disabled={submitting}
                     autoFocus
@@ -542,7 +542,7 @@ export default function Home() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                           </svg>
                           <span className="text-sm text-gray-400">
-                            Click to select video file
+                            点击选择视频文件
                           </span>
                           <p className="text-xs text-gray-500 mt-1">
                             MP4, MKV, AVI, MOV, WebM (max 4GB)
@@ -554,7 +554,7 @@ export default function Home() {
                   {uploadProgress && (
                     <div className="mt-3">
                       <div className="flex justify-between text-xs text-gray-400 mb-1">
-                        <span>Uploading...</span>
+                        <span>上传中...</span>
                         <span>{uploadProgress.percentage}%</span>
                       </div>
                       <div className="w-full bg-gray-700 rounded-full h-2">
@@ -583,7 +583,7 @@ export default function Home() {
                   className="btn btn-secondary"
                   disabled={submitting}
                 >
-                  Cancel
+                  取消
                 </button>
                 <button
                   type="submit"
@@ -593,10 +593,10 @@ export default function Home() {
                   {submitting ? (
                     <>
                       <span className="spinner mr-2" />
-                      {uploadProgress ? `Uploading ${uploadProgress.percentage}%` : "Processing..."}
+                      {uploadProgress ? `上传中 ${uploadProgress.percentage}%` : "处理中..."}
                     </>
                   ) : (
-                    "Start Processing"
+                    "开始处理"
                   )}
                 </button>
               </div>

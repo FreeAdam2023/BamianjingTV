@@ -505,7 +505,7 @@ export default function JobsPage() {
                       : "text-gray-400 hover:text-gray-300"
                   }`}
                 >
-                  📁 Upload
+                  📁 上传
                 </button>
               </div>
 
@@ -513,13 +513,13 @@ export default function JobsPage() {
               {inputMode === "url" && (
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Video URL
+                    视频链接
                   </label>
                   <input
                     type="url"
                     value={newUrl}
                     onChange={(e) => setNewUrl(e.target.value)}
-                    placeholder="Paste YouTube or video URL..."
+                    placeholder="粘贴 YouTube 或视频链接..."
                     className="input"
                     disabled={submitting}
                     autoFocus
@@ -531,7 +531,7 @@ export default function JobsPage() {
               {inputMode === "upload" && (
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Video File
+                    视频文件
                   </label>
                   <div className="relative">
                     <input
@@ -564,7 +564,7 @@ export default function JobsPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                           </svg>
                           <span className="text-sm text-gray-400">
-                            Click to select video file
+                            点击选择视频文件
                           </span>
                           <p className="text-xs text-gray-500 mt-1">
                             MP4, MKV, AVI, MOV, WebM (max 4GB)
@@ -576,7 +576,7 @@ export default function JobsPage() {
                   {uploadProgress && (
                     <div className="mt-3">
                       <div className="flex justify-between text-xs text-gray-400 mb-1">
-                        <span>Uploading...</span>
+                        <span>上传中...</span>
                         <span>{uploadProgress.percentage}%</span>
                       </div>
                       <div className="w-full bg-gray-700 rounded-full h-2">
@@ -593,7 +593,7 @@ export default function JobsPage() {
               {/* Mode Selection */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-300 mb-3">
-                  Processing Mode
+                  处理模式
                 </label>
                 <div className="grid grid-cols-1 gap-2">
                   {JOB_MODES.map((mode) => (

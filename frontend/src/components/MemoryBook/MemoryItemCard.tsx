@@ -27,7 +27,7 @@ export default function MemoryItemCard({
   const [isSaving, setIsSaving] = useState(false);
 
   const handleDelete = async () => {
-    if (!confirm("Delete this item from your collection?")) return;
+    if (!confirm("确定从收藏中删除此项目？")) return;
     setIsDeleting(true);
     try {
       await deleteMemoryItem(bookId, item.item_id);
@@ -100,7 +100,7 @@ export default function MemoryItemCard({
   const renderObservationContent = () => {
     return (
       <div className="space-y-2">
-        <span className="text-lg font-medium text-orange-400">Observation</span>
+        <span className="text-lg font-medium text-orange-400">观察</span>
         <p className="text-sm text-gray-300">{item.target_id}</p>
       </div>
     );
@@ -136,8 +136,8 @@ export default function MemoryItemCard({
           onClick={handleDelete}
           disabled={isDeleting}
           className="p-1 rounded hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-colors disabled:opacity-50"
-          title="Delete"
-          aria-label="Delete item"
+          title="删除"
+          aria-label="删除项目"
         >
           {isDeleting ? (
             <span className="inline-block w-4 h-4 border-2 border-gray-500/30 border-t-gray-500 rounded-full animate-spin" />
@@ -173,7 +173,7 @@ export default function MemoryItemCard({
               onChange={(e) => setNotes(e.target.value)}
               className="input-sm text-sm"
               rows={2}
-              placeholder="Add notes..."
+              placeholder="添加笔记..."
             />
             <div className="flex justify-end gap-2">
               <button
@@ -183,14 +183,14 @@ export default function MemoryItemCard({
                 }}
                 className="px-3 py-1 text-sm text-gray-400 hover:text-gray-200"
               >
-                Cancel
+                取消
               </button>
               <button
                 onClick={handleSaveNotes}
                 disabled={isSaving}
                 className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-50"
               >
-                {isSaving ? "Saving..." : "Save"}
+                {isSaving ? "保存中..." : "保存"}
               </button>
             </div>
           </div>
@@ -199,7 +199,7 @@ export default function MemoryItemCard({
             onClick={() => setIsEditing(true)}
             className="cursor-pointer text-sm text-gray-500 hover:text-gray-300"
           >
-            {item.user_notes || "Click to add notes..."}
+            {item.user_notes || "点击添加笔记..."}
           </div>
         )}
       </div>

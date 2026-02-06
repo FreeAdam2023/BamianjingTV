@@ -112,8 +112,8 @@ export default function PreviewUploadPanel({
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-white p-1"
-            title="Close (Esc)"
-            aria-label="Close preview"
+            title="关闭 (Esc)"
+            aria-label="关闭预览"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -133,7 +133,7 @@ export default function PreviewUploadPanel({
                 className="w-full rounded-lg bg-black"
                 style={{ maxHeight: "360px" }}
               >
-                Your browser does not support the video tag.
+                您的浏览器不支持视频标签。
               </video>
             ) : (
               <div className="w-full h-48 bg-gray-900 rounded-lg flex items-center justify-center text-gray-500">

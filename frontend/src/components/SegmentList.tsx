@@ -150,9 +150,9 @@ export default function SegmentList({
                     e.stopPropagation();
                     startEditing(segment);
                   }}
-                  title="Edit subtitles (or double-click text)"
+                  title="编辑字幕（或双击文本）"
                 >
-                  Edit
+                  编辑
                 </button>
               )}
               {/* Split button - only show for long segments */}
@@ -163,9 +163,9 @@ export default function SegmentList({
                     e.stopPropagation();
                     setSplittingSegment(segment);
                   }}
-                  title="Split long segment into two"
+                  title="将长段落拆分为两段"
                 >
-                  Split
+                  拆分
                 </button>
               )}
             </div>
@@ -176,7 +176,7 @@ export default function SegmentList({
             <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
               {/* English input */}
               <div>
-                <label className="text-xs text-gray-500 block mb-1">English:</label>
+                <label className="text-xs text-gray-500 block mb-1">英文:</label>
                 <textarea
                   value={editEn}
                   onChange={(e) => setEditEn(e.target.value)}
@@ -190,7 +190,7 @@ export default function SegmentList({
               </div>
               {/* Chinese input */}
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Chinese:</label>
+                <label className="text-xs text-gray-500 block mb-1">中文:</label>
                 <textarea
                   value={editZh}
                   onChange={(e) => setEditZh(e.target.value)}
@@ -206,20 +206,20 @@ export default function SegmentList({
               </div>
               {/* Save/Cancel buttons */}
               <div className="flex gap-2 justify-end items-center">
-                <span className="text-xs text-gray-500">Ctrl+Enter to save, Esc to cancel</span>
+                <span className="text-xs text-gray-500">Ctrl+Enter 保存，Esc 取消</span>
                 <button
                   className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-500 transition"
                   onClick={cancelEditing}
                   disabled={saving}
                 >
-                  Cancel
+                  取消
                 </button>
                 <button
                   className="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-400 transition disabled:bg-blue-400"
                   onClick={() => saveEditing(segment.id)}
                   disabled={saving}
                 >
-                  {saving ? "Saving..." : "Save"}
+                  {saving ? "保存中..." : "保存"}
                 </button>
               </div>
             </div>
@@ -227,7 +227,7 @@ export default function SegmentList({
             <div
               className="group cursor-text"
               onDoubleClick={(e) => handleDoubleClick(segment, e)}
-              title="Double-click to edit"
+              title="双击编辑"
             >
               {/* English text - clickable words for dictionary lookup */}
               <div className="text-white text-sm mb-1 group-hover:bg-gray-700/50 rounded px-1 -mx-1 transition">
@@ -266,7 +266,7 @@ export default function SegmentList({
                 onClick={() => onStateChange(segment.id, "keep")}
                 title="Shift+K"
               >
-                Keep
+                保留
               </button>
               <button
                 className={`
@@ -280,7 +280,7 @@ export default function SegmentList({
                 onClick={() => onStateChange(segment.id, "drop")}
                 title="D"
               >
-                Drop
+                丢弃
               </button>
               <button
                 className={`

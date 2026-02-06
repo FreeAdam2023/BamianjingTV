@@ -126,7 +126,7 @@ export default function CollectButton({
         disabled:opacity-50
         ${className}
       `}
-      title={isCollected ? "Remove from collection" : "Add to collection"}
+      title={isCollected ? "从收藏中移除" : "添加到收藏"}
     >
       {saving ? (
         <span className={`inline-block ${iconSizes[size]} border-2 border-current/30 border-t-current rounded-full animate-spin`} />

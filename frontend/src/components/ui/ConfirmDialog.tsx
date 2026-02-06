@@ -136,10 +136,10 @@ function ConfirmDialog({
   isExiting: boolean;
 }) {
   const {
-    title = "Confirm",
+    title = "确认",
     message,
-    confirmText = "Confirm",
-    cancelText = "Cancel",
+    confirmText = "确认",
+    cancelText = "取消",
     type = "info",
   } = options;
 

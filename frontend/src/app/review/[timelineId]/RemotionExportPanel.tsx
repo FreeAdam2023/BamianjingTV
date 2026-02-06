@@ -99,7 +99,7 @@ export default function RemotionExportPanel({
           <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
-          <span className="text-sm font-medium text-gray-200">Creative Export</span>
+          <span className="text-sm font-medium text-gray-200">创意导出</span>
         </div>
         {onClose && (
           <button
@@ -118,10 +118,10 @@ export default function RemotionExportPanel({
         <div className="mb-3">
           <div className="flex items-center justify-between text-xs mb-1">
             <span className="text-gray-400">
-              {status.status === "queued" && "Queued..."}
-              {status.status === "rendering" && "Rendering..."}
-              {status.status === "completed" && "Complete!"}
-              {status.status === "failed" && "Failed"}
+              {status.status === "queued" && "排队中..."}
+              {status.status === "rendering" && "渲染中..."}
+              {status.status === "completed" && "完成！"}
+              {status.status === "failed" && "失败"}
             </span>
             <span className="text-gray-400">{status.progress}%</span>
           </div>
@@ -157,7 +157,7 @@ export default function RemotionExportPanel({
             {isStarting ? (
               <>
                 <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                Starting...
+                启动中...
               </>
             ) : (
               <>
@@ -165,7 +165,7 @@ export default function RemotionExportPanel({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Render Video
+                渲染视频
               </>
             )}
           </button>
@@ -177,7 +177,7 @@ export default function RemotionExportPanel({
             className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-600 text-gray-300 text-sm rounded-lg cursor-not-allowed"
           >
             <span className="animate-spin w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full" />
-            Rendering... {status?.progress}%
+            渲染中... {status?.progress}%
           </button>
         )}
 
@@ -190,13 +190,13 @@ export default function RemotionExportPanel({
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
-              Download
+              下载
             </button>
             <button
               onClick={handleStartRender}
               disabled={isStarting}
               className="px-3 py-2 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded-lg transition-colors"
-              title="Re-render with current settings"
+              title="重新渲染"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -214,7 +214,7 @@ export default function RemotionExportPanel({
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            Retry
+            重试
           </button>
         )}
       </div>
@@ -222,10 +222,10 @@ export default function RemotionExportPanel({
       {/* Info text */}
       <p className="mt-2 text-xs text-gray-500">
         {isRendering
-          ? "Rendering may take several minutes depending on video length."
+          ? "渲染可能需要几分钟，取决于视频长度。"
           : isComplete
-          ? "Video rendered with Remotion dynamic subtitles."
-          : "Export video with animated subtitles powered by Remotion."}
+          ? "视频已使用 Remotion 动态字幕渲染完成。"
+          : "使用 Remotion 导出带动画字幕的视频。"}
       </p>
     </div>
   );
