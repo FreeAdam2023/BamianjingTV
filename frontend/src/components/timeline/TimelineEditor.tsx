@@ -6,7 +6,8 @@ import TimeRuler from "./TimeRuler";
 import Playhead from "./Playhead";
 import SubtitleTrack from "./SubtitleTrack";
 import AudioTrack from "./AudioTrack";
-import type { EditableSegment, SegmentState, WaveformData } from "@/lib/types";
+import PinnedCardsTrack from "./PinnedCardsTrack";
+import type { EditableSegment, SegmentState, WaveformData, PinnedCard } from "@/lib/types";
 
 type TrackType = "original" | "dubbing" | "bgm";
 
@@ -37,6 +38,10 @@ interface TimelineEditorInnerProps {
   // Video-level trim (WYSIWYG)
   trimStart: number;
   trimEnd: number | null;
+  // Pinned cards
+  pinnedCards?: PinnedCard[];
+  onPinnedCardClick?: (card: PinnedCard) => void;
+  onPinnedCardUnpin?: (cardId: string) => void;
 }
 
 function TimelineEditorInner({
@@ -51,6 +56,9 @@ function TimelineEditorInner({
   onTrackConfigChange,
   trimStart,
   trimEnd,
+  pinnedCards = [],
+  onPinnedCardClick,
+  onPinnedCardUnpin,
 }: TimelineEditorInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -133,10 +141,12 @@ function TimelineEditorInner({
 
   // Count visible tracks
   const visibleAudioTracks = trackConfigs.filter((t) => t.visible).length;
+  const hasPinnedCards = pinnedCards.length > 0;
 
   // Calculate total height for tracks
-  // Ruler (28px) + visible audio tracks + Subtitle track (48px) + padding
-  const totalHeight = 28 + visibleAudioTracks * trackHeight + trackHeight + 8;
+  // Ruler (28px) + visible audio tracks + Subtitle track (48px) + Cards track (if has cards) + padding
+  const cardsTrackHeight = hasPinnedCards ? trackHeight : 0;
+  const totalHeight = 28 + visibleAudioTracks * trackHeight + trackHeight + cardsTrackHeight + 8;
 
   // Check if any waveform needs to be generated
   const needsWaveformGeneration = trackConfigs.some(
@@ -299,6 +309,16 @@ function TimelineEditorInner({
               onStateChange={onStateChange}
               onTrimChange={onTrimChange}
             />
+
+            {/* Pinned Cards Track (only show if there are cards) */}
+            {hasPinnedCards && (
+              <PinnedCardsTrack
+                pinnedCards={pinnedCards}
+                width={timelineWidth}
+                onCardClick={onPinnedCardClick}
+                onCardUnpin={onPinnedCardUnpin}
+              />
+            )}
           </div>
 
           {/* Trim zone overlays - grayed out areas */}
@@ -367,6 +387,10 @@ interface TimelineEditorProps {
   // Video-level trim (WYSIWYG)
   trimStart?: number;
   trimEnd?: number | null;
+  // Pinned cards
+  pinnedCards?: PinnedCard[];
+  onPinnedCardClick?: (card: PinnedCard) => void;
+  onPinnedCardUnpin?: (cardId: string) => void;
 }
 
 export default function TimelineEditor({
@@ -383,6 +407,9 @@ export default function TimelineEditor({
   onGenerateWaveform,
   trimStart = 0,
   trimEnd = null,
+  pinnedCards = [],
+  onPinnedCardClick,
+  onPinnedCardUnpin,
 }: TimelineEditorProps) {
   // Track configuration state - all audio tracks hidden by default, show on demand
   const [trackConfigs, setTrackConfigs] = useState<TrackConfig[]>([
@@ -419,6 +446,9 @@ export default function TimelineEditor({
         onTrackConfigChange={handleTrackConfigChange}
         trimStart={trimStart}
         trimEnd={trimEnd}
+        pinnedCards={pinnedCards}
+        onPinnedCardClick={onPinnedCardClick}
+        onPinnedCardUnpin={onPinnedCardUnpin}
       />
     </TimelineProvider>
   );

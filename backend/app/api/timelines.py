@@ -14,6 +14,9 @@ from app.models.timeline import (
     SubtitleLanguageMode,
     Observation,
     ObservationCreate,
+    PinnedCard,
+    PinnedCardCreate,
+    PinnedCardType,
 )
 from app.workers.frame_capture import FrameCaptureWorker
 from app.services.timeline_manager import TimelineManager
@@ -697,3 +700,130 @@ async def chat_with_ai(timeline_id: str, request: ChatRequest):
     except Exception as e:
         logger.error(f"AI chat failed: {e}")
         raise HTTPException(status_code=500, detail=f"AI服务错误: {str(e)}")
+
+
+# ============ Pinned Cards Endpoints ============
+
+
+@router.get("/{timeline_id}/pinned-cards", response_model=List[PinnedCard])
+async def get_pinned_cards(timeline_id: str):
+    """Get all pinned cards for a timeline."""
+    manager = _get_manager()
+
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    return manager.get_pinned_cards(timeline_id)
+
+
+@router.post("/{timeline_id}/pinned-cards", response_model=PinnedCard)
+async def pin_card(timeline_id: str, create: PinnedCardCreate):
+    """Pin a card to a timeline.
+
+    The card will be displayed in the right side panel during video export.
+    Display timing is automatically calculated to avoid overlaps.
+    """
+    manager = _get_manager()
+
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    pinned = manager.add_pinned_card(timeline_id, create)
+    if not pinned:
+        raise HTTPException(status_code=500, detail="Failed to pin card")
+
+    return pinned
+
+
+@router.delete("/{timeline_id}/pinned-cards/{card_id}")
+async def unpin_card(timeline_id: str, card_id: str):
+    """Remove a pinned card from a timeline."""
+    manager = _get_manager()
+
+    if not manager.remove_pinned_card(timeline_id, card_id):
+        raise HTTPException(status_code=404, detail="Pinned card not found")
+
+    return {"message": "Card unpinned", "card_id": card_id}
+
+
+@router.get("/{timeline_id}/pinned-cards/check/{card_type}/{card_id}")
+async def check_card_pinned(timeline_id: str, card_type: str, card_id: str):
+    """Check if a specific card is pinned to the timeline.
+
+    Args:
+        timeline_id: Timeline ID
+        card_type: Card type (word or entity)
+        card_id: The card identifier (word string or entity QID)
+
+    Returns:
+        Object with is_pinned boolean and optional pin_id
+    """
+    manager = _get_manager()
+
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    return manager.is_card_pinned(timeline_id, card_type, card_id)
+
+
+class CardDisplayDurationUpdate(BaseModel):
+    """Request model for updating card display duration."""
+    duration: float = Query(..., ge=3.0, le=15.0, description="Display duration in seconds")
+
+
+@router.post("/{timeline_id}/pinned-cards/duration")
+async def set_card_display_duration(
+    timeline_id: str,
+    duration: float = Query(..., ge=3.0, le=15.0, description="Display duration in seconds"),
+):
+    """Set the default display duration for pinned cards.
+
+    Duration range: 3-15 seconds (default: 7 seconds).
+    Recommended: 5-10 seconds for optimal reading time.
+    """
+    manager = _get_manager()
+
+    if not manager.set_card_display_duration(timeline_id, duration):
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    return {
+        "timeline_id": timeline_id,
+        "card_display_duration": duration,
+        "message": f"Card display duration set to {duration}s",
+    }
+
+
+@router.get("/{timeline_id}/pinned-cards/description")
+async def get_pinned_cards_description(
+    timeline_id: str,
+    include_timestamps: bool = Query(default=True, description="Include video timestamps"),
+):
+    """Get YouTube description text with word and entity lists.
+
+    This generates a formatted description that can be added to YouTube video
+    description, including:
+    - Word list with IPA pronunciation and Chinese definitions
+    - Entity list with Wikipedia links
+
+    Use this to help viewers learn vocabulary from your video.
+    """
+    manager = _get_manager()
+
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    description = timeline.generate_pinned_cards_description(
+        include_timestamps=include_timestamps
+    )
+
+    return {
+        "timeline_id": timeline_id,
+        "description": description,
+        "word_count": len([c for c in timeline.pinned_cards if c.card_type.value == "word"]),
+        "entity_count": len([c for c in timeline.pinned_cards if c.card_type.value == "entity"]),
+        "message": "Description generated successfully" if description else "No pinned cards to describe",
+    }

@@ -7,7 +7,7 @@ from typing import List, Optional, Tuple
 from loguru import logger
 
 from app.config import settings
-from app.models.timeline import EditableSegment, ExportProfile, SegmentState, SubtitleLanguageMode, SubtitleStyleMode, Timeline
+from app.models.timeline import EditableSegment, ExportProfile, PinnedCard, SegmentState, SubtitleLanguageMode, SubtitleStyleMode, Timeline
 from app.workers.subtitle_styles import (
     SubtitleStyleConfig,
     SubtitleStyleMode as StyleMode,
@@ -16,6 +16,10 @@ from app.workers.subtitle_styles import (
     generate_ass_header,
     ASS_HEADER_DEFAULT,
 )
+
+# Card overlay constants
+CARD_PANEL_WIDTH = 400  # Width of card panel on right side
+CARD_ANIMATION_DURATION = 0.3  # Slide/fade duration in seconds
 
 
 # ASS subtitle template with bilingual style (both at bottom, English above Chinese)
@@ -54,6 +58,171 @@ class ExportWorker:
 
     def __init__(self):
         self.use_nvenc = settings.ffmpeg_nvenc
+        self._card_renderer = None
+
+    def _get_card_renderer(self):
+        """Lazy load card renderer."""
+        if self._card_renderer is None:
+            try:
+                from app.workers.card_renderer import CardRenderer
+                self._card_renderer = CardRenderer()
+            except Exception as e:
+                logger.warning(f"Card renderer not available: {e}")
+        return self._card_renderer
+
+    async def render_pinned_cards(
+        self,
+        pinned_cards: List[PinnedCard],
+        output_dir: Path,
+        time_offset: float = 0.0,
+    ) -> List[Tuple[Path, float, float]]:
+        """Render pinned cards to PNG images.
+
+        Args:
+            pinned_cards: List of pinned cards
+            output_dir: Directory to save card images
+            time_offset: Time offset for card timing
+
+        Returns:
+            List of (image_path, display_start, display_end) tuples
+        """
+        renderer = self._get_card_renderer()
+        if not renderer:
+            logger.warning("Card renderer not available, skipping card rendering")
+            return []
+
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        rendered_cards = []
+        for i, card in enumerate(pinned_cards):
+            if not card.card_data:
+                logger.warning(f"Card {card.id} has no data, skipping")
+                continue
+
+            card_path = output_dir / f"card_{i:03d}_{card.id}.png"
+            try:
+                renderer.render_pinned_card(
+                    card_data=card.card_data,
+                    card_type=card.card_type.value if hasattr(card.card_type, 'value') else card.card_type,
+                    output_path=card_path,
+                )
+
+                # Adjust timing with offset
+                display_start = max(0, card.display_start - time_offset)
+                display_end = max(0, card.display_end - time_offset)
+
+                if display_end > display_start:
+                    rendered_cards.append((card_path, display_start, display_end))
+                    logger.debug(
+                        f"Rendered card {card.id} ({card.card_type}): "
+                        f"{display_start:.1f}s - {display_end:.1f}s"
+                    )
+            except Exception as e:
+                logger.error(f"Failed to render card {card.id}: {e}")
+
+        logger.info(f"Rendered {len(rendered_cards)} pinned cards")
+        return rendered_cards
+
+    def _build_card_overlay_filter(
+        self,
+        cards: List[Tuple[Path, float, float]],
+        video_width: int,
+        video_height: int,
+        card_panel_width: int = CARD_PANEL_WIDTH,
+    ) -> Tuple[str, List[str]]:
+        """Build FFmpeg filter for card overlays with slide-in animation.
+
+        Animation: Cards slide in from right with fade-in (300ms), hold, then fade-out.
+
+        Args:
+            cards: List of (image_path, start_time, end_time) tuples
+            video_width: Video width
+            video_height: Video height
+            card_panel_width: Width of card panel area
+
+        Returns:
+            Tuple of (filter_complex string, list of input arguments)
+        """
+        if not cards:
+            return "", []
+
+        input_args = []
+        filters = []
+
+        # Card position: right side, centered vertically
+        card_x = video_width - card_panel_width - 20  # 20px margin from right
+        card_y_base = 100  # Top margin
+
+        for i, (card_path, start, end) in enumerate(cards):
+            input_idx = i + 1  # 0 is video input
+            input_args.extend(["-i", str(card_path)])
+
+            # Animation parameters
+            fade_in_duration = CARD_ANIMATION_DURATION
+            fade_out_duration = CARD_ANIMATION_DURATION
+            slide_distance = 50  # Pixels to slide
+
+            # FFmpeg overlay with animation expressions:
+            # - Slide in from right: x starts at card_x + slide_distance, moves to card_x
+            # - Fade in: alpha goes from 0 to 1
+            # - Fade out: alpha goes from 1 to 0 at end
+
+            # Time expressions for animation phases
+            t_start = start
+            t_fade_in_end = start + fade_in_duration
+            t_fade_out_start = end - fade_out_duration
+            t_end = end
+
+            # X position expression (slide from right)
+            # During fade-in: x = card_x + slide_distance * (1 - progress)
+            # After fade-in: x = card_x
+            x_expr = (
+                f"if(lt(t,{t_start}),{card_x + slide_distance},"
+                f"if(lt(t,{t_fade_in_end}),"
+                f"{card_x}+{slide_distance}*(1-(t-{t_start})/{fade_in_duration}),"
+                f"{card_x}))"
+            )
+
+            # Enable expression (visible during display window)
+            enable_expr = f"between(t,{t_start},{t_end})"
+
+            # Alpha expression for fade in/out
+            # During fade-in: alpha = (t - start) / fade_duration
+            # During hold: alpha = 1
+            # During fade-out: alpha = (end - t) / fade_duration
+            alpha_expr = (
+                f"if(lt(t,{t_fade_in_end}),"
+                f"(t-{t_start})/{fade_in_duration},"
+                f"if(lt(t,{t_fade_out_start}),1,"
+                f"({t_end}-t)/{fade_out_duration}))"
+            )
+
+            # Build filter for this card
+            if i == 0:
+                # First card overlays on video
+                filters.append(
+                    f"[0:v][{input_idx}:v]overlay="
+                    f"x='{x_expr}':y={card_y_base}:"
+                    f"enable='{enable_expr}':"
+                    f"format=auto"
+                    f"[v{i}]"
+                )
+            else:
+                # Subsequent cards overlay on previous result
+                filters.append(
+                    f"[v{i-1}][{input_idx}:v]overlay="
+                    f"x='{x_expr}':y={card_y_base}:"
+                    f"enable='{enable_expr}':"
+                    f"format=auto"
+                    f"[v{i}]"
+                )
+
+        # Final output label
+        final_label = f"v{len(cards) - 1}" if cards else "0:v"
+
+        filter_complex = ";".join(filters)
+        return filter_complex, input_args, final_label
 
     async def generate_ass(
         self,
@@ -258,12 +427,14 @@ class ExportWorker:
         output_path: Path,
         subtitle_style=None,
     ) -> Path:
-        """Export full video with subtitles based on subtitle_style_mode.
+        """Export full video with subtitles and pinned cards.
 
         Modes:
         - HALF_SCREEN (Learning): Video scaled to top, subtitles in bottom area
         - FLOATING (Watching): Transparent subtitles overlaid on full video
         - NONE (Dubbing): No subtitles
+
+        Pinned cards appear on the right side with slide-in/fade-in animation.
 
         Args:
             timeline: Timeline with all segments
@@ -308,6 +479,15 @@ class ExportWorker:
             trimmed_segments = timeline.segments
             time_offset = 0.0
 
+        # Render pinned cards
+        pinned_cards = getattr(timeline, 'pinned_cards', []) or []
+        cards_dir = output_path.parent / "cards"
+        rendered_cards = await self.render_pinned_cards(
+            pinned_cards=pinned_cards,
+            output_dir=cards_dir,
+            time_offset=time_offset,
+        )
+
         # Generate ASS subtitle file based on mode
         ass_path = output_path.parent / "subtitles_full.ass"
         await self.generate_ass_with_layout(
@@ -347,13 +527,33 @@ class ExportWorker:
 
         cmd.extend(["-i", str(video_path)])
 
+        # Add card inputs and overlay filter if we have pinned cards
+        card_filter = ""
+        card_inputs = []
+        final_label = ""
+        if rendered_cards:
+            card_filter, card_inputs, final_label = self._build_card_overlay_filter(
+                cards=rendered_cards,
+                video_width=orig_width,
+                video_height=orig_height,
+            )
+            cmd.extend(card_inputs)
+
         # Add duration limit if trim end is set
         if trim_end is not None:
             duration = trim_end - trim_start
             cmd.extend(["-t", str(duration)])
 
-        # Add video filter if applicable
-        if vf_filter:
+        # Build combined filter
+        if card_filter and vf_filter:
+            # Apply subtitle filter first, then card overlays
+            # We need to chain them properly
+            cmd.extend(["-filter_complex", f"{vf_filter}[subtitled];{card_filter.replace('[0:v]', '[subtitled]')}"])
+            cmd.extend(["-map", f"[{final_label}]", "-map", "0:a?"])
+        elif card_filter:
+            cmd.extend(["-filter_complex", card_filter])
+            cmd.extend(["-map", f"[{final_label}]", "-map", "0:a?"])
+        elif vf_filter:
             cmd.extend(["-vf", vf_filter])
 
         if self.use_nvenc:
@@ -367,7 +567,8 @@ class ExportWorker:
         if trim_start > 0 or trim_end is not None:
             trim_info = f", trim={trim_start:.1f}s-{trim_end or 'end'}"
         lang_info = f", lang={subtitle_language_mode.value}"
-        logger.info(f"Exporting full video with {mode_name} mode{lang_info}{trim_info}: {output_path}")
+        cards_info = f", {len(rendered_cards)} cards" if rendered_cards else ""
+        logger.info(f"Exporting full video with {mode_name} mode{lang_info}{trim_info}{cards_info}: {output_path}")
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         if result.returncode != 0:

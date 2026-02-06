@@ -75,6 +75,9 @@ export interface Timeline {
   observations: Observation[];
   // Entity annotations cache (keyed by segment_id)
   segment_annotations: Record<number, SegmentAnnotations>;
+  // Pinned cards for export
+  pinned_cards: PinnedCard[];
+  card_display_duration: number;  // Default display duration in seconds
   // Export progress tracking
   export_status: ExportStatus;
   export_progress: number;
@@ -742,4 +745,33 @@ export interface TimelineAnnotations {
   unique_entities: string[];
   processed_at: string;
   model_used: string;
+}
+
+// ============ Pinned Card Types ============
+
+export type PinnedCardType = "word" | "entity";
+
+export interface PinnedCard {
+  id: string;
+  card_type: PinnedCardType;
+  card_id: string;  // Word string or entity QID
+  segment_id: number;
+  timestamp: number;  // When card was pinned (seconds)
+  display_start: number;  // When to show in video
+  display_end: number;  // When to hide in video
+  card_data: WordCard | EntityCard | null;  // Cached card data
+  created_at: string;
+}
+
+export interface PinnedCardCreate {
+  card_type: PinnedCardType;
+  card_id: string;
+  segment_id: number;
+  timestamp: number;
+  card_data?: WordCard | EntityCard | null;
+}
+
+export interface PinnedCardCheckResponse {
+  is_pinned: boolean;
+  pin_id?: string;
 }

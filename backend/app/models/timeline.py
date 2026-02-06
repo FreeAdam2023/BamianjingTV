@@ -91,6 +91,37 @@ class ExportStatus(str, Enum):
     FAILED = "failed"  # Export failed
 
 
+class PinnedCardType(str, Enum):
+    """Type of pinned card."""
+
+    WORD = "word"
+    ENTITY = "entity"
+
+
+class PinnedCard(BaseModel):
+    """A card pinned to the timeline for display in exported video."""
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    card_type: PinnedCardType  # word or entity
+    card_id: str  # word string or entity QID
+    segment_id: int  # Associated segment ID
+    timestamp: float  # Time when card was pinned (seconds)
+    display_start: float  # When to start showing card
+    display_end: float  # When to stop showing card
+    card_data: Optional[dict] = None  # Cached card data for export
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class PinnedCardCreate(BaseModel):
+    """Request model for pinning a card."""
+
+    card_type: PinnedCardType
+    card_id: str
+    segment_id: int
+    timestamp: float
+    card_data: Optional[dict] = None
+
+
 class SubtitleStyleMode(str, Enum):
     """Subtitle rendering style mode for export."""
 
@@ -215,6 +246,10 @@ class Timeline(BaseModel):
     # Format: {segment_id: {segment_id, words: [...], entities: [...]}}
     segment_annotations: Dict[int, dict] = Field(default_factory=dict)
 
+    # Pinned cards for export
+    pinned_cards: List[PinnedCard] = Field(default_factory=list)
+    card_display_duration: float = 7.0  # Default display duration in seconds (5-10 range)
+
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
@@ -329,6 +364,162 @@ class Timeline(BaseModel):
                 self.updated_at = datetime.now()
                 return True
         return False
+
+    # ============ Pinned Card Methods ============
+
+    @property
+    def pinned_card_count(self) -> int:
+        """Get number of pinned cards."""
+        return len(self.pinned_cards)
+
+    def get_pinned_card(self, card_id: str) -> Optional[PinnedCard]:
+        """Get pinned card by ID."""
+        for card in self.pinned_cards:
+            if card.id == card_id:
+                return card
+        return None
+
+    def is_card_pinned(self, card_type: PinnedCardType, card_id: str) -> Optional[PinnedCard]:
+        """Check if a card is already pinned. Returns the pinned card if found."""
+        for card in self.pinned_cards:
+            if card.card_type == card_type and card.card_id == card_id:
+                return card
+        return None
+
+    def add_pinned_card(self, pinned_card: PinnedCard) -> PinnedCard:
+        """Add a pinned card to the timeline."""
+        self.pinned_cards.append(pinned_card)
+        self.updated_at = datetime.now()
+        return pinned_card
+
+    def remove_pinned_card(self, card_id: str) -> bool:
+        """Remove a pinned card by ID. Returns True if removed."""
+        for i, card in enumerate(self.pinned_cards):
+            if card.id == card_id:
+                del self.pinned_cards[i]
+                self.updated_at = datetime.now()
+                return True
+        return False
+
+    def calculate_card_timing(self, timestamp: float) -> tuple[float, float]:
+        """Calculate display start/end times for a new pinned card.
+
+        Logic:
+        - Default display duration is card_display_duration seconds
+        - Start from the pinned timestamp
+        - If overlapping with previous card, delay start to after previous ends
+        """
+        duration = self.card_display_duration
+        display_start = timestamp
+        display_end = timestamp + duration
+
+        # Check for overlap with existing cards and adjust
+        for existing in sorted(self.pinned_cards, key=lambda c: c.display_start):
+            # If new card overlaps with existing
+            if display_start < existing.display_end and display_end > existing.display_start:
+                # Push new card to start after existing ends
+                display_start = existing.display_end
+                display_end = display_start + duration
+
+        return display_start, display_end
+
+    def generate_pinned_cards_description(self, include_timestamps: bool = True) -> str:
+        """Generate YouTube description section with word and entity lists.
+
+        Args:
+            include_timestamps: Include video timestamps for each card
+
+        Returns:
+            Formatted description text with word list and entity list
+        """
+        if not self.pinned_cards:
+            return ""
+
+        def format_timestamp(seconds: float) -> str:
+            """Format seconds to MM:SS or HH:MM:SS."""
+            hours = int(seconds // 3600)
+            minutes = int((seconds % 3600) // 60)
+            secs = int(seconds % 60)
+            if hours > 0:
+                return f"{hours}:{minutes:02d}:{secs:02d}"
+            return f"{minutes}:{secs:02d}"
+
+        # Separate words and entities
+        words = []
+        entities = []
+
+        for card in sorted(self.pinned_cards, key=lambda c: c.timestamp):
+            if card.card_type == PinnedCardType.WORD and card.card_data:
+                words.append(card)
+            elif card.card_type == PinnedCardType.ENTITY and card.card_data:
+                entities.append(card)
+
+        lines = []
+
+        # Word list section
+        if words:
+            lines.append("📚 词汇列表 | Vocabulary")
+            lines.append("-" * 30)
+            for card in words:
+                data = card.card_data
+                word = data.get("word", "")
+                # Get IPA pronunciation
+                ipa = ""
+                for pron in data.get("pronunciations", []):
+                    if pron.get("region") == "us" or not ipa:
+                        ipa = pron.get("ipa", "")
+
+                # Get first Chinese definition
+                definition_zh = ""
+                for sense in data.get("senses", []):
+                    if sense.get("definition_zh"):
+                        definition_zh = sense["definition_zh"]
+                        break
+
+                # Format line
+                timestamp_str = f"[{format_timestamp(card.timestamp)}] " if include_timestamps else ""
+                if ipa and definition_zh:
+                    lines.append(f"{timestamp_str}{word} {ipa} - {definition_zh}")
+                elif definition_zh:
+                    lines.append(f"{timestamp_str}{word} - {definition_zh}")
+                else:
+                    lines.append(f"{timestamp_str}{word}")
+
+            lines.append("")
+
+        # Entity list section
+        if entities:
+            lines.append("🔗 相关链接 | Related Links")
+            lines.append("-" * 30)
+            for card in entities:
+                data = card.card_data
+                name = data.get("name", "")
+
+                # Get Chinese name
+                name_zh = ""
+                localizations = data.get("localizations", {})
+                if "zh" in localizations:
+                    name_zh = localizations["zh"].get("name", "")
+
+                # Get Wikipedia URL
+                wiki_url = data.get("wikipedia_url", "")
+
+                # Format line
+                timestamp_str = f"[{format_timestamp(card.timestamp)}] " if include_timestamps else ""
+                if name_zh and name_zh != name:
+                    display_name = f"{name} ({name_zh})"
+                else:
+                    display_name = name
+
+                if wiki_url:
+                    lines.append(f"{timestamp_str}{display_name}")
+                    lines.append(f"   ↳ {wiki_url}")
+                else:
+                    lines.append(f"{timestamp_str}{display_name}")
+
+            lines.append("")
+
+        return "\n".join(lines)
 
 
 class TimelineCreate(BaseModel):

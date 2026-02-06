@@ -13,6 +13,9 @@ from app.models.timeline import (
     ExportStatus,
     Observation,
     ObservationCreate,
+    PinnedCard,
+    PinnedCardCreate,
+    PinnedCardType,
     SegmentState,
     SegmentUpdate,
     Timeline,
@@ -601,3 +604,154 @@ class TimelineManager:
             return True
 
         return False
+
+    # ============ Pinned Card Methods ============
+
+    def get_pinned_cards(self, timeline_id: str) -> List[PinnedCard]:
+        """Get all pinned cards for a timeline.
+
+        Args:
+            timeline_id: Timeline ID
+
+        Returns:
+            List of pinned cards (empty if timeline not found)
+        """
+        timeline = self.get_timeline(timeline_id)
+        if not timeline:
+            return []
+        return timeline.pinned_cards
+
+    def add_pinned_card(
+        self,
+        timeline_id: str,
+        create: PinnedCardCreate,
+    ) -> Optional[PinnedCard]:
+        """Pin a card to a timeline.
+
+        Args:
+            timeline_id: Timeline ID
+            create: Pinned card creation data
+
+        Returns:
+            Created PinnedCard or None if timeline not found
+        """
+        timeline = self.get_timeline(timeline_id)
+        if not timeline:
+            return None
+
+        # Check if already pinned
+        existing = timeline.is_card_pinned(create.card_type, create.card_id)
+        if existing:
+            logger.info(
+                f"Card {create.card_type.value}:{create.card_id} already pinned "
+                f"to timeline {timeline_id}"
+            )
+            return existing
+
+        # Calculate display timing
+        display_start, display_end = timeline.calculate_card_timing(create.timestamp)
+
+        pinned_card = PinnedCard(
+            card_type=create.card_type,
+            card_id=create.card_id,
+            segment_id=create.segment_id,
+            timestamp=create.timestamp,
+            display_start=display_start,
+            display_end=display_end,
+            card_data=create.card_data,
+        )
+
+        timeline.add_pinned_card(pinned_card)
+        self._save_timeline(timeline)
+        logger.info(
+            f"Pinned {create.card_type.value} card '{create.card_id}' "
+            f"to timeline {timeline_id} at {create.timestamp}s "
+            f"(display: {display_start:.1f}s - {display_end:.1f}s)"
+        )
+
+        return pinned_card
+
+    def remove_pinned_card(
+        self,
+        timeline_id: str,
+        card_id: str,
+    ) -> bool:
+        """Remove a pinned card from a timeline.
+
+        Args:
+            timeline_id: Timeline ID
+            card_id: Pinned card ID
+
+        Returns:
+            True if removed, False if not found
+        """
+        timeline = self.get_timeline(timeline_id)
+        if not timeline:
+            return False
+
+        if timeline.remove_pinned_card(card_id):
+            self._save_timeline(timeline)
+            logger.info(
+                f"Removed pinned card {card_id} from timeline {timeline_id}"
+            )
+            return True
+
+        return False
+
+    def is_card_pinned(
+        self,
+        timeline_id: str,
+        card_type: str,
+        card_id: str,
+    ) -> dict:
+        """Check if a card is pinned to a timeline.
+
+        Args:
+            timeline_id: Timeline ID
+            card_type: Card type (word or entity)
+            card_id: Card ID (word or entity QID)
+
+        Returns:
+            Dict with is_pinned and optional pin_id
+        """
+        timeline = self.get_timeline(timeline_id)
+        if not timeline:
+            return {"is_pinned": False}
+
+        try:
+            pinned_type = PinnedCardType(card_type)
+        except ValueError:
+            return {"is_pinned": False}
+
+        existing = timeline.is_card_pinned(pinned_type, card_id)
+        if existing:
+            return {"is_pinned": True, "pin_id": existing.id}
+        return {"is_pinned": False}
+
+    def set_card_display_duration(
+        self,
+        timeline_id: str,
+        duration: float,
+    ) -> bool:
+        """Set the default display duration for pinned cards.
+
+        Args:
+            timeline_id: Timeline ID
+            duration: Duration in seconds (5-10 recommended)
+
+        Returns:
+            True if successful, False if timeline not found
+        """
+        timeline = self.get_timeline(timeline_id)
+        if not timeline:
+            return False
+
+        # Clamp to reasonable range
+        timeline.card_display_duration = max(3.0, min(15.0, duration))
+        self._save_timeline(timeline)
+        logger.info(
+            f"Set card display duration for timeline {timeline_id}: "
+            f"{timeline.card_display_duration}s"
+        )
+
+        return True

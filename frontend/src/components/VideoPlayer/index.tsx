@@ -45,6 +45,9 @@ interface VideoPlayerProps {
   // Card side panel
   cardState?: CardPopupState;
   onCardClose?: () => void;
+  // Pinned cards support
+  timelineId?: string;
+  onCardPinChange?: () => void;
 }
 
 export interface VideoPlayerRef {
@@ -81,6 +84,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   onSubtitleLanguageModeChange,
   cardState,
   onCardClose,
+  timelineId,
+  onCardPinChange,
 }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -513,6 +518,10 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
                 onClose={onCardClose}
                 position="right"
                 inline={true}
+                sourceTimelineId={timelineId}
+                sourceSegmentId={currentSegmentId ?? undefined}
+                sourceTimecode={currentTime}
+                onPinChange={onCardPinChange ? () => onCardPinChange() : undefined}
               />
             )}
           </div>

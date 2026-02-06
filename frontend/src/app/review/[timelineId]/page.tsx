@@ -17,8 +17,8 @@ import { useMultiTrackWaveform, TrackType } from "@/hooks/useMultiTrackWaveform"
 import { useCardPopup } from "@/hooks/useCardPopup";
 import { useCreativeConfig } from "@/hooks/useCreativeConfig";
 import { useCreativeKeyboard } from "@/hooks/useCreativeKeyboard";
-import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress, setSubtitleAreaRatio, splitSegment, getSegmentAnnotations, setSubtitleLanguageMode } from "@/lib/api";
-import type { ExportStatusResponse, SubtitleStyleOptions, SegmentAnnotations } from "@/lib/types";
+import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress, setSubtitleAreaRatio, splitSegment, getSegmentAnnotations, setSubtitleLanguageMode, unpinCard } from "@/lib/api";
+import type { ExportStatusResponse, SubtitleStyleOptions, SegmentAnnotations, PinnedCard } from "@/lib/types";
 import type { CreativeStyle } from "@/lib/creative-types";
 import { useToast, useConfirm } from "@/components/ui";
 import ReviewHeader from "./ReviewHeader";
@@ -35,6 +35,7 @@ import StyleSelector from "./StyleSelector";
 import CreativeConfigPanel from "./CreativeConfigPanel";
 import CreativeAIChat from "./CreativeAIChat";
 import RemotionExportPanel from "./RemotionExportPanel";
+import PinnedCardsList from "./PinnedCardsList";
 import type { Observation } from "@/lib/types";
 import type { RemotionConfig } from "@/lib/creative-types";
 
@@ -234,6 +235,32 @@ export default function ReviewPage() {
       videoPlayerRef.current.seekTo(observation.timecode);
     }
   }, []);
+
+  // Handle pinned card click - seek to timestamp and show card
+  const handlePinnedCardClick = useCallback((card: PinnedCard) => {
+    if (videoPlayerRef.current) {
+      videoPlayerRef.current.seekTo(card.timestamp);
+    }
+    // Open the card popup
+    if (card.card_type === "word" && card.card_data) {
+      openWordCard((card.card_data as { word: string }).word);
+    } else if (card.card_type === "entity" && card.card_data) {
+      openEntityCard((card.card_data as { entity_id: string }).entity_id);
+    }
+  }, [openWordCard, openEntityCard]);
+
+  // Handle pinned card unpin
+  const handlePinnedCardUnpin = useCallback(async (cardId: string) => {
+    if (!timeline) return;
+    try {
+      await unpinCard(timeline.timeline_id, cardId);
+      await refresh();
+      toast.success("卡片已取消钉住");
+    } catch (err) {
+      console.error("Failed to unpin card:", err);
+      toast.error("取消钉住失败");
+    }
+  }, [timeline, refresh, toast]);
 
   // Handle segment click - also triggers entity analysis for that segment
   const handleSegmentClick = useCallback(async (segmentId: number) => {
@@ -541,6 +568,8 @@ export default function ReviewPage() {
               onSubtitleLanguageModeChange={handleSubtitleLanguageModeChange}
               cardState={cardState}
               onCardClose={closeCard}
+              timelineId={timeline.timeline_id}
+              onCardPinChange={() => refresh()}
             />
             )}
           </div>
@@ -561,6 +590,9 @@ export default function ReviewPage() {
               onGenerateWaveform={(trackType: TrackType) => generateWaveform(trackType)}
               trimStart={timeline.video_trim_start}
               trimEnd={timeline.video_trim_end}
+              pinnedCards={timeline.pinned_cards || []}
+              onPinnedCardClick={handlePinnedCardClick}
+              onPinnedCardUnpin={handlePinnedCardUnpin}
             />
           </div>
 
@@ -592,6 +624,16 @@ export default function ReviewPage() {
             onUpdate={() => refresh()}
           />
           <SpeakerEditor timelineId={timelineId} onSpeakerNamesChange={() => refresh()} />
+
+          {/* Pinned cards list */}
+          {(timeline.pinned_cards?.length ?? 0) > 0 && (
+            <PinnedCardsList
+              timelineId={timeline.timeline_id}
+              pinnedCards={timeline.pinned_cards || []}
+              onCardClick={handlePinnedCardClick}
+              onRefresh={() => refresh()}
+            />
+          )}
 
           {/* Entity analysis hint */}
           <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-700 bg-gray-800/50">

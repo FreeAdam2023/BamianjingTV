@@ -5,9 +5,10 @@
  * Slides in from the right side with elegant animation
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import type { CardPopupState } from "@/hooks/useCardPopup";
-import type { WordCard, EntityCard } from "@/lib/types";
+import type { WordCard, EntityCard, PinnedCard, PinnedCardType } from "@/lib/types";
+import { pinCard, unpinCard, checkCardPinned } from "@/lib/api";
 
 interface CardSidePanelProps {
   state: CardPopupState;
@@ -16,12 +17,42 @@ interface CardSidePanelProps {
   sourceTimelineId?: string;
   sourceTimecode?: number;
   sourceSegmentText?: string;
+  /** Segment ID for pinning */
+  sourceSegmentId?: number;
+  /** Callback when pin state changes */
+  onPinChange?: (pinned: PinnedCard | null) => void;
   /** When true, panel fills its container instead of absolute positioning */
   inline?: boolean;
 }
 
+// Pin icon component
+function PinIcon({ filled }: { filled: boolean }) {
+  if (filled) {
+    return (
+      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M16 4a1 1 0 0 0-1.59-.81L8.78 7.6a1 1 0 0 1-.78.4H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h4a1 1 0 0 1 .78.4l5.63 4.4A1 1 0 0 0 16 20V4z" />
+        <path d="M20.71 7.29a1 1 0 0 0-1.42 0l-6 6a1 1 0 0 0 1.42 1.42l6-6a1 1 0 0 0 0-1.42z" />
+      </svg>
+    );
+  }
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+    </svg>
+  );
+}
+
 // Inline WordCard component optimized for side panel
-function SidePanelWordCard({ card, onClose }: { card: WordCard; onClose: () => void }) {
+interface SidePanelWordCardProps {
+  card: WordCard;
+  onClose: () => void;
+  isPinned?: boolean;
+  pinLoading?: boolean;
+  onTogglePin?: () => void;
+  canPin?: boolean;
+}
+
+function SidePanelWordCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin }: SidePanelWordCardProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [imageError, setImageError] = useState(false);
 
@@ -87,14 +118,36 @@ function SidePanelWordCard({ card, onClose }: { card: WordCard; onClose: () => v
             </span>
           )}
         </div>
-        <button
-          onClick={onClose}
-          className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded transition"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-1">
+          {/* Pin button */}
+          {canPin && (
+            <button
+              onClick={onTogglePin}
+              disabled={pinLoading}
+              className={`p-1.5 rounded transition ${
+                isPinned
+                  ? "text-purple-400 bg-purple-500/20 hover:bg-purple-500/30"
+                  : "text-white/60 hover:text-white hover:bg-white/10"
+              } ${pinLoading ? "opacity-50 cursor-wait" : ""}`}
+              title={isPinned ? "取消钉住" : "钉住到视频"}
+            >
+              {pinLoading ? (
+                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <PinIcon filled={isPinned || false} />
+              )}
+            </button>
+          )}
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded transition"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Content */}
@@ -178,7 +231,16 @@ function SidePanelWordCard({ card, onClose }: { card: WordCard; onClose: () => v
 }
 
 // Inline EntityCard component optimized for side panel
-function SidePanelEntityCard({ card, onClose }: { card: EntityCard; onClose: () => void }) {
+interface SidePanelEntityCardProps {
+  card: EntityCard;
+  onClose: () => void;
+  isPinned?: boolean;
+  pinLoading?: boolean;
+  onTogglePin?: () => void;
+  canPin?: boolean;
+}
+
+function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin }: SidePanelEntityCardProps) {
   const typeColors: Record<string, string> = {
     person: "bg-blue-500/50",
     place: "bg-green-500/50",
@@ -210,14 +272,37 @@ function SidePanelEntityCard({ card, onClose }: { card: EntityCard; onClose: () 
           <div className="h-16 bg-gradient-to-r from-white/5 to-white/10" />
         )}
 
-        <button
-          onClick={onClose}
-          className="absolute top-2 right-2 p-1.5 bg-black/50 text-white hover:bg-black/70 rounded-full transition"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        {/* Action buttons */}
+        <div className="absolute top-2 right-2 flex items-center gap-1">
+          {/* Pin button */}
+          {canPin && (
+            <button
+              onClick={onTogglePin}
+              disabled={pinLoading}
+              className={`p-1.5 rounded-full transition ${
+                isPinned
+                  ? "bg-purple-500/80 text-white hover:bg-purple-500"
+                  : "bg-black/50 text-white hover:bg-black/70"
+              } ${pinLoading ? "opacity-50 cursor-wait" : ""}`}
+              title={isPinned ? "取消钉住" : "钉住到视频"}
+            >
+              {pinLoading ? (
+                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <PinIcon filled={isPinned || false} />
+              )}
+            </button>
+          )}
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            className="p-1.5 bg-black/50 text-white hover:bg-black/70 rounded-full transition"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
 
         <span className={`absolute top-2 left-2 px-2 py-0.5 ${typeColors[card.entity_type] || typeColors.other} text-white text-xs font-medium rounded backdrop-blur-sm`}>
           {card.entity_type}
@@ -268,9 +353,85 @@ export default function CardSidePanel({
   state,
   onClose,
   position = "right",
+  sourceTimelineId,
+  sourceTimecode,
+  sourceSegmentId,
+  onPinChange,
   inline = false,
 }: CardSidePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const [isPinned, setIsPinned] = useState(false);
+  const [pinId, setPinId] = useState<string | null>(null);
+  const [pinLoading, setPinLoading] = useState(false);
+
+  // Determine if pinning is available
+  const canPin = !!(sourceTimelineId && sourceSegmentId !== undefined && sourceTimecode !== undefined);
+
+  // Get current card info
+  const getCardInfo = useCallback((): { cardType: PinnedCardType; cardId: string; cardData: WordCard | EntityCard } | null => {
+    if (state.type === "word" && state.wordCard) {
+      return { cardType: "word", cardId: state.wordCard.word, cardData: state.wordCard };
+    }
+    if (state.type === "entity" && state.entityCard) {
+      return { cardType: "entity", cardId: state.entityCard.entity_id, cardData: state.entityCard };
+    }
+    return null;
+  }, [state]);
+
+  // Check if card is pinned when card changes
+  useEffect(() => {
+    if (!canPin || state.loading) return;
+
+    const cardInfo = getCardInfo();
+    if (!cardInfo) return;
+
+    const checkPinStatus = async () => {
+      try {
+        const result = await checkCardPinned(sourceTimelineId!, cardInfo.cardType, cardInfo.cardId);
+        setIsPinned(result.is_pinned);
+        setPinId(result.pin_id || null);
+      } catch (err) {
+        console.error("Failed to check pin status:", err);
+      }
+    };
+
+    checkPinStatus();
+  }, [canPin, sourceTimelineId, state.type, state.wordCard?.word, state.entityCard?.entity_id, state.loading, getCardInfo]);
+
+  // Handle pin/unpin toggle
+  const handleTogglePin = useCallback(async () => {
+    if (!canPin || pinLoading) return;
+
+    const cardInfo = getCardInfo();
+    if (!cardInfo) return;
+
+    setPinLoading(true);
+    try {
+      if (isPinned && pinId) {
+        // Unpin
+        await unpinCard(sourceTimelineId!, pinId);
+        setIsPinned(false);
+        setPinId(null);
+        onPinChange?.(null);
+      } else {
+        // Pin
+        const pinned = await pinCard(sourceTimelineId!, {
+          card_type: cardInfo.cardType,
+          card_id: cardInfo.cardId,
+          segment_id: sourceSegmentId!,
+          timestamp: sourceTimecode!,
+          card_data: cardInfo.cardData,
+        });
+        setIsPinned(true);
+        setPinId(pinned.id);
+        onPinChange?.(pinned);
+      }
+    } catch (err) {
+      console.error("Failed to toggle pin:", err);
+    } finally {
+      setPinLoading(false);
+    }
+  }, [canPin, pinLoading, isPinned, pinId, sourceTimelineId, sourceSegmentId, sourceTimecode, getCardInfo, onPinChange]);
 
   // Close on escape key
   useEffect(() => {
@@ -281,6 +442,14 @@ export default function CardSidePanel({
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [state.isOpen, onClose]);
+
+  // Reset pin state when panel closes
+  useEffect(() => {
+    if (!state.isOpen) {
+      setIsPinned(false);
+      setPinId(null);
+    }
+  }, [state.isOpen]);
 
   if (!state.isOpen) return null;
 
@@ -316,12 +485,26 @@ export default function CardSidePanel({
 
       {/* Word card */}
       {state.type === "word" && state.wordCard && !state.loading && (
-        <SidePanelWordCard card={state.wordCard} onClose={onClose} />
+        <SidePanelWordCard
+          card={state.wordCard}
+          onClose={onClose}
+          isPinned={isPinned}
+          pinLoading={pinLoading}
+          onTogglePin={handleTogglePin}
+          canPin={canPin}
+        />
       )}
 
       {/* Entity card */}
       {state.type === "entity" && state.entityCard && !state.loading && (
-        <SidePanelEntityCard card={state.entityCard} onClose={onClose} />
+        <SidePanelEntityCard
+          card={state.entityCard}
+          onClose={onClose}
+          isPinned={isPinned}
+          pinLoading={pinLoading}
+          onTogglePin={handleTogglePin}
+          canPin={canPin}
+        />
       )}
     </div>
     );
@@ -373,12 +556,26 @@ export default function CardSidePanel({
 
       {/* Word card */}
       {state.type === "word" && state.wordCard && !state.loading && (
-        <SidePanelWordCard card={state.wordCard} onClose={onClose} />
+        <SidePanelWordCard
+          card={state.wordCard}
+          onClose={onClose}
+          isPinned={isPinned}
+          pinLoading={pinLoading}
+          onTogglePin={handleTogglePin}
+          canPin={canPin}
+        />
       )}
 
       {/* Entity card */}
       {state.type === "entity" && state.entityCard && !state.loading && (
-        <SidePanelEntityCard card={state.entityCard} onClose={onClose} />
+        <SidePanelEntityCard
+          card={state.entityCard}
+          onClose={onClose}
+          isPinned={isPinned}
+          pinLoading={pinLoading}
+          onTogglePin={handleTogglePin}
+          canPin={canPin}
+        />
       )}
     </div>
   );

@@ -69,6 +69,11 @@ import type {
   LipSyncStatus,
   PreviewRequest,
   PreviewResponse,
+  // Pinned Cards
+  PinnedCard,
+  PinnedCardCreate,
+  PinnedCardType,
+  PinnedCardCheckResponse,
 } from "./types";
 
 // Get API URL: use env var or derive from current host with port 8001
@@ -1353,4 +1358,65 @@ export async function cancelCreativeRender(
 
 export function getCreativeExportUrl(jobId: string): string {
   return `${getApiBase()}/jobs/${jobId}/output/creative/creative_export.mp4`;
+}
+
+// ============ Pinned Cards API ============
+
+export async function listPinnedCards(timelineId: string): Promise<PinnedCard[]> {
+  return fetchAPI<PinnedCard[]>(`/timelines/${timelineId}/pinned-cards`);
+}
+
+export async function pinCard(
+  timelineId: string,
+  data: PinnedCardCreate
+): Promise<PinnedCard> {
+  return fetchAPI<PinnedCard>(`/timelines/${timelineId}/pinned-cards`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function unpinCard(
+  timelineId: string,
+  cardId: string
+): Promise<{ message: string; card_id: string }> {
+  return fetchAPI(`/timelines/${timelineId}/pinned-cards/${cardId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function checkCardPinned(
+  timelineId: string,
+  cardType: PinnedCardType,
+  cardId: string
+): Promise<PinnedCardCheckResponse> {
+  return fetchAPI<PinnedCardCheckResponse>(
+    `/timelines/${timelineId}/pinned-cards/check/${cardType}/${encodeURIComponent(cardId)}`
+  );
+}
+
+export async function setCardDisplayDuration(
+  timelineId: string,
+  duration: number
+): Promise<{ timeline_id: string; card_display_duration: number; message: string }> {
+  return fetchAPI(`/timelines/${timelineId}/pinned-cards/duration?duration=${duration}`, {
+    method: "POST",
+  });
+}
+
+export interface PinnedCardsDescriptionResponse {
+  timeline_id: string;
+  description: string;
+  word_count: number;
+  entity_count: number;
+  message: string;
+}
+
+export async function getPinnedCardsDescription(
+  timelineId: string,
+  includeTimestamps: boolean = true
+): Promise<PinnedCardsDescriptionResponse> {
+  return fetchAPI<PinnedCardsDescriptionResponse>(
+    `/timelines/${timelineId}/pinned-cards/description?include_timestamps=${includeTimestamps}`
+  );
 }
