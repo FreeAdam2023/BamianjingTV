@@ -563,6 +563,7 @@ export default function ReviewPage() {
               cardState={cardState}
               onCardClose={closeCard}
               timelineId={timeline.timeline_id}
+              pinnedCards={timeline.pinned_cards || []}
               onCardPinChange={() => refresh()}
             />
             )}

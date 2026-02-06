@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { CardPopupState } from "@/hooks/useCardPopup";
 import type { WordCard, EntityCard, PinnedCard, PinnedCardType } from "@/lib/types";
-import { pinCard, unpinCard, checkCardPinned } from "@/lib/api";
+import { pinCard, unpinCard } from "@/lib/api";
 
 interface CardSidePanelProps {
   state: CardPopupState;
@@ -23,6 +23,8 @@ interface CardSidePanelProps {
   onPinChange?: (pinned: PinnedCard | null) => void;
   /** When true, panel fills its container instead of absolute positioning */
   inline?: boolean;
+  /** Pinned cards list to check pin status locally (avoids API call) */
+  pinnedCards?: PinnedCard[];
 }
 
 // Pin icon component - thumbtack style
@@ -359,14 +361,39 @@ export default function CardSidePanel({
   sourceSegmentId,
   onPinChange,
   inline = false,
+  pinnedCards = [],
 }: CardSidePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const [isPinned, setIsPinned] = useState(false);
-  const [pinId, setPinId] = useState<string | null>(null);
   const [pinLoading, setPinLoading] = useState(false);
 
   // Determine if pinning is available
   const canPin = !!(sourceTimelineId && sourceSegmentId !== undefined && sourceTimecode !== undefined);
+
+  // Check if current card is pinned (local check, no API call)
+  const getCurrentPinInfo = useCallback((): { isPinned: boolean; pinId: string | null } => {
+    if (!state.isOpen) return { isPinned: false, pinId: null };
+
+    let cardId: string | null = null;
+    let cardType: PinnedCardType | null = null;
+
+    if (state.type === "word" && state.wordCard) {
+      cardId = state.wordCard.word;
+      cardType = "word";
+    } else if (state.type === "entity" && state.entityCard) {
+      cardId = state.entityCard.entity_id;
+      cardType = "entity";
+    }
+
+    if (!cardId || !cardType) return { isPinned: false, pinId: null };
+
+    const pinned = pinnedCards.find(
+      (p) => p.card_type === cardType && p.card_id === cardId
+    );
+
+    return { isPinned: !!pinned, pinId: pinned?.id || null };
+  }, [state, pinnedCards]);
+
+  const { isPinned, pinId } = getCurrentPinInfo();
 
   // Get current card info
   const getCardInfo = useCallback((): { cardType: PinnedCardType; cardId: string; cardData: WordCard | EntityCard } | null => {
@@ -379,25 +406,8 @@ export default function CardSidePanel({
     return null;
   }, [state]);
 
-  // Check if card is pinned when card changes
-  useEffect(() => {
-    if (!canPin || state.loading) return;
-
-    const cardInfo = getCardInfo();
-    if (!cardInfo) return;
-
-    const checkPinStatus = async () => {
-      try {
-        const result = await checkCardPinned(sourceTimelineId!, cardInfo.cardType, cardInfo.cardId);
-        setIsPinned(result.is_pinned);
-        setPinId(result.pin_id || null);
-      } catch (err) {
-        console.error("Failed to check pin status:", err);
-      }
-    };
-
-    checkPinStatus();
-  }, [canPin, sourceTimelineId, state.type, state.wordCard?.word, state.entityCard?.entity_id, state.loading, getCardInfo]);
+  // Note: Pin status is now checked locally via pinnedCards prop instead of API call
+  // This avoids unnecessary network requests when opening cards
 
   // Handle pin/unpin toggle
   const handleTogglePin = useCallback(async () => {
@@ -411,8 +421,6 @@ export default function CardSidePanel({
       if (isPinned && pinId) {
         // Unpin
         await unpinCard(sourceTimelineId!, pinId);
-        setIsPinned(false);
-        setPinId(null);
         onPinChange?.(null);
       } else {
         // Pin
@@ -423,8 +431,6 @@ export default function CardSidePanel({
           timestamp: sourceTimecode!,
           card_data: cardInfo.cardData,
         });
-        setIsPinned(true);
-        setPinId(pinned.id);
         onPinChange?.(pinned);
       }
     } catch (err) {
@@ -443,14 +449,6 @@ export default function CardSidePanel({
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [state.isOpen, onClose]);
-
-  // Reset pin state when panel closes
-  useEffect(() => {
-    if (!state.isOpen) {
-      setIsPinned(false);
-      setPinId(null);
-    }
-  }, [state.isOpen]);
 
   if (!state.isOpen) return null;
 

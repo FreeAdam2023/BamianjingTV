@@ -5,7 +5,7 @@
  */
 
 import { useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
-import type { EditableSegment } from "@/lib/types";
+import type { EditableSegment, PinnedCard } from "@/lib/types";
 import type { CardPopupState } from "@/hooks/useCardPopup";
 import { useVideoState } from "./useVideoState";
 import SubtitleOverlay from "./SubtitleOverlay";
@@ -47,6 +47,7 @@ interface VideoPlayerProps {
   onCardClose?: () => void;
   // Pinned cards support
   timelineId?: string;
+  pinnedCards?: PinnedCard[];
   onCardPinChange?: () => void;
 }
 
@@ -85,6 +86,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   cardState,
   onCardClose,
   timelineId,
+  pinnedCards = [],
   onCardPinChange,
 }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -521,6 +523,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
                 sourceTimelineId={timelineId}
                 sourceSegmentId={currentSegmentId ?? undefined}
                 sourceTimecode={currentTime}
+                pinnedCards={pinnedCards}
                 onPinChange={onCardPinChange ? () => onCardPinChange() : undefined}
               />
             )}
