@@ -506,44 +506,14 @@ export default function ReviewPage() {
             setExportJustStarted(false);
           }
         }}
+        isCreativeMode={isCreativeMode}
+        onModeChange={setIsCreativeMode}
       />
 
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Video panel */}
         <div className="flex-1 flex flex-col p-4 min-h-0 overflow-hidden">
-          {/* Mode toggle */}
-          <div className="flex items-center gap-2 mb-2 flex-shrink-0">
-            <button
-              onClick={() => setIsCreativeMode(false)}
-              className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                !isCreativeMode
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-              }`}
-            >
-              审阅
-            </button>
-            <button
-              onClick={() => setIsCreativeMode(true)}
-              className={`px-3 py-1.5 text-sm rounded-lg transition-colors flex items-center gap-1.5 ${
-                isCreativeMode
-                  ? "bg-purple-600 text-white"
-                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-              }`}
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-              </svg>
-              动效字幕
-            </button>
-            {isCreativeMode && (
-              <span className="text-xs text-gray-500 ml-2">
-                Remotion 动画字幕效果
-              </span>
-            )}
-          </div>
-
           <div className="flex-1 min-h-0 h-0">
             {isCreativeMode ? (
               <Suspense
