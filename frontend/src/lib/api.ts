@@ -969,6 +969,49 @@ export async function analyzeTimelineEntities(
   });
 }
 
+// ============ Manual Entity Management ============
+
+export interface ManualEntityRequest {
+  segment_id: number;
+  text: string;
+  wikipedia_url?: string;
+  entity_id?: string;
+  start_char?: number;
+  end_char?: number;
+}
+
+export interface ManualEntityResponse {
+  success: boolean;
+  entity_id?: string;
+  entity_name?: string;
+  message: string;
+}
+
+export async function addManualEntity(
+  timelineId: string,
+  segmentId: number,
+  data: ManualEntityRequest
+): Promise<ManualEntityResponse> {
+  return fetchAPI<ManualEntityResponse>(
+    `/cards/timelines/${timelineId}/segments/${segmentId}/entities`,
+    {
+      method: "POST",
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+export async function deleteSegmentEntity(
+  timelineId: string,
+  segmentId: number,
+  entityText: string
+): Promise<{ message: string }> {
+  return fetchAPI<{ message: string }>(
+    `/cards/timelines/${timelineId}/segments/${segmentId}/entities/${encodeURIComponent(entityText)}`,
+    { method: "DELETE" }
+  );
+}
+
 // ============ Observations API (for WATCHING mode) ============
 
 export async function addObservation(

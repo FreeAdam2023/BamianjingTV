@@ -1,11 +1,13 @@
 """Card generator worker for fetching word and entity data from TomTrove API.
 
 Uses TomTrove's dictionary and entity services for high-quality card data.
+Auto-translates entity descriptions when Chinese localization is missing.
 """
 
 import asyncio
 from typing import List, Optional
 import httpx
+from openai import AsyncOpenAI
 from loguru import logger
 
 from app.config import settings
@@ -36,10 +38,15 @@ class CardGeneratorWorker:
         """
         self.cache = card_cache or CardCache()
         self.http_client: Optional[httpx.AsyncClient] = None
+        self.openai_client: Optional[AsyncOpenAI] = None
 
         # TomTrove API settings
         self.tomtrove_url = settings.tomtrove_api_url
         self.tomtrove_key = settings.tomtrove_api_key
+
+        # OpenAI for auto-translation
+        if settings.openai_api_key:
+            self.openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client with TomTrove auth headers."""
@@ -60,6 +67,46 @@ class CardGeneratorWorker:
         """Close HTTP client."""
         if self.http_client and not self.http_client.is_closed:
             await self.http_client.aclose()
+
+    async def _translate_to_chinese(self, text: str, context: Optional[str] = None) -> Optional[str]:
+        """Translate text to Simplified Chinese using OpenAI.
+
+        Args:
+            text: English text to translate.
+            context: Optional context (e.g., entity name) for better translation.
+
+        Returns:
+            Chinese translation or None if failed.
+        """
+        if not self.openai_client or not text:
+            return None
+
+        try:
+            prompt = f"""将以下英文翻译成简体中文。只输出翻译结果，不要解释。
+
+{f'上下文：{context}' if context else ''}
+
+英文：{text}
+
+中文翻译："""
+
+            response = await self.openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "你是一个专业翻译。只输出翻译结果，不要其他内容。"},
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=500,
+                temperature=0.3,
+            )
+
+            translation = response.choices[0].message.content.strip()
+            logger.debug(f"Translated '{text[:50]}...' to '{translation[:50]}...'")
+            return translation
+
+        except Exception as e:
+            logger.warning(f"Failed to translate text: {e}")
+            return None
 
     def _is_tomtrove_available(self) -> bool:
         """Check if TomTrove API is configured."""
@@ -572,19 +619,21 @@ class CardGeneratorWorker:
                 logger.warning(f"TomTrove entity fetch unsuccessful for {entity_id}")
                 return await self._fetch_entity_from_wikidata(entity_id)
 
-            return self._parse_tomtrove_entity_response(entity_id, data, target_lang)
+            return await self._parse_tomtrove_entity_response(entity_id, data, target_lang)
 
         except Exception as e:
             logger.error(f"Error fetching entity from TomTrove {entity_id}: {e}")
             return await self._fetch_entity_from_wikidata(entity_id)
 
-    def _parse_tomtrove_entity_response(
+    async def _parse_tomtrove_entity_response(
         self,
         entity_id: str,
         data: dict,
         target_lang: Optional[str] = None,
     ) -> Optional[EntityCard]:
         """Parse TomTrove entity response into EntityCard.
+
+        If Chinese localization is missing, auto-translates from English.
 
         TomTrove response format:
         {
@@ -634,6 +683,35 @@ class CardGeneratorWorker:
                 description = en_loc.get("description", "")
                 wikipedia_url = en_loc.get("url")
                 thumbnail = en_loc.get("thumbnail")
+
+                # Auto-translate if English available but no Chinese
+                if en_loc and self.openai_client:
+                    logger.info(f"No Chinese localization for {entity_id}, auto-translating...")
+
+                    # Translate name if it's not just the entity ID
+                    en_name = en_loc.get("title", "")
+                    en_desc = en_loc.get("description", "")
+
+                    if en_name and en_name != entity_id:
+                        translated_name = await self._translate_to_chinese(en_name)
+                        if translated_name:
+                            name = translated_name
+
+                    if en_desc:
+                        translated_desc = await self._translate_to_chinese(
+                            en_desc,
+                            context=en_name
+                        )
+                        if translated_desc:
+                            description = translated_desc
+
+                    # Create synthetic zh_loc for localizations
+                    zh_loc = {
+                        "title": name,
+                        "description": description,
+                        "url": wikipedia_url,
+                        "translated": True,  # Mark as auto-translated
+                    }
 
             # Get image URL from images array first, then thumbnail
             image_url = None

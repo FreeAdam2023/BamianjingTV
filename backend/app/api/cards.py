@@ -543,6 +543,221 @@ async def analyze_timeline_entities(
     )
 
 
+# ============ Manual Entity Management ============
+
+class ManualEntityRequest(BaseModel):
+    """Request body for manually adding/updating an entity."""
+    segment_id: int
+    text: str  # The text span in the segment
+    wikipedia_url: Opt[str] = None  # Wikipedia URL to extract QID from
+    entity_id: Opt[str] = None  # Or directly provide Wikidata QID
+    start_char: Opt[int] = None  # Position in segment text
+    end_char: Opt[int] = None
+
+
+class ManualEntityResponse(BaseModel):
+    """Response from manual entity operation."""
+    success: bool
+    entity_id: Opt[str] = None
+    entity_name: Opt[str] = None
+    message: str
+
+
+def extract_qid_from_wikipedia_url(url: str) -> Opt[str]:
+    """Extract article title from Wikipedia URL and search for QID."""
+    import re
+    # Match patterns like:
+    # https://en.wikipedia.org/wiki/Article_Name
+    # https://zh.wikipedia.org/wiki/文章名
+    match = re.search(r'wikipedia\.org/wiki/([^#?]+)', url)
+    if match:
+        return match.group(1).replace('_', ' ')
+    return None
+
+
+@router.post("/timelines/{timeline_id}/segments/{segment_id}/entities", response_model=ManualEntityResponse)
+async def add_manual_entity(
+    timeline_id: str,
+    segment_id: int,
+    request: ManualEntityRequest,
+):
+    """Manually add or update an entity annotation for a segment.
+
+    You can provide either:
+    - A Wikipedia URL (will be resolved to Wikidata QID)
+    - A Wikidata QID directly (e.g., Q12345)
+
+    Args:
+        timeline_id: Timeline ID.
+        segment_id: Segment ID to add entity to.
+        request: Entity details including text and Wikipedia URL or QID.
+    """
+    from app.models.card import SegmentAnnotations, EntityAnnotation, EntityType
+
+    manager = _get_timeline_manager()
+    timeline = manager.get_timeline(timeline_id)
+
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    # Find the segment
+    segment = next((s for s in timeline.segments if s.id == segment_id), None)
+    if not segment:
+        raise HTTPException(status_code=404, detail="Segment not found")
+
+    generator = _get_card_generator()
+    entity_id = request.entity_id
+
+    # If Wikipedia URL provided, resolve to QID
+    if request.wikipedia_url and not entity_id:
+        article_title = extract_qid_from_wikipedia_url(request.wikipedia_url)
+        if not article_title:
+            return ManualEntityResponse(
+                success=False,
+                message="Could not parse Wikipedia URL"
+            )
+
+        # Search for QID via Wikidata API
+        try:
+            client = await generator._get_client()
+            # Determine language from URL
+            import re
+            lang_match = re.search(r'(\w+)\.wikipedia\.org', request.wikipedia_url)
+            lang = lang_match.group(1) if lang_match else "en"
+
+            # Use Wikidata's sitelinks to find QID
+            response = await client.get(
+                "https://www.wikidata.org/w/api.php",
+                params={
+                    "action": "wbgetentities",
+                    "sites": f"{lang}wiki",
+                    "titles": article_title,
+                    "format": "json",
+                    "props": "labels",
+                },
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                entities = data.get("entities", {})
+                for qid, entity_data in entities.items():
+                    if qid.startswith("Q") and "missing" not in entity_data:
+                        entity_id = qid
+                        break
+
+            if not entity_id:
+                # Fallback: search by title
+                entity_id = await generator.search_entity(article_title)
+
+        except Exception as e:
+            logger.error(f"Failed to resolve Wikipedia URL: {e}")
+            return ManualEntityResponse(
+                success=False,
+                message=f"Failed to resolve Wikipedia URL: {str(e)}"
+            )
+
+    if not entity_id:
+        return ManualEntityResponse(
+            success=False,
+            message="Could not find Wikidata entity. Please provide a valid Wikipedia URL or QID."
+        )
+
+    # Fetch entity details to get name and type
+    entity_card = await generator.get_entity_card(entity_id, use_cache=True)
+    entity_name = entity_card.name if entity_card else request.text
+    entity_type = entity_card.entity_type if entity_card else EntityType.OTHER
+
+    # Calculate position if not provided
+    start_char = request.start_char
+    end_char = request.end_char
+    if start_char is None or end_char is None:
+        # Try to find text in segment
+        pos = segment.en.find(request.text)
+        if pos >= 0:
+            start_char = pos
+            end_char = pos + len(request.text)
+        else:
+            start_char = 0
+            end_char = len(request.text)
+
+    # Create new entity annotation
+    new_entity = EntityAnnotation(
+        text=request.text,
+        entity_id=entity_id,
+        entity_type=entity_type,
+        start_char=start_char,
+        end_char=end_char,
+        confidence=1.0,  # Manual = full confidence
+    )
+
+    # Get or create segment annotations
+    if segment_id not in timeline.segment_annotations:
+        timeline.segment_annotations[segment_id] = {
+            "segment_id": segment_id,
+            "words": [],
+            "entities": [],
+        }
+
+    # Check if entity already exists (by text), update if so
+    existing_entities = timeline.segment_annotations[segment_id].get("entities", [])
+    updated = False
+    for i, e in enumerate(existing_entities):
+        if e.get("text") == request.text:
+            existing_entities[i] = new_entity.model_dump()
+            updated = True
+            break
+
+    if not updated:
+        existing_entities.append(new_entity.model_dump())
+
+    timeline.segment_annotations[segment_id]["entities"] = existing_entities
+    manager.save_timeline(timeline)
+
+    logger.info(f"{'Updated' if updated else 'Added'} manual entity {entity_id} ({entity_name}) to segment {segment_id}")
+
+    return ManualEntityResponse(
+        success=True,
+        entity_id=entity_id,
+        entity_name=entity_name,
+        message=f"{'Updated' if updated else 'Added'} entity: {entity_name} ({entity_id})"
+    )
+
+
+@router.delete("/timelines/{timeline_id}/segments/{segment_id}/entities/{entity_text}")
+async def delete_segment_entity(
+    timeline_id: str,
+    segment_id: int,
+    entity_text: str,
+):
+    """Delete an entity annotation from a segment.
+
+    Args:
+        timeline_id: Timeline ID.
+        segment_id: Segment ID.
+        entity_text: Text of the entity to delete.
+    """
+    manager = _get_timeline_manager()
+    timeline = manager.get_timeline(timeline_id)
+
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    if segment_id not in timeline.segment_annotations:
+        raise HTTPException(status_code=404, detail="Segment has no annotations")
+
+    entities = timeline.segment_annotations[segment_id].get("entities", [])
+    original_count = len(entities)
+    entities = [e for e in entities if e.get("text") != entity_text]
+
+    if len(entities) == original_count:
+        raise HTTPException(status_code=404, detail="Entity not found")
+
+    timeline.segment_annotations[segment_id]["entities"] = entities
+    manager.save_timeline(timeline)
+
+    return {"message": f"Deleted entity: {entity_text}"}
+
+
 class SegmentAnnotationRequest(BaseModel):
     """Request body for segment annotation."""
     text: str
