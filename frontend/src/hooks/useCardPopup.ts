@@ -26,6 +26,8 @@ interface UseCardPopupReturn {
   openWordCard: (word: string, options?: OpenWordCardOptions) => Promise<void>;
   openEntityCard: (entityIdOrText: string, position?: { x: number; y: number }) => Promise<void>;
   close: () => void;
+  refresh: () => Promise<void>;
+  refreshing: boolean;
 }
 
 const initialState: CardPopupState = {
@@ -44,7 +46,10 @@ const entityCache = new Map<string, EntityCard | null>();
 
 export function useCardPopup(): UseCardPopupReturn {
   const [state, setState] = useState<CardPopupState>(initialState);
+  const [refreshing, setRefreshing] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  // Track current card for refresh
+  const currentCardRef = useRef<{ type: CardType; id: string } | null>(null);
 
   // Cancel any pending requests on unmount
   useEffect(() => {
@@ -55,13 +60,17 @@ export function useCardPopup(): UseCardPopupReturn {
     };
   }, []);
 
-  const openWordCard = useCallback(async (word: string, options?: OpenWordCardOptions) => {
+  const openWordCard = useCallback(async (word: string, options?: OpenWordCardOptions & { forceRefresh?: boolean }) => {
     const normalizedWord = word.toLowerCase().trim();
     const position = options?.position;
     const lang = options?.lang;
+    const forceRefresh = options?.forceRefresh ?? false;
 
     // Include language in cache key for different translations
     const cacheKey = lang ? `${normalizedWord}:${lang}` : normalizedWord;
+
+    // Track current card for refresh
+    currentCardRef.current = { type: "word", id: cacheKey };
 
     // Cancel previous request
     if (abortControllerRef.current) {
@@ -69,8 +78,8 @@ export function useCardPopup(): UseCardPopupReturn {
     }
     abortControllerRef.current = new AbortController();
 
-    // Check cache first
-    if (wordCache.has(cacheKey)) {
+    // Check cache first (unless force refresh)
+    if (!forceRefresh && wordCache.has(cacheKey)) {
       const cached = wordCache.get(cacheKey) ?? null;
       setState({
         isOpen: true,
@@ -82,6 +91,11 @@ export function useCardPopup(): UseCardPopupReturn {
         position: position || { x: 0, y: 0 },
       });
       return;
+    }
+
+    // Clear cache entry if force refresh
+    if (forceRefresh) {
+      wordCache.delete(cacheKey);
     }
 
     // Show loading state
@@ -96,7 +110,7 @@ export function useCardPopup(): UseCardPopupReturn {
     });
 
     try {
-      const response = await getWordCard(normalizedWord, { lang });
+      const response = await getWordCard(normalizedWord, { lang, forceRefresh });
 
       // Cache the result
       wordCache.set(cacheKey, response.card);
@@ -118,7 +132,7 @@ export function useCardPopup(): UseCardPopupReturn {
     }
   }, []);
 
-  const openEntityCard = useCallback(async (entityIdOrText: string, position?: { x: number; y: number }) => {
+  const openEntityCard = useCallback(async (entityIdOrText: string, position?: { x: number; y: number }, forceRefresh?: boolean) => {
     // Cancel previous request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -129,8 +143,16 @@ export function useCardPopup(): UseCardPopupReturn {
     const isQID = /^Q\d+$/i.test(entityIdOrText);
     const entityId = isQID ? entityIdOrText.toUpperCase() : null;
 
-    // Check cache first (only if we have a QID)
-    if (entityId && entityCache.has(entityId)) {
+    // Track current card for refresh
+    currentCardRef.current = { type: "entity", id: entityIdOrText };
+
+    // Clear cache entry if force refresh
+    if (forceRefresh && entityId) {
+      entityCache.delete(entityId);
+    }
+
+    // Check cache first (only if we have a QID and not force refresh)
+    if (!forceRefresh && entityId && entityCache.has(entityId)) {
       const cached = entityCache.get(entityId) ?? null;
       setState({
         isOpen: true,
@@ -173,7 +195,7 @@ export function useCardPopup(): UseCardPopupReturn {
       }
 
       // Fetch the entity card
-      const response = await getEntityCard(qid);
+      const response = await getEntityCard(qid, { forceRefresh: forceRefresh ?? false });
 
       // Cache the result
       entityCache.set(qid, response.card);
@@ -199,14 +221,34 @@ export function useCardPopup(): UseCardPopupReturn {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
+    currentCardRef.current = null;
     setState(initialState);
   }, []);
+
+  // Refresh current card (bypass cache)
+  const refresh = useCallback(async () => {
+    if (!currentCardRef.current || !state.isOpen) return;
+
+    setRefreshing(true);
+    try {
+      const { type, id } = currentCardRef.current;
+      if (type === "word") {
+        await openWordCard(id, { position: state.position, forceRefresh: true });
+      } else if (type === "entity") {
+        await openEntityCard(id, state.position, true);
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }, [state.isOpen, state.position, openWordCard, openEntityCard]);
 
   return {
     state,
     openWordCard,
     openEntityCard,
     close,
+    refresh,
+    refreshing,
   };
 }
 

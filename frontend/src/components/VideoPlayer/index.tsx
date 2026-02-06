@@ -49,6 +49,9 @@ interface VideoPlayerProps {
   timelineId?: string;
   pinnedCards?: PinnedCard[];
   onCardPinChange?: () => void;
+  // Card refresh
+  onCardRefresh?: () => void;
+  cardRefreshing?: boolean;
 }
 
 export interface VideoPlayerRef {
@@ -88,6 +91,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   timelineId,
   pinnedCards = [],
   onCardPinChange,
+  onCardRefresh,
+  cardRefreshing = false,
 }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -525,6 +530,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
                 sourceTimecode={currentTime}
                 pinnedCards={pinnedCards}
                 onPinChange={onCardPinChange ? () => onCardPinChange() : undefined}
+                onRefresh={onCardRefresh}
+                refreshing={cardRefreshing}
               />
             )}
           </div>

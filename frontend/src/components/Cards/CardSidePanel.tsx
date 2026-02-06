@@ -25,6 +25,10 @@ interface CardSidePanelProps {
   inline?: boolean;
   /** Pinned cards list to check pin status locally (avoids API call) */
   pinnedCards?: PinnedCard[];
+  /** Callback to refresh card data */
+  onRefresh?: () => void;
+  /** Whether refresh is in progress */
+  refreshing?: boolean;
 }
 
 // Pin icon component - thumbtack style
@@ -53,9 +57,11 @@ interface SidePanelWordCardProps {
   pinLoading?: boolean;
   onTogglePin?: () => void;
   canPin?: boolean;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }
 
-function SidePanelWordCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin }: SidePanelWordCardProps) {
+function SidePanelWordCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin, onRefresh, refreshing }: SidePanelWordCardProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [imageError, setImageError] = useState(false);
 
@@ -122,6 +128,23 @@ function SidePanelWordCard({ card, onClose, isPinned, pinLoading, onTogglePin, c
           )}
         </div>
         <div className="flex items-center gap-1">
+          {/* Refresh button */}
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              disabled={refreshing}
+              className={`p-1.5 rounded transition text-white/60 hover:text-white hover:bg-white/10 ${refreshing ? "opacity-50 cursor-wait" : ""}`}
+              title="刷新卡片"
+            >
+              {refreshing ? (
+                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              )}
+            </button>
+          )}
           {/* Pin button */}
           {canPin && (
             <button
@@ -241,9 +264,11 @@ interface SidePanelEntityCardProps {
   pinLoading?: boolean;
   onTogglePin?: () => void;
   canPin?: boolean;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }
 
-function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin }: SidePanelEntityCardProps) {
+function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin, onRefresh, refreshing }: SidePanelEntityCardProps) {
   const typeColors: Record<string, string> = {
     person: "bg-blue-500/50",
     place: "bg-green-500/50",
@@ -277,6 +302,23 @@ function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTogglePin,
 
         {/* Action buttons */}
         <div className="absolute top-2 right-2 flex items-center gap-1">
+          {/* Refresh button */}
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              disabled={refreshing}
+              className={`p-1.5 bg-black/50 text-white hover:bg-black/70 rounded-full transition ${refreshing ? "opacity-50 cursor-wait" : ""}`}
+              title="刷新卡片"
+            >
+              {refreshing ? (
+                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              )}
+            </button>
+          )}
           {/* Pin button */}
           {canPin && (
             <button
@@ -362,6 +404,8 @@ export default function CardSidePanel({
   onPinChange,
   inline = false,
   pinnedCards = [],
+  onRefresh,
+  refreshing = false,
 }: CardSidePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [pinLoading, setPinLoading] = useState(false);
@@ -491,6 +535,8 @@ export default function CardSidePanel({
           pinLoading={pinLoading}
           onTogglePin={handleTogglePin}
           canPin={canPin}
+          onRefresh={onRefresh}
+          refreshing={refreshing}
         />
       )}
 
@@ -503,6 +549,8 @@ export default function CardSidePanel({
           pinLoading={pinLoading}
           onTogglePin={handleTogglePin}
           canPin={canPin}
+          onRefresh={onRefresh}
+          refreshing={refreshing}
         />
       )}
     </div>
@@ -562,6 +610,8 @@ export default function CardSidePanel({
           pinLoading={pinLoading}
           onTogglePin={handleTogglePin}
           canPin={canPin}
+          onRefresh={onRefresh}
+          refreshing={refreshing}
         />
       )}
 
@@ -574,6 +624,8 @@ export default function CardSidePanel({
           pinLoading={pinLoading}
           onTogglePin={handleTogglePin}
           canPin={canPin}
+          onRefresh={onRefresh}
+          refreshing={refreshing}
         />
       )}
     </div>
