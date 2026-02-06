@@ -1,0 +1,45 @@
+{
+  "word": "loyal",
+  "lemma": "loyal",
+  "pronunciations": [
+    {
+      "ipa": "/ˈlɔɪəl/",
+      "audio_url": "https://tomtrovefilestoredev.blob.core.windows.net/tts-audio/vocabulary/en/loyal_90890e6b.mp3?se=2027-02-05T20%3A13%3A18Z&sp=r&sv=2023-11-03&sr=b&sig=ggEU9I9V4iXWGl/4Y5lTRSsE%2BKHj1nPizTqO7Rnb5sU%3D",
+      "region": "us"
+    }
+  ],
+  "senses": [
+    {
+      "part_of_speech": "adj",
+      "definition": "忠诚；忠实；忠心",
+      "definition_zh": "忠诚；忠实；忠心",
+      "examples": [
+        "Who are very loyal clientele.",
+        "Lot of true believer and a loyal soldier."
+      ],
+      "examples_zh": [
+        "他们是很忠诚的客户",
+        "许多虔诚的信徒和一个忠诚的战士"
+      ],
+      "synonyms": [
+        "faithful",
+        "devoted",
+        "steadfast",
+        "true",
+        "reliable"
+      ],
+      "antonyms": [
+        "disloyal",
+        "unfaithful",
+        "treacherous"
+      ]
+    }
+  ],
+  "images": [
+    "https://pixabay.com/get/gf097c2f396fa8e13cb350d8ab6f4a36bb806ed231f3d8322b77768fd533ea04fbd5a66f155ce46d66ead263a69e54d54c221ebc4db2c06725ae8b5ea367a06d1_1280.jpg"
+  ],
+  "frequency_rank": null,
+  "cefr_level": null,
+  "source": "tomtrove",
+  "fetched_at": "2026-02-05T15:37:49.755563"
+}

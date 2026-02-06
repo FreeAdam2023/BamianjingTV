@@ -1,0 +1,45 @@
+{
+  "word": "relationship",
+  "lemma": "relationship",
+  "pronunciations": [
+    {
+      "ipa": "/rɪˈleɪʃənˌʃɪp/",
+      "audio_url": "https://tomtrovefilestoredev.blob.core.windows.net/tts-audio/vocabulary/en/relationship_3ac08b26.mp3?se=2027-02-05T21%3A47%3A33Z&sp=r&sv=2023-11-03&sr=b&sig=wjdNZIxJCBr49GWChc7BdztOzlwdLd0pbxJUHP19l6Y%3D",
+      "region": "us"
+    }
+  ],
+  "senses": [
+    {
+      "part_of_speech": "noun",
+      "definition": "关系；感情；恋情",
+      "definition_zh": "关系；感情；恋情",
+      "examples": [
+        "Our relationship is getting better.",
+        "He was very curious about our relationship."
+      ],
+      "examples_zh": [
+        "我们的关系在改观",
+        "他对我们的关系很感兴趣."
+      ],
+      "synonyms": [
+        "connection",
+        "association",
+        "bond",
+        "partnership",
+        "affiliation"
+      ],
+      "antonyms": [
+        "disconnection",
+        "separation",
+        "isolation"
+      ]
+    }
+  ],
+  "images": [
+    "https://pixabay.com/get/gc94beacbf0b5a57f5f323e647872d9db4a47771752189d7abc14fc492e2ca530f159c7cd9c92ba0f790af0731d5cdd4e49ce3368c7ee3fcec35b9fad9aee4cb7_1280.jpg"
+  ],
+  "frequency_rank": null,
+  "cefr_level": null,
+  "source": "tomtrove",
+  "fetched_at": "2026-02-05T16:47:42.568393"
+}

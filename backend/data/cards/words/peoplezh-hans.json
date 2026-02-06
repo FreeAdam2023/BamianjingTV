@@ -1,0 +1,44 @@
+{
+  "word": "people",
+  "lemma": "people",
+  "pronunciations": [
+    {
+      "ipa": "/ˈpiːpəl/",
+      "audio_url": "https://tomtrovefilestoredev.blob.core.windows.net/tts-audio/vocabulary/en/people_12a032ce.mp3?se=2027-02-05T20%3A39%3A31Z&sp=r&sv=2023-11-03&sr=b&sig=nAQLkCxuLOU7T8loX2gVasnGS5lZm4q%2B5JuIyVKxCK8%3D",
+      "region": "us"
+    }
+  ],
+  "senses": [
+    {
+      "part_of_speech": "noun",
+      "definition": "人；人们；人民",
+      "definition_zh": "人；人们；人民",
+      "examples": [
+        "You get your people on that today.",
+        "Some people call pumpkins vegetables ."
+      ],
+      "examples_zh": [
+        "今天就让你的人去处理那个",
+        "有些人叫南瓜蔬菜。"
+      ],
+      "synonyms": [
+        "individuals",
+        "humans",
+        "persons",
+        "citizens",
+        "population"
+      ],
+      "antonyms": [
+        "animals",
+        "machines"
+      ]
+    }
+  ],
+  "images": [
+    "https://pixabay.com/get/g96acbd5fed994765884bfff00e20c96aeefa969cb46323e5df57f9a210dceb23e911cc5e4b08a87d39659c969d628da88c4c6773a8583f6b9ddf2ce6e6fbe0bc_1280.jpg"
+  ],
+  "frequency_rank": null,
+  "cefr_level": null,
+  "source": "tomtrove",
+  "fetched_at": "2026-02-05T15:39:33.677709"
+}

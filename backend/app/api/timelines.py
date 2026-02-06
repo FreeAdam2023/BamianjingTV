@@ -631,8 +631,8 @@ async def chat_with_ai(timeline_id: str, request: ChatRequest):
         lines = []
         for seg in timeline.segments:
             time_str = f"[{seg.start:.1f}s]"
-            text = seg.text or ""
-            translation = seg.translation or ""
+            text = seg.en or ""
+            translation = seg.zh or ""
             if translation:
                 lines.append(f"{time_str} {text} | {translation}")
             else:
