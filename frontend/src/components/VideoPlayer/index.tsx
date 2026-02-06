@@ -52,6 +52,8 @@ interface VideoPlayerProps {
   // Card refresh
   onCardRefresh?: () => void;
   cardRefreshing?: boolean;
+  // Entity edit callback
+  onEditEntity?: (entityId: string) => void;
 }
 
 export interface VideoPlayerRef {
@@ -93,6 +95,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   onCardPinChange,
   onCardRefresh,
   cardRefreshing = false,
+  onEditEntity,
 }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -532,6 +535,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
                 onPinChange={onCardPinChange ? () => onCardPinChange() : undefined}
                 onRefresh={onCardRefresh}
                 refreshing={cardRefreshing}
+                onEditEntity={onEditEntity}
               />
             )}
           </div>

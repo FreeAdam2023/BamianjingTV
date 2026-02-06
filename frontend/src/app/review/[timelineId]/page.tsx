@@ -344,6 +344,25 @@ export default function ReviewPage() {
     });
   }, []);
 
+  // Handle edit entity from card (only has entityId)
+  const handleEditEntityFromCard = useCallback((entityId: string) => {
+    if (!currentSegmentId || !timeline || !segmentAnnotations) return;
+
+    const segment = timeline.segments.find((s) => s.id === currentSegmentId);
+    if (!segment) return;
+
+    const annotations = segmentAnnotations.get(currentSegmentId);
+    const entity = annotations?.entities?.find((e) => e.entity_id === entityId);
+    if (!entity) return;
+
+    setEntityEditModal({
+      isOpen: true,
+      segmentId: currentSegmentId,
+      segmentText: segment.en,
+      entity,
+    });
+  }, [currentSegmentId, timeline, segmentAnnotations]);
+
   // Handle entity edit success
   const handleEntityEditSuccess = useCallback(async () => {
     // Refresh the segment annotations after edit
@@ -639,6 +658,7 @@ export default function ReviewPage() {
               onCardPinChange={() => refresh()}
               onCardRefresh={refreshCard}
               cardRefreshing={cardRefreshing}
+              onEditEntity={handleEditEntityFromCard}
             />
             )}
           </div>

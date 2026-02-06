@@ -29,6 +29,8 @@ interface CardSidePanelProps {
   onRefresh?: () => void;
   /** Whether refresh is in progress */
   refreshing?: boolean;
+  /** Callback to edit entity */
+  onEditEntity?: (entityId: string) => void;
 }
 
 // Pin icon component - thumbtack style
@@ -266,9 +268,10 @@ interface SidePanelEntityCardProps {
   canPin?: boolean;
   onRefresh?: () => void;
   refreshing?: boolean;
+  onEdit?: () => void;
 }
 
-function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin, onRefresh, refreshing }: SidePanelEntityCardProps) {
+function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin, onRefresh, refreshing, onEdit }: SidePanelEntityCardProps) {
   const typeColors: Record<string, string> = {
     person: "bg-blue-500/50",
     place: "bg-green-500/50",
@@ -317,6 +320,18 @@ function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTogglePin,
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
               )}
+            </button>
+          )}
+          {/* Edit button */}
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              className="p-1.5 bg-black/50 text-white hover:bg-black/70 rounded-full transition"
+              title="编辑实体"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
             </button>
           )}
           {/* Pin button */}
@@ -406,6 +421,7 @@ export default function CardSidePanel({
   pinnedCards = [],
   onRefresh,
   refreshing = false,
+  onEditEntity,
 }: CardSidePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [pinLoading, setPinLoading] = useState(false);
@@ -551,6 +567,7 @@ export default function CardSidePanel({
           canPin={canPin}
           onRefresh={onRefresh}
           refreshing={refreshing}
+          onEdit={onEditEntity ? () => onEditEntity(state.entityCard!.entity_id) : undefined}
         />
       )}
     </div>
@@ -626,6 +643,7 @@ export default function CardSidePanel({
           canPin={canPin}
           onRefresh={onRefresh}
           refreshing={refreshing}
+          onEdit={onEditEntity ? () => onEditEntity(state.entityCard!.entity_id) : undefined}
         />
       )}
     </div>
