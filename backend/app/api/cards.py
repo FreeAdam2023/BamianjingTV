@@ -566,12 +566,23 @@ class ManualEntityResponse(BaseModel):
 def extract_qid_from_wikipedia_url(url: str) -> Opt[str]:
     """Extract article title from Wikipedia URL and search for QID."""
     import re
+    from urllib.parse import unquote
     # Match patterns like:
     # https://en.wikipedia.org/wiki/Article_Name
     # https://zh.wikipedia.org/wiki/文章名
+    # https://zh.wikipedia.org/zh-cn/文章名 (Chinese variants)
+    # https://zh.wikipedia.org/zh-tw/文章名
+
+    # Standard /wiki/ path
     match = re.search(r'wikipedia\.org/wiki/([^#?]+)', url)
     if match:
-        return match.group(1).replace('_', ' ')
+        return unquote(match.group(1).replace('_', ' '))
+
+    # Chinese variant paths: /zh-cn/, /zh-tw/, /zh-hans/, /zh-hant/, etc.
+    match = re.search(r'wikipedia\.org/zh-\w+/([^#?]+)', url)
+    if match:
+        return unquote(match.group(1).replace('_', ' '))
+
     return None
 
 
