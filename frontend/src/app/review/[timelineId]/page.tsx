@@ -381,8 +381,10 @@ export default function ReviewPage() {
         });
       }
     }
+    // Refresh the card panel if open
+    refreshCard();
     toast.success("实体已更新");
-  }, [entityEditModal, timeline, toast]);
+  }, [entityEditModal, timeline, toast, refreshCard]);
 
   // Handle full-text entity analysis
   const handleAnalyzeAllEntities = useCallback(async () => {

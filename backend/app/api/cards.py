@@ -608,8 +608,8 @@ async def add_manual_entity(
     generator = _get_card_generator()
     entity_id = request.entity_id
 
-    # If Wikipedia URL provided, resolve to QID
-    if request.wikipedia_url and not entity_id:
+    # If Wikipedia URL provided, resolve to QID (takes precedence over entity_id)
+    if request.wikipedia_url:
         article_title = extract_qid_from_wikipedia_url(request.wikipedia_url)
         if not article_title:
             return ManualEntityResponse(
