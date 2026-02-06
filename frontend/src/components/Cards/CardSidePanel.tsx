@@ -287,11 +287,11 @@ function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTogglePin,
       {/* Header with image */}
       <div className="relative flex-shrink-0">
         {card.image_url ? (
-          <div className="h-32 overflow-hidden">
+          <div className="h-40 overflow-hidden bg-black/30">
             <img
               src={card.image_url}
               alt={card.name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
@@ -362,7 +362,7 @@ function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTogglePin,
         )}
 
         <p className="text-white/80 text-sm mb-3">{card.description}</p>
-        {zhLocalization?.description && (
+        {zhLocalization?.description && zhLocalization.description !== card.description && (
           <p className="text-white/60 text-sm mb-4">{zhLocalization.description}</p>
         )}
 
