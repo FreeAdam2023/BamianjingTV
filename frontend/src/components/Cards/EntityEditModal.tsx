@@ -4,9 +4,62 @@
  * EntityEditModal - Modal for adding/editing/deleting entities
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { EntityAnnotation } from "@/lib/types";
 import { addManualEntity, deleteSegmentEntity } from "@/lib/api";
+
+/**
+ * Extract article title from Wikipedia URL
+ */
+function extractWikipediaTitle(url: string): { title: string; lang: string } | null {
+  try {
+    const match = url.match(/(\w+)\.wikipedia\.org\/wiki\/(.+)/);
+    if (match) {
+      return {
+        lang: match[1],
+        title: decodeURIComponent(match[2].replace(/_/g, " ")),
+      };
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+/**
+ * Resolve Wikipedia URL to Wikidata QID
+ */
+async function resolveWikipediaToQID(url: string): Promise<string | null> {
+  const parsed = extractWikipediaTitle(url);
+  if (!parsed) return null;
+
+  try {
+    const response = await fetch(
+      `https://www.wikidata.org/w/api.php?` +
+        new URLSearchParams({
+          action: "wbgetentities",
+          sites: `${parsed.lang}wiki`,
+          titles: parsed.title,
+          format: "json",
+          origin: "*",
+          props: "labels",
+        })
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      const entities = data.entities || {};
+      for (const qid of Object.keys(entities)) {
+        if (qid.startsWith("Q") && !entities[qid].missing) {
+          return qid;
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Failed to resolve Wikipedia URL:", err);
+  }
+  return null;
+}
 
 interface EntityEditModalProps {
   isOpen: boolean;
@@ -32,8 +85,10 @@ export default function EntityEditModal({
   const [wikipediaUrl, setWikipediaUrl] = useState("");
   const [entityId, setEntityId] = useState(entity?.entity_id || "");
   const [loading, setLoading] = useState(false);
+  const [resolving, setResolving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const resolveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const isEditing = !!entity;
 
@@ -45,8 +100,40 @@ export default function EntityEditModal({
       setEntityId(entity?.entity_id || "");
       setError(null);
       setDeleteConfirm(false);
+      setResolving(false);
     }
   }, [isOpen, entity, segmentId]);
+
+  // Auto-resolve Wikipedia URL to QID (debounced)
+  useEffect(() => {
+    // Clear previous timeout
+    if (resolveTimeoutRef.current) {
+      clearTimeout(resolveTimeoutRef.current);
+    }
+
+    // Check if URL looks like a Wikipedia URL
+    if (!wikipediaUrl || !wikipediaUrl.includes("wikipedia.org/wiki/")) {
+      return;
+    }
+
+    setResolving(true);
+    resolveTimeoutRef.current = setTimeout(async () => {
+      const qid = await resolveWikipediaToQID(wikipediaUrl);
+      if (qid) {
+        setEntityId(qid);
+        setError(null);
+      } else {
+        setError("无法从该链接解析 Wikidata QID");
+      }
+      setResolving(false);
+    }, 500); // 500ms debounce
+
+    return () => {
+      if (resolveTimeoutRef.current) {
+        clearTimeout(resolveTimeoutRef.current);
+      }
+    };
+  }, [wikipediaUrl]);
 
   // Handle save
   const handleSave = async () => {
@@ -162,6 +249,15 @@ export default function EntityEditModal({
           <div>
             <label className="block text-sm text-gray-400 mb-1">
               Wikipedia 链接
+              {resolving && (
+                <span className="ml-2 text-cyan-400">
+                  <svg className="inline w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  <span className="ml-1">解析中...</span>
+                </span>
+              )}
             </label>
             <input
               type="url"
@@ -171,7 +267,7 @@ export default function EntityEditModal({
               className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none"
             />
             <p className="mt-1 text-xs text-gray-500">
-              系统会自动从链接提取 Wikidata QID
+              输入链接后自动解析 Wikidata QID
             </p>
           </div>
 
@@ -186,13 +282,20 @@ export default function EntityEditModal({
           <div>
             <label className="block text-sm text-gray-400 mb-1">
               Wikidata QID
+              {wikipediaUrl && entityId && !resolving && (
+                <span className="ml-2 text-green-400 text-xs">✓ 已解析</span>
+              )}
             </label>
             <input
               type="text"
               value={entityId}
               onChange={(e) => setEntityId(e.target.value)}
               placeholder="例如: Q60"
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none"
+              className={`w-full px-3 py-2 bg-gray-700 border rounded text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none ${
+                wikipediaUrl && entityId && !resolving
+                  ? "border-green-500/50"
+                  : "border-gray-600"
+              }`}
             />
             <p className="mt-1 text-xs text-gray-500">
               直接输入 Wikidata ID（可在 wikidata.org 查找）
