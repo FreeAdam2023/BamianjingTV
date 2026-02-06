@@ -471,7 +471,7 @@ export default function ReviewPage() {
                   : "bg-gray-700 text-gray-300 hover:bg-gray-600"
               }`}
             >
-              Review
+              审阅
             </button>
             <button
               onClick={() => setIsCreativeMode(true)}
@@ -484,11 +484,11 @@ export default function ReviewPage() {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
               </svg>
-              Creative
+              动效字幕
             </button>
             {isCreativeMode && (
               <span className="text-xs text-gray-500 ml-2">
-                Remotion-powered dynamic subtitles
+                Remotion 动画字幕效果
               </span>
             )}
           </div>
@@ -500,7 +500,7 @@ export default function ReviewPage() {
                   <div className="w-full h-full flex items-center justify-center bg-gray-900 rounded-lg">
                     <div className="text-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-2" />
-                      <p className="text-sm text-gray-400">Loading Creative Preview...</p>
+                      <p className="text-sm text-gray-400">加载动效预览...</p>
                     </div>
                   </div>
                 }
