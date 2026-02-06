@@ -27,7 +27,7 @@ export default function JobsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [jobOptions, setJobOptions] = useState<Partial<JobCreate>>({
     mode: "learning",          // Default to Learning mode
-    target_language: "zh-TW",  // Default to Traditional Chinese
+    target_language: "zh-CN",  // Default to Simplified Chinese
     skip_diarization: true,    // Default: skip diarization (single speaker)
   });
 
@@ -40,8 +40,8 @@ export default function JobsPage() {
 
   // Supported target languages (Chinese variants merged into dropdown)
   const SUPPORTED_LANGUAGES = [
-    { code: "zh-TW", name: "Chinese (Traditional)" },
     { code: "zh-CN", name: "Chinese (Simplified)" },
+    { code: "zh-TW", name: "Chinese (Traditional)" },
     { code: "ja", name: "Japanese" },
     { code: "ko", name: "한국어 (Korean)" },
     { code: "es", name: "Español (Spanish)" },
@@ -83,7 +83,7 @@ export default function JobsPage() {
     setUploadProgress(null);
     setJobOptions({
       mode: "learning",          // Default to Learning mode
-      target_language: "zh-TW",  // Default to Traditional Chinese
+      target_language: "zh-CN",  // Default to Simplified Chinese
       skip_diarization: true,    // Default: skip diarization (single speaker)
     });
     setError(null);
@@ -637,7 +637,7 @@ export default function JobsPage() {
                     Target Language
                   </label>
                   <select
-                    value={jobOptions.target_language || "zh-TW"}
+                    value={jobOptions.target_language || "zh-CN"}
                     onChange={(e) =>
                       setJobOptions({
                         ...jobOptions,

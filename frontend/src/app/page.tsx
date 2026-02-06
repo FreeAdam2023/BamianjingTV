@@ -82,7 +82,7 @@ export default function Home() {
     try {
       const jobOptions: Partial<JobCreate> = {
         mode: videoMode,
-        target_language: "zh-TW",
+        target_language: "zh-CN",
         skip_diarization: true,
       };
 
@@ -96,7 +96,7 @@ export default function Home() {
           {
             file: uploadFile!,
             mode: videoMode,
-            target_language: "zh-TW",
+            target_language: "zh-CN",
             skip_diarization: true,
           },
           (progress) => setUploadProgress(progress)

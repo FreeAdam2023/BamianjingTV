@@ -45,14 +45,14 @@ class AzureTranslator:
     async def translate_text(
         self,
         text: str,
-        target_lang: str = "zh-Hant",
+        target_lang: str = "zh-Hans",
         source_lang: str = "en",
     ) -> Optional[str]:
         """Translate a single text.
 
         Args:
             text: Text to translate.
-            target_lang: Target language (zh-Hant for Traditional, zh-Hans for Simplified).
+            target_lang: Target language (zh-Hans for Simplified, zh-Hant for Traditional).
             source_lang: Source language.
 
         Returns:
@@ -64,7 +64,7 @@ class AzureTranslator:
     async def translate_batch(
         self,
         texts: List[str],
-        target_lang: str = "zh-Hant",
+        target_lang: str = "zh-Hans",
         source_lang: str = "en",
     ) -> List[Optional[str]]:
         """Translate multiple texts in batch for context awareness.
@@ -74,7 +74,7 @@ class AzureTranslator:
 
         Args:
             texts: List of texts to translate.
-            target_lang: Target language (zh-Hant for Traditional, zh-Hans for Simplified).
+            target_lang: Target language (zh-Hans for Simplified, zh-Hant for Traditional).
             source_lang: Source language.
 
         Returns:
@@ -154,7 +154,7 @@ class AzureTranslator:
     async def translate_segments(
         self,
         segments: List[dict],
-        target_lang: str = "zh-Hant",
+        target_lang: str = "zh-Hans",
         source_lang: str = "en",
         batch_size: int = 50,
     ) -> List[dict]:

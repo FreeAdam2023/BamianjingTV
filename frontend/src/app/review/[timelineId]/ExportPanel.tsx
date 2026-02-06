@@ -30,7 +30,7 @@ export default function ExportPanel({
 }: ExportPanelProps) {
   const toast = useToast();
   const [exportProfile, setExportProfile] = useState<ExportProfile>("full");
-  const [useTraditional, setUseTraditional] = useState(true);
+  const [useTraditional, setUseTraditional] = useState(false);
   const [subtitleRatio, setSubtitleRatio] = useState(timeline.subtitle_area_ratio || 0.5);
   const [exporting, setExporting] = useState(false);
   const subtitleRatioTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -340,8 +340,8 @@ export default function ExportPanel({
             onChange={(e) => setUseTraditional(e.target.value === "zh-TW")}
             className="w-full bg-gray-700 rounded px-3 py-2 text-sm"
           >
-            <option value="zh-TW">中文 (繁體)</option>
             <option value="zh-CN">中文 (简体)</option>
+            <option value="zh-TW">中文 (繁體)</option>
           </select>
         </div>
 

@@ -5,7 +5,7 @@
  * Slides in from the right side with elegant animation
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CardPopupState } from "@/hooks/useCardPopup";
 import type { WordCard, EntityCard } from "@/lib/types";
 
@@ -23,8 +23,10 @@ interface CardSidePanelProps {
 // Inline WordCard component optimized for side panel
 function SidePanelWordCard({ card, onClose }: { card: WordCard; onClose: () => void }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [imageError, setImageError] = useState(false);
 
   const primaryPronunciation = card.pronunciations.find((p) => p.region === "us") || card.pronunciations[0];
+  const primaryImage = card.images?.[0];
 
   const playPronunciation = () => {
     if (!primaryPronunciation?.audio_url) return;
@@ -42,8 +44,21 @@ function SidePanelWordCard({ card, onClose }: { card: WordCard; onClose: () => v
 
   return (
     <div className="h-full flex flex-col">
+      {/* Image Header */}
+      {primaryImage && !imageError && (
+        <div className="relative h-28 flex-shrink-0 overflow-hidden">
+          <img
+            src={primaryImage}
+            alt={card.word}
+            className="w-full h-full object-cover"
+            onError={() => setImageError(true)}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+        </div>
+      )}
+
       {/* Header */}
-      <div className="flex items-start justify-between p-4 border-b border-white/10">
+      <div className={`flex items-start justify-between p-4 border-b border-white/10 ${primaryImage && !imageError ? '-mt-12 relative z-10' : ''}`}>
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-2xl font-bold text-white">{card.word}</h2>
@@ -90,23 +105,71 @@ function SidePanelWordCard({ card, onClose }: { card: WordCard; onClose: () => v
               <span className="text-xs font-medium text-white/40 uppercase tracking-wider">{pos}</span>
               <div className="flex-1 h-px bg-white/10" />
             </div>
-            <ol className="space-y-3 list-decimal list-inside">
+            <div className="space-y-4">
               {senses.slice(0, 3).map((sense, idx) => (
-                <li key={idx} className="text-white/90 text-sm">
-                  <span>{sense.definition}</span>
+                <div key={idx} className="space-y-2">
+                  {/* Chinese Definition - Primary */}
                   {sense.definition_zh && (
-                    <p className="text-yellow-300/80 text-sm ml-5 mt-0.5">{sense.definition_zh}</p>
+                    <p className="text-base text-white font-medium">
+                      {idx + 1}. {sense.definition_zh}
+                    </p>
                   )}
+
+                  {/* English Definition - if different */}
+                  {sense.definition && sense.definition !== sense.definition_zh && (
+                    <p className="text-sm text-white/60 ml-4">{sense.definition}</p>
+                  )}
+
+                  {/* Examples with Chinese translations */}
                   {sense.examples.length > 0 && (
-                    <div className="ml-5 mt-1">
-                      {sense.examples.slice(0, 1).map((example, exIdx) => (
-                        <p key={exIdx} className="text-white/50 text-xs italic">"{example}"</p>
+                    <div className="ml-4 space-y-2">
+                      {sense.examples.slice(0, 2).map((example, exIdx) => (
+                        <div key={exIdx} className="pl-3 border-l-2 border-white/20">
+                          <p className="text-sm text-white/70 italic">"{example}"</p>
+                          {sense.examples_zh?.[exIdx] && (
+                            <p className="text-sm text-yellow-300/70 mt-0.5">
+                              {sense.examples_zh[exIdx]}
+                            </p>
+                          )}
+                        </div>
                       ))}
                     </div>
                   )}
-                </li>
+
+                  {/* Synonyms & Antonyms */}
+                  {(sense.synonyms.length > 0 || sense.antonyms.length > 0) && (
+                    <div className="flex flex-wrap gap-2 ml-4 pt-1">
+                      {sense.synonyms.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1">
+                          <span className="text-green-400 text-xs">≈</span>
+                          {sense.synonyms.slice(0, 3).map((syn, synIdx) => (
+                            <span
+                              key={synIdx}
+                              className="text-xs px-1.5 py-0.5 bg-green-900/40 text-green-300 rounded"
+                            >
+                              {syn}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {sense.antonyms.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1">
+                          <span className="text-red-400 text-xs">≠</span>
+                          {sense.antonyms.slice(0, 2).map((ant, antIdx) => (
+                            <span
+                              key={antIdx}
+                              className="text-xs px-1.5 py-0.5 bg-red-900/40 text-red-300 rounded"
+                            >
+                              {ant}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               ))}
-            </ol>
+            </div>
           </div>
         ))}
       </div>

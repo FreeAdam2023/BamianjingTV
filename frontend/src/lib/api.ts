@@ -514,7 +514,7 @@ export async function createJobWithUpload(
   const formData = new FormData();
   formData.append("file", options.file);
   formData.append("mode", options.mode || "learning");
-  formData.append("target_language", options.target_language || "zh-TW");
+  formData.append("target_language", options.target_language || "zh-CN");
   formData.append("skip_diarization", String(options.skip_diarization ?? true));
   if (options.title) {
     formData.append("title", options.title);
