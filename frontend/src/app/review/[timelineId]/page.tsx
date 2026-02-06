@@ -17,7 +17,7 @@ import { useMultiTrackWaveform, TrackType } from "@/hooks/useMultiTrackWaveform"
 import { useCardPopup } from "@/hooks/useCardPopup";
 import { useCreativeConfig } from "@/hooks/useCreativeConfig";
 import { useCreativeKeyboard } from "@/hooks/useCreativeKeyboard";
-import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress, setSubtitleAreaRatio, splitSegment, getSegmentAnnotations, setSubtitleLanguageMode, unpinCard } from "@/lib/api";
+import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress, setSubtitleAreaRatio, splitSegment, getSegmentAnnotations, setSubtitleLanguageMode, unpinCard, analyzeTimelineEntities } from "@/lib/api";
 import type { ExportStatusResponse, SubtitleStyleOptions, SegmentAnnotations, PinnedCard } from "@/lib/types";
 import type { CreativeStyle } from "@/lib/creative-types";
 import { useToast, useConfirm } from "@/components/ui";
@@ -85,6 +85,7 @@ export default function ReviewPage() {
 
   // NER annotations state - populated on-demand when segments are clicked
   const [segmentAnnotations, setSegmentAnnotations] = useState<Map<number, SegmentAnnotations> | undefined>();
+  const [analyzingEntities, setAnalyzingEntities] = useState(false);
 
   // Card popup state (shared between video and segment list)
   const { state: cardState, openWordCard, openEntityCard, close: closeCard } = useCardPopup();
@@ -313,6 +314,27 @@ export default function ReviewPage() {
       toast.error("刷新失败");
     }
   }, [timeline, toast]);
+
+  // Handle full-text entity analysis
+  const handleAnalyzeAllEntities = useCallback(async () => {
+    if (!timeline || analyzingEntities) return;
+    setAnalyzingEntities(true);
+    try {
+      const result = await analyzeTimelineEntities(timeline.timeline_id, {
+        forceRefresh: true,
+      });
+      // Refresh timeline to get updated annotations
+      await refresh();
+      // Clear local cache and reload from timeline
+      setSegmentAnnotations(undefined);
+      toast.success(`识别完成: ${result.unique_entities} 个实体`);
+    } catch (err) {
+      console.error("Failed to analyze entities:", err);
+      toast.error("实体识别失败");
+    } finally {
+      setAnalyzingEntities(false);
+    }
+  }, [timeline, analyzingEntities, refresh, toast]);
 
   // Handle video time update
   const handleVideoTimeUpdate = useCallback((time: number) => {
@@ -630,17 +652,42 @@ export default function ReviewPage() {
             />
           )}
 
-          {/* Entity analysis hint */}
-          <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-700 bg-gray-800/50">
-            <svg className="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h5c.256 0 .512.098.707.293l7 7zM5 6a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-            </svg>
-            <span className="text-sm text-gray-400">点击台词自动识别实体</span>
-            {segmentAnnotations && segmentAnnotations.size > 0 && (
-              <span className="px-1.5 py-0.5 text-xs bg-purple-500/20 text-purple-400 rounded">
-                {segmentAnnotations.size} 段已分析
-              </span>
-            )}
+          {/* Entity analysis section */}
+          <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700 bg-gray-800/50">
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-cyan-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h5c.256 0 .512.098.707.293l7 7zM5 6a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+              </svg>
+              <span className="text-sm text-gray-400">实体识别</span>
+              {Object.keys(timeline.segment_annotations || {}).length > 0 && (
+                <span className="px-1.5 py-0.5 text-xs bg-cyan-500/20 text-cyan-400 rounded">
+                  {Object.keys(timeline.segment_annotations || {}).length} 段
+                </span>
+              )}
+            </div>
+            <button
+              onClick={handleAnalyzeAllEntities}
+              disabled={analyzingEntities}
+              className="px-2 py-1 text-xs bg-cyan-600 hover:bg-cyan-700 disabled:bg-cyan-800 disabled:cursor-wait text-white rounded flex items-center gap-1.5 transition-colors"
+              title="使用完整上下文一次性识别所有实体（更准确）"
+            >
+              {analyzingEntities ? (
+                <>
+                  <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  分析中...
+                </>
+              ) : (
+                <>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  全文识别
+                </>
+              )}
+            </button>
           </div>
 
           {/* Segment list - scrollable */}

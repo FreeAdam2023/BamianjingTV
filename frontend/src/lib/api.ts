@@ -943,6 +943,32 @@ export async function getSegmentAnnotations(
   });
 }
 
+// ============ Full-Text Entity Analysis ============
+
+export interface FullTextEntityResponse {
+  timeline_id: string;
+  segments_analyzed: number;
+  total_entities: number;
+  unique_entities: number;
+  message: string;
+}
+
+export async function analyzeTimelineEntities(
+  timelineId: string,
+  options?: {
+    forceRefresh?: boolean;
+    extractionMethod?: string;
+  }
+): Promise<FullTextEntityResponse> {
+  return fetchAPI<FullTextEntityResponse>(`/cards/timelines/${timelineId}/analyze-entities`, {
+    method: "POST",
+    body: JSON.stringify({
+      force_refresh: options?.forceRefresh ?? false,
+      extraction_method: options?.extractionMethod ?? "llm",
+    }),
+  });
+}
+
 // ============ Observations API (for WATCHING mode) ============
 
 export async function addObservation(

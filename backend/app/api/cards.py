@@ -375,6 +375,174 @@ async def get_timeline_annotations(
     return annotations
 
 
+# ============ Full-Text Entity Recognition ============
+
+class FullTextEntityRequest(BaseModel):
+    """Request body for full-text entity recognition."""
+    force_refresh: bool = False
+    extraction_method: str = "llm"
+
+
+class FullTextEntityResponse(BaseModel):
+    """Response from full-text entity recognition."""
+    timeline_id: str
+    segments_analyzed: int
+    total_entities: int
+    unique_entities: int
+    message: str
+
+
+@router.post("/timelines/{timeline_id}/analyze-entities", response_model=FullTextEntityResponse)
+async def analyze_timeline_entities(
+    timeline_id: str,
+    request: FullTextEntityRequest = FullTextEntityRequest(),
+):
+    """Analyze entities for entire timeline using full-text context.
+
+    This provides better disambiguation than per-segment analysis.
+    Sends the complete transcript to TomTrove for entity recognition,
+    then maps entities back to individual segments.
+
+    Args:
+        timeline_id: Timeline to analyze.
+        force_refresh: If True, bypass cache and re-recognize entities.
+        extraction_method: Entity extraction method (llm, azure, auto).
+    """
+    from app.models.card import SegmentAnnotations, EntityAnnotation, EntityType
+
+    manager = _get_timeline_manager()
+    timeline = manager.get_timeline(timeline_id)
+
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    # Build full text with segment boundaries
+    # Format: each segment's English text with a marker
+    segment_texts = []
+    segment_boundaries = []  # (start_char, end_char, segment_id)
+    current_pos = 0
+
+    for segment in timeline.segments:
+        text = segment.en.strip()
+        if not text:
+            continue
+        start = current_pos
+        end = current_pos + len(text)
+        segment_texts.append(text)
+        segment_boundaries.append((start, end, segment.id))
+        current_pos = end + 1  # +1 for separator
+
+    full_text = " ".join(segment_texts)
+
+    logger.info(f"Analyzing entities for timeline {timeline_id}: {len(full_text)} chars, {len(segment_boundaries)} segments")
+
+    # Call TomTrove for full-text entity recognition
+    generator = _get_card_generator()
+    all_entities = []
+
+    try:
+        base_url = generator.tomtrove_url.rstrip("/")
+        url = f"{base_url}/entities/recognize"
+
+        # Include video title as context hint
+        context_text = f"Video: {timeline.source_title}\n\n{full_text}"
+
+        client = await generator._get_client()
+        response = await client.post(
+            url,
+            json={
+                "text": context_text,
+                "force_refresh": request.force_refresh,
+                "extraction_method": request.extraction_method,
+            },
+            timeout=60.0,  # Longer timeout for full text
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("success"):
+                raw_entities = data.get("data", {}).get("entities", [])
+                # Adjust char positions for the context prefix
+                prefix_len = len(f"Video: {timeline.source_title}\n\n")
+
+                for e in raw_entities:
+                    mentions = e.get("mentions", [])
+                    for mention in mentions:
+                        # Adjust position for prefix
+                        char_start = mention.get("char_start", 0) - prefix_len
+                        char_end = mention.get("char_end", 0) - prefix_len
+
+                        if char_start < 0:
+                            continue  # Skip entities in the title prefix
+
+                        entity_type_str = e.get("entity_type", "other").lower()
+                        try:
+                            entity_type = EntityType(entity_type_str)
+                        except ValueError:
+                            entity_type = EntityType.OTHER
+
+                        all_entities.append({
+                            "text": mention.get("text", ""),
+                            "entity_id": e.get("entity_id"),
+                            "entity_type": entity_type,
+                            "char_start": char_start,
+                            "char_end": char_end,
+                            "confidence": e.get("confidence", 0.0),
+                        })
+
+                logger.info(f"TomTrove recognized {len(all_entities)} entity mentions in full text")
+        else:
+            logger.warning(f"TomTrove full-text entity recognition failed: {response.status_code}")
+
+    except Exception as e:
+        logger.error(f"Failed to call TomTrove for full-text entity recognition: {e}")
+
+    # Map entities back to segments
+    segment_annotations = {}
+    unique_entity_ids = set()
+
+    for start, end, segment_id in segment_boundaries:
+        segment_entities = []
+        for entity in all_entities:
+            # Check if entity overlaps with this segment
+            e_start = entity["char_start"]
+            e_end = entity["char_end"]
+            if e_start >= start and e_end <= end:
+                # Adjust position relative to segment
+                segment_entities.append(EntityAnnotation(
+                    text=entity["text"],
+                    entity_id=entity["entity_id"],
+                    entity_type=entity["entity_type"],
+                    start_char=e_start - start,
+                    end_char=e_end - start,
+                    confidence=entity["confidence"],
+                ))
+                if entity["entity_id"]:
+                    unique_entity_ids.add(entity["entity_id"])
+
+        # Create annotation for this segment
+        annotation = SegmentAnnotations(
+            segment_id=segment_id,
+            words=[],
+            entities=segment_entities,
+        )
+        segment_annotations[segment_id] = annotation.model_dump()
+
+    # Update timeline with all annotations
+    timeline.segment_annotations = segment_annotations
+    manager.save_timeline(timeline)
+
+    logger.info(f"Analyzed entities for timeline {timeline_id}: {len(all_entities)} mentions, {len(unique_entity_ids)} unique entities")
+
+    return FullTextEntityResponse(
+        timeline_id=timeline_id,
+        segments_analyzed=len(segment_boundaries),
+        total_entities=len(all_entities),
+        unique_entities=len(unique_entity_ids),
+        message=f"Analyzed {len(segment_boundaries)} segments, found {len(unique_entity_ids)} unique entities",
+    )
+
+
 class SegmentAnnotationRequest(BaseModel):
     """Request body for segment annotation."""
     text: str
