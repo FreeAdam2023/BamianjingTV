@@ -25,19 +25,20 @@ interface CardSidePanelProps {
   inline?: boolean;
 }
 
-// Pin icon component
+// Pin icon component - thumbtack style
 function PinIcon({ filled }: { filled: boolean }) {
   if (filled) {
+    // Filled pin (pinned state) - solid thumbtack
     return (
-      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M16 4a1 1 0 0 0-1.59-.81L8.78 7.6a1 1 0 0 1-.78.4H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h4a1 1 0 0 1 .78.4l5.63 4.4A1 1 0 0 0 16 20V4z" />
-        <path d="M20.71 7.29a1 1 0 0 0-1.42 0l-6 6a1 1 0 0 0 1.42 1.42l6-6a1 1 0 0 0 0-1.42z" />
+      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z" />
       </svg>
     );
   }
+  // Outline pin (unpinned state)
   return (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z" />
     </svg>
   );
 }
