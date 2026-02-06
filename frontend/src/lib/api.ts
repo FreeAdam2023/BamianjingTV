@@ -856,13 +856,25 @@ export function getStateColor(state: SegmentState): string {
 
 // ============ Cards API ============
 
-export async function getWordCard(word: string, lang?: string): Promise<WordCardResponse> {
-  const params = lang ? `?lang=${encodeURIComponent(lang)}` : "";
-  return fetchAPI<WordCardResponse>(`/cards/words/${encodeURIComponent(word)}${params}`);
+export async function getWordCard(
+  word: string,
+  options?: { lang?: string; forceRefresh?: boolean }
+): Promise<WordCardResponse> {
+  const params = new URLSearchParams();
+  if (options?.lang) params.set("lang", options.lang);
+  if (options?.forceRefresh) params.set("force_refresh", "true");
+  const queryString = params.toString();
+  return fetchAPI<WordCardResponse>(
+    `/cards/words/${encodeURIComponent(word)}${queryString ? `?${queryString}` : ""}`
+  );
 }
 
-export async function getEntityCard(entityId: string): Promise<EntityCardResponse> {
-  return fetchAPI<EntityCardResponse>(`/cards/entities/${encodeURIComponent(entityId)}`);
+export async function getEntityCard(
+  entityId: string,
+  options?: { forceRefresh?: boolean }
+): Promise<EntityCardResponse> {
+  const params = options?.forceRefresh ? "?force_refresh=true" : "";
+  return fetchAPI<EntityCardResponse>(`/cards/entities/${encodeURIComponent(entityId)}${params}`);
 }
 
 export async function searchEntity(query: string, lang: string = "en"): Promise<{

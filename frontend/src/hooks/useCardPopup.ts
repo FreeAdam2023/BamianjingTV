@@ -96,7 +96,7 @@ export function useCardPopup(): UseCardPopupReturn {
     });
 
     try {
-      const response = await getWordCard(normalizedWord, lang);
+      const response = await getWordCard(normalizedWord, { lang });
 
       // Cache the result
       wordCache.set(cacheKey, response.card);
