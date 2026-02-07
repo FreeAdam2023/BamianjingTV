@@ -42,6 +42,7 @@ import type {
   // Cards
   WordCardResponse,
   EntityCardResponse,
+  IdiomCardResponse,
   CardGenerateResponse,
   TimelineAnnotations,
   SegmentAnnotations,
@@ -880,6 +881,17 @@ export async function getEntityCard(
 ): Promise<EntityCardResponse> {
   const params = options?.forceRefresh ? "?force_refresh=true" : "";
   return fetchAPI<EntityCardResponse>(`/cards/entities/${encodeURIComponent(entityId)}${params}`);
+}
+
+export async function getIdiomCard(
+  idiomText: string,
+  options?: { lang?: string; forceRefresh?: boolean }
+): Promise<IdiomCardResponse> {
+  const params = new URLSearchParams();
+  params.set("text", idiomText);
+  if (options?.lang) params.set("lang", options.lang);
+  if (options?.forceRefresh) params.set("force_refresh", "true");
+  return fetchAPI<IdiomCardResponse>(`/cards/idioms/details?${params}`);
 }
 
 export async function searchEntity(query: string, lang: string = "en"): Promise<{

@@ -507,8 +507,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
                 <span className="px-2 py-1 bg-purple-500/10 text-purple-400/60 text-xs rounded-full">
                   实体
                 </span>
-                <span className="px-2 py-1 bg-green-500/10 text-green-400/60 text-xs rounded-full">
-                  地点
+                <span className="px-2 py-1 bg-amber-500/10 text-amber-400/60 text-xs rounded-full">
+                  习语
                 </span>
               </div>
             </div>

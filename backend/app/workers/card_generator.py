@@ -14,6 +14,7 @@ from app.models.card import (
     WordCard,
     EntityCard,
     EntityType,
+    IdiomCard,
     Pronunciation,
     WordSense,
     EntityLocalization,
@@ -873,3 +874,112 @@ class CardGeneratorWorker:
         results = await asyncio.gather(*tasks)
 
         return dict(results)
+
+    # ============ Idiom Card Generation ============
+
+    async def get_idiom_card(
+        self,
+        idiom_text: str,
+        use_cache: bool = True,
+        lang: Optional[str] = None,
+    ) -> Optional[IdiomCard]:
+        """Get idiom card from TomTrove API.
+
+        Args:
+            idiom_text: The idiom text to look up.
+            use_cache: Whether to use cache.
+            lang: Target language for localization.
+
+        Returns:
+            IdiomCard or None if not found.
+        """
+        idiom_text = idiom_text.strip()
+
+        # Check cache first
+        if use_cache:
+            cached = self.cache.get_idiom_card(idiom_text)
+            if cached:
+                logger.debug(f"Idiom card cache hit: {idiom_text}")
+                return cached
+
+        # Fetch from TomTrove API
+        card = await self._fetch_idiom_from_tomtrove(idiom_text, lang)
+
+        # Cache result
+        if card and use_cache:
+            self.cache.set_idiom_card(card)
+
+        return card
+
+    async def _fetch_idiom_from_tomtrove(
+        self,
+        idiom_text: str,
+        lang: Optional[str] = None,
+    ) -> Optional[IdiomCard]:
+        """Fetch idiom data from TomTrove API.
+
+        Args:
+            idiom_text: Idiom text to look up.
+            lang: Target language for localization.
+
+        Returns:
+            IdiomCard or None.
+        """
+        if not self._is_tomtrove_available():
+            logger.warning("TomTrove API not configured for idiom lookup")
+            return None
+
+        base_url = self.tomtrove_url.rstrip("/")
+        url = f"{base_url}/idioms/details"
+
+        request_body = {
+            "text": idiom_text,
+        }
+        if lang:
+            request_body["lang"] = lang
+
+        logger.info(f"Fetching idiom from TomTrove: {url}, body={request_body}")
+
+        try:
+            client = await self._get_client()
+            response = await client.post(url, json=request_body)
+
+            logger.info(f"TomTrove idiom response for '{idiom_text}': status={response.status_code}")
+
+            if response.status_code == 404:
+                logger.debug(f"Idiom not found in TomTrove: {idiom_text}")
+                return None
+
+            if response.status_code != 200:
+                logger.warning(f"TomTrove idiom API error for '{idiom_text}': {response.status_code}")
+                return None
+
+            data = response.json()
+
+            if not data.get("success"):
+                logger.warning(f"TomTrove idiom fetch unsuccessful for '{idiom_text}'")
+                return None
+
+            # Parse response into IdiomCard
+            idiom_data = data.get("data", {})
+
+            card = IdiomCard(
+                text=idiom_text,
+                category=idiom_data.get("category", "idiom"),
+                meaning_original=idiom_data.get("meaning_original", ""),
+                meaning_localized=idiom_data.get("meaning_localized", ""),
+                example_original=idiom_data.get("example_original", ""),
+                example_localized=idiom_data.get("example_localized", ""),
+                origin_original=idiom_data.get("origin_original", ""),
+                origin_localized=idiom_data.get("origin_localized", ""),
+                usage_note_original=idiom_data.get("usage_note_original", ""),
+                usage_note_localized=idiom_data.get("usage_note_localized", ""),
+                source="tomtrove",
+            )
+
+            logger.debug(f"Fetched idiom card from TomTrove: {idiom_text}")
+            return card
+
+        except Exception as e:
+            logger.error(f"Error fetching idiom from TomTrove '{idiom_text}': {e}")
+            return None

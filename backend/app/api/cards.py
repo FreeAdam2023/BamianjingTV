@@ -7,10 +7,12 @@ from loguru import logger
 from app.models.card import (
     WordCard,
     EntityCard,
+    IdiomCard,
     CardGenerateRequest,
     CardGenerateResponse,
     WordCardResponse,
     EntityCardResponse,
+    IdiomCardResponse,
     TimelineAnnotations,
 )
 from app.services.card_cache import CardCache
@@ -266,6 +268,43 @@ async def recognize_entities(request: EntityRecognizeRequest):
             entities=[],
             message=str(e)
         )
+
+
+# ============ Idiom Card Endpoints ============
+
+@router.get("/idioms/details", response_model=IdiomCardResponse)
+async def get_idiom_details(
+    text: str,
+    lang: Optional[str] = None,
+    force_refresh: bool = False,
+):
+    """Get idiom details by text.
+
+    Called when user clicks on an idiom badge.
+    Uses TomTrove /idioms/details internally.
+
+    Args:
+        text: The idiom text (e.g., "break the ice")
+        lang: Target language for localization.
+        force_refresh: If True, bypass cache and fetch fresh data.
+    """
+    generator = _get_card_generator()
+
+    try:
+        card = await generator.get_idiom_card(
+            text,
+            use_cache=not force_refresh,
+            lang=lang,
+        )
+
+        if card:
+            return IdiomCardResponse(text=text, found=True, card=card)
+        else:
+            return IdiomCardResponse(text=text, found=False, error="Idiom not found")
+
+    except Exception as e:
+        logger.error(f"Error fetching idiom card for '{text}': {e}")
+        return IdiomCardResponse(text=text, found=False, error=str(e))
 
 
 @router.delete("/entities/{entity_id}")
@@ -807,57 +846,104 @@ async def get_segment_annotations(request: SegmentAnnotationRequest):
             cached = timeline.segment_annotations[request.segment_id]
             return SegmentAnnotations(**cached)
 
-    # Use TomTrove for entity recognition
+    # Use TomTrove for entity AND idiom recognition in parallel
+    import asyncio
+    from app.models.card import IdiomAnnotation
+
     generator = _get_card_generator()
-    entities = []
 
-    try:
-        base_url = generator.tomtrove_url.rstrip("/")
-        url = f"{base_url}/entities/recognize"
+    async def _recognize_entities() -> list:
+        """Call TomTrove entity recognition."""
+        entities = []
+        try:
+            base_url = generator.tomtrove_url.rstrip("/")
+            url = f"{base_url}/entities/recognize"
 
-        client = await generator._get_client()
-        response = await client.post(
-            url,
-            json={
-                "text": request.text,
-                "force_refresh": request.force_refresh,
-                "extraction_method": request.extraction_method,
-            },
-        )
+            client = await generator._get_client()
+            response = await client.post(
+                url,
+                json={
+                    "text": request.text,
+                    "force_refresh": request.force_refresh,
+                    "extraction_method": request.extraction_method,
+                },
+            )
 
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("success"):
-                raw_entities = data.get("data", {}).get("entities", [])
-                for e in raw_entities:
-                    mentions = e.get("mentions", [])
-                    if mentions:
-                        mention = mentions[0]
-                        entity_type_str = e.get("entity_type", "other").lower()
-                        try:
-                            entity_type = EntityType(entity_type_str)
-                        except ValueError:
-                            entity_type = EntityType.OTHER
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("success"):
+                    raw_entities = data.get("data", {}).get("entities", [])
+                    for e in raw_entities:
+                        mentions = e.get("mentions", [])
+                        if mentions:
+                            mention = mentions[0]
+                            entity_type_str = e.get("entity_type", "other").lower()
+                            try:
+                                entity_type = EntityType(entity_type_str)
+                            except ValueError:
+                                entity_type = EntityType.OTHER
 
-                        entities.append(EntityAnnotation(
-                            text=mention.get("text", ""),
-                            entity_id=e.get("entity_id"),
-                            entity_type=entity_type,
-                            start_char=mention.get("char_start", 0),
-                            end_char=mention.get("char_end", 0),
-                            confidence=e.get("confidence", 0.0),
+                            entities.append(EntityAnnotation(
+                                text=mention.get("text", ""),
+                                entity_id=e.get("entity_id"),
+                                entity_type=entity_type,
+                                start_char=mention.get("char_start", 0),
+                                end_char=mention.get("char_end", 0),
+                                confidence=e.get("confidence", 0.0),
+                            ))
+                    logger.info(f"TomTrove recognized {len(entities)} entities")
+            else:
+                logger.warning(f"TomTrove entity recognition failed: {response.status_code}")
+        except Exception as e:
+            logger.error(f"Failed to call TomTrove entity recognition: {e}")
+        return entities
+
+    async def _recognize_idioms() -> list:
+        """Call TomTrove idiom recognition."""
+        idioms = []
+        try:
+            base_url = generator.tomtrove_url.rstrip("/")
+            url = f"{base_url}/idioms/recognize"
+
+            client = await generator._get_client()
+            response = await client.post(
+                url,
+                json={
+                    "text": request.text,
+                },
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("success"):
+                    raw_idioms = data.get("data", {}).get("idioms", [])
+                    for idiom in raw_idioms:
+                        idioms.append(IdiomAnnotation(
+                            text=idiom.get("text", ""),
+                            start_char=idiom.get("start_char", 0),
+                            end_char=idiom.get("end_char", 0),
+                            confidence=idiom.get("confidence", 1.0),
+                            category=idiom.get("category", "idiom"),
                         ))
-                logger.info(f"TomTrove recognized {len(entities)} entities")
-        else:
-            logger.warning(f"TomTrove entity recognition failed: {response.status_code}")
-    except Exception as e:
-        logger.error(f"Failed to call TomTrove entity recognition: {e}")
+                    logger.info(f"TomTrove recognized {len(idioms)} idioms")
+            else:
+                logger.warning(f"TomTrove idiom recognition failed: {response.status_code}")
+        except Exception as e:
+            logger.error(f"Failed to call TomTrove idiom recognition: {e}")
+        return idioms
 
-    # Create annotation with entities only (skip vocabulary extraction)
+    # Run entity and idiom recognition in parallel
+    entities, idioms = await asyncio.gather(
+        _recognize_entities(),
+        _recognize_idioms(),
+    )
+
+    # Create annotation with entities and idioms (skip vocabulary extraction)
     annotation = SegmentAnnotations(
         segment_id=request.segment_id or 0,
         words=[],  # Skip vocabulary - users click words directly for lookup
         entities=entities,
+        idioms=idioms,
     )
 
     # Cache if timeline provided

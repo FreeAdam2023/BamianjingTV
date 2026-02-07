@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { getWordCard, getEntityCard, searchEntity } from "@/lib/api";
-import type { WordCard, EntityCard } from "@/lib/types";
+import { getWordCard, getEntityCard, getIdiomCard, searchEntity } from "@/lib/api";
+import type { WordCard, EntityCard, IdiomCard } from "@/lib/types";
 
-export type CardType = "word" | "entity";
+export type CardType = "word" | "entity" | "idiom";
 
 export interface CardPopupState {
   isOpen: boolean;
@@ -13,6 +13,7 @@ export interface CardPopupState {
   error: string | null;
   wordCard: WordCard | null;
   entityCard: EntityCard | null;
+  idiomCard: IdiomCard | null;
   position: { x: number; y: number };
 }
 
@@ -24,7 +25,8 @@ export interface OpenWordCardOptions {
 interface UseCardPopupReturn {
   state: CardPopupState;
   openWordCard: (word: string, options?: OpenWordCardOptions) => Promise<void>;
-  openEntityCard: (entityIdOrText: string, position?: { x: number; y: number }) => Promise<void>;
+  openEntityCard: (entityIdOrText: string, position?: { x: number; y: number }, forceRefresh?: boolean) => Promise<void>;
+  openIdiomCard: (idiomText: string, position?: { x: number; y: number }, forceRefresh?: boolean) => Promise<void>;
   close: () => void;
   refresh: () => Promise<void>;
   refreshing: boolean;
@@ -37,12 +39,14 @@ const initialState: CardPopupState = {
   error: null,
   wordCard: null,
   entityCard: null,
+  idiomCard: null,
   position: { x: 0, y: 0 },
 };
 
 // Simple in-memory cache for cards
 const wordCache = new Map<string, WordCard | null>();
 const entityCache = new Map<string, EntityCard | null>();
+const idiomCache = new Map<string, IdiomCard | null>();
 
 export function useCardPopup(): UseCardPopupReturn {
   const [state, setState] = useState<CardPopupState>(initialState);
@@ -88,6 +92,7 @@ export function useCardPopup(): UseCardPopupReturn {
         error: cached ? null : "未找到单词",
         wordCard: cached,
         entityCard: null,
+        idiomCard: null,
         position: position || { x: 0, y: 0 },
       });
       return;
@@ -106,6 +111,7 @@ export function useCardPopup(): UseCardPopupReturn {
       error: null,
       wordCard: null,
       entityCard: null,
+      idiomCard: null,
       position: position || { x: 0, y: 0 },
     });
 
@@ -161,6 +167,7 @@ export function useCardPopup(): UseCardPopupReturn {
         error: cached ? null : "未找到实体",
         wordCard: null,
         entityCard: cached,
+        idiomCard: null,
         position: position || { x: 0, y: 0 },
       });
       return;
@@ -174,6 +181,7 @@ export function useCardPopup(): UseCardPopupReturn {
       error: null,
       wordCard: null,
       entityCard: null,
+      idiomCard: null,
       position: position || { x: 0, y: 0 },
     });
 
@@ -217,6 +225,74 @@ export function useCardPopup(): UseCardPopupReturn {
     }
   }, []);
 
+  const openIdiomCard = useCallback(async (idiomText: string, position?: { x: number; y: number }, forceRefresh?: boolean) => {
+    const normalizedText = idiomText.trim();
+
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
+    // Track current card for refresh
+    currentCardRef.current = { type: "idiom", id: normalizedText };
+
+    // Clear cache entry if force refresh
+    if (forceRefresh) {
+      idiomCache.delete(normalizedText);
+    }
+
+    // Check cache first (unless force refresh)
+    if (!forceRefresh && idiomCache.has(normalizedText)) {
+      const cached = idiomCache.get(normalizedText) ?? null;
+      setState({
+        isOpen: true,
+        type: "idiom",
+        loading: false,
+        error: cached ? null : "未找到习语",
+        wordCard: null,
+        entityCard: null,
+        idiomCard: cached,
+        position: position || { x: 0, y: 0 },
+      });
+      return;
+    }
+
+    // Show loading state
+    setState({
+      isOpen: true,
+      type: "idiom",
+      loading: true,
+      error: null,
+      wordCard: null,
+      entityCard: null,
+      idiomCard: null,
+      position: position || { x: 0, y: 0 },
+    });
+
+    try {
+      const response = await getIdiomCard(normalizedText, { forceRefresh: forceRefresh ?? false });
+
+      // Cache the result
+      idiomCache.set(normalizedText, response.card);
+
+      setState((prev) => ({
+        ...prev,
+        loading: false,
+        error: response.found ? null : "未找到习语",
+        idiomCard: response.card,
+      }));
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return;
+
+      setState((prev) => ({
+        ...prev,
+        loading: false,
+        error: err instanceof Error ? err.message : "获取习语卡片失败",
+      }));
+    }
+  }, []);
+
   const close = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -236,16 +312,19 @@ export function useCardPopup(): UseCardPopupReturn {
         await openWordCard(id, { position: state.position, forceRefresh: true });
       } else if (type === "entity") {
         await openEntityCard(id, state.position, true);
+      } else if (type === "idiom") {
+        await openIdiomCard(id, state.position, true);
       }
     } finally {
       setRefreshing(false);
     }
-  }, [state.isOpen, state.position, openWordCard, openEntityCard]);
+  }, [state.isOpen, state.position, openWordCard, openEntityCard, openIdiomCard]);
 
   return {
     state,
     openWordCard,
     openEntityCard,
+    openIdiomCard,
     close,
     refresh,
     refreshing,
@@ -256,4 +335,5 @@ export function useCardPopup(): UseCardPopupReturn {
 export function clearCardCache() {
   wordCache.clear();
   entityCache.clear();
+  idiomCache.clear();
 }

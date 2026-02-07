@@ -7,7 +7,7 @@ from typing import Optional
 from loguru import logger
 
 from app.config import settings
-from app.models.card import WordCard, EntityCard
+from app.models.card import WordCard, EntityCard, IdiomCard
 
 
 class CardCache:
@@ -34,11 +34,13 @@ class CardCache:
         self.cards_dir = cards_dir or settings.data_dir / "cards"
         self.words_dir = self.cards_dir / "words"
         self.entities_dir = self.cards_dir / "entities"
+        self.idioms_dir = self.cards_dir / "idioms"
         self.ttl = timedelta(days=ttl_days)
 
         # Create directories
         self.words_dir.mkdir(parents=True, exist_ok=True)
         self.entities_dir.mkdir(parents=True, exist_ok=True)
+        self.idioms_dir.mkdir(parents=True, exist_ok=True)
 
         logger.info(f"CardCache initialized at {self.cards_dir}")
 
@@ -205,6 +207,80 @@ class CardCache:
             return True
         return False
 
+    # ============ Idiom Cards ============
+
+    def get_idiom_card(self, idiom_text: str) -> Optional[IdiomCard]:
+        """Get an idiom card from cache.
+
+        Args:
+            idiom_text: The idiom text to look up.
+
+        Returns:
+            IdiomCard if found and not expired, None otherwise.
+        """
+        filename = self._sanitize_filename(idiom_text) + ".json"
+        file_path = self.idioms_dir / filename
+
+        if not file_path.exists():
+            return None
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            card = IdiomCard.model_validate(data)
+
+            # Check expiration
+            if self._is_expired(card.fetched_at):
+                logger.debug(f"Idiom card expired: {idiom_text}")
+                return None
+
+            logger.debug(f"Idiom card cache hit: {idiom_text}")
+            return card
+
+        except Exception as e:
+            logger.warning(f"Failed to load idiom card {idiom_text}: {e}")
+            return None
+
+    def set_idiom_card(self, card: IdiomCard) -> None:
+        """Store an idiom card in cache.
+
+        Args:
+            card: IdiomCard to store.
+        """
+        filename = self._sanitize_filename(card.text) + ".json"
+        file_path = self.idioms_dir / filename
+
+        try:
+            # Update fetch time
+            card.fetched_at = datetime.now()
+
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(card.model_dump(mode="json"), f, ensure_ascii=False, indent=2)
+
+            logger.debug(f"Idiom card cached: {card.text}")
+
+        except Exception as e:
+            logger.error(f"Failed to cache idiom card {card.text}: {e}")
+
+    def delete_idiom_card(self, idiom_text: str) -> bool:
+        """Delete an idiom card from cache.
+
+        Args:
+            idiom_text: The idiom text to delete.
+
+        Returns:
+            True if deleted, False if not found.
+        """
+        filename = self._sanitize_filename(idiom_text) + ".json"
+        file_path = self.idioms_dir / filename
+
+        if file_path.exists():
+            file_path.unlink()
+            logger.debug(f"Idiom card deleted: {idiom_text}")
+            return True
+        return False
+
     # ============ Utilities ============
 
     def get_stats(self) -> dict:
@@ -215,11 +291,13 @@ class CardCache:
         """
         word_count = len(list(self.words_dir.glob("*.json")))
         entity_count = len(list(self.entities_dir.glob("*.json")))
+        idiom_count = len(list(self.idioms_dir.glob("*.json")))
 
         return {
             "words_cached": word_count,
             "entities_cached": entity_count,
-            "total_cached": word_count + entity_count,
+            "idioms_cached": idiom_count,
+            "total_cached": word_count + entity_count + idiom_count,
             "cache_dir": str(self.cards_dir),
         }
 
@@ -256,9 +334,23 @@ class CardCache:
             except Exception:
                 pass
 
-        logger.info(f"Cleared {words_cleared} word cards and {entities_cleared} entity cards")
+        # Clear expired idiom cards
+        idioms_cleared = 0
+        for file_path in self.idioms_dir.glob("*.json"):
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                fetched_at = datetime.fromisoformat(data.get("fetched_at", "2000-01-01"))
+                if self._is_expired(fetched_at):
+                    file_path.unlink()
+                    idioms_cleared += 1
+            except Exception:
+                pass
+
+        logger.info(f"Cleared {words_cleared} word cards, {entities_cleared} entity cards, {idioms_cleared} idiom cards")
 
         return {
             "words_cleared": words_cleared,
             "entities_cleared": entities_cleared,
+            "idioms_cleared": idioms_cleared,
         }

@@ -93,7 +93,7 @@ export default function ReviewPage() {
   } | null>(null);
 
   // Card popup state (shared between video and segment list)
-  const { state: cardState, openWordCard, openEntityCard, close: closeCard, refresh: refreshCard, refreshing: cardRefreshing } = useCardPopup();
+  const { state: cardState, openWordCard, openEntityCard, openIdiomCard, close: closeCard, refresh: refreshCard, refreshing: cardRefreshing } = useCardPopup();
 
   // Creative mode state
   const [isCreativeMode, setIsCreativeMode] = useState(false);
@@ -767,6 +767,7 @@ export default function ReviewPage() {
             onRefreshAnnotations={handleRefreshAnnotations}
             onWordClick={openWordCard}
             onEntityClick={openEntityCard}
+            onIdiomClick={openIdiomCard}
             onAddEntity={handleAddEntity}
             onEditEntity={handleEditEntity}
           />

@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { CardPopupState } from "@/hooks/useCardPopup";
-import type { WordCard, EntityCard, PinnedCard, PinnedCardType } from "@/lib/types";
+import type { WordCard, EntityCard, IdiomCard, PinnedCard, PinnedCardType } from "@/lib/types";
 import { pinCard, unpinCard } from "@/lib/api";
 
 interface CardSidePanelProps {
@@ -409,6 +409,140 @@ function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTogglePin,
   );
 }
 
+// Inline IdiomCard component optimized for side panel
+interface SidePanelIdiomCardProps {
+  card: IdiomCard;
+  onClose: () => void;
+  onRefresh?: () => void;
+  refreshing?: boolean;
+}
+
+function SidePanelIdiomCard({ card, onClose, onRefresh, refreshing }: SidePanelIdiomCardProps) {
+  const categoryColors: Record<string, string> = {
+    idiom: "bg-amber-500/50",
+    phrasal_verb: "bg-amber-600/50",
+    slang: "bg-orange-500/50",
+  };
+
+  const categoryIcons: Record<string, string> = {
+    idiom: "\u{1F4AC}",       // 💬
+    phrasal_verb: "\u{1F517}", // 🔗
+    slang: "\u{1F5E3}",       // 🗣️
+  };
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Header */}
+      <div className="relative flex-shrink-0">
+        <div className="h-16 bg-gradient-to-r from-amber-900/30 to-amber-800/20" />
+
+        {/* Action buttons */}
+        <div className="absolute top-2 right-2 flex items-center gap-1">
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              disabled={refreshing}
+              className={`p-1.5 bg-black/50 text-white hover:bg-black/70 rounded-full transition ${refreshing ? "opacity-50 cursor-wait" : ""}`}
+              title="刷新卡片"
+            >
+              {refreshing ? (
+                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              )}
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="p-1.5 bg-black/50 text-white hover:bg-black/70 rounded-full transition"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <span className={`absolute top-2 left-2 px-2 py-0.5 ${categoryColors[card.category] || categoryColors.idiom} text-white text-xs font-medium rounded backdrop-blur-sm`}>
+          {categoryIcons[card.category] || categoryIcons.idiom} {card.category}
+        </span>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <h2 className="text-xl font-bold text-amber-300">{card.text}</h2>
+
+        {/* Meaning */}
+        {(card.meaning_original || card.meaning_localized) && (
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-medium text-white/40 uppercase tracking-wider">Meaning</span>
+              <div className="flex-1 h-px bg-white/10" />
+            </div>
+            {card.meaning_original && (
+              <p className="text-sm text-white/80">{card.meaning_original}</p>
+            )}
+            {card.meaning_localized && (
+              <p className="text-sm text-yellow-300/70 mt-1">{card.meaning_localized}</p>
+            )}
+          </div>
+        )}
+
+        {/* Example */}
+        {(card.example_original || card.example_localized) && (
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-medium text-white/40 uppercase tracking-wider">Example</span>
+              <div className="flex-1 h-px bg-white/10" />
+            </div>
+            <div className="pl-3 border-l-2 border-amber-500/30">
+              {card.example_original && (
+                <p className="text-sm text-white/70 italic">&ldquo;{card.example_original}&rdquo;</p>
+              )}
+              {card.example_localized && (
+                <p className="text-sm text-yellow-300/70 mt-1">{card.example_localized}</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Origin */}
+        {(card.origin_original || card.origin_localized) && (
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-medium text-white/40 uppercase tracking-wider">Origin</span>
+              <div className="flex-1 h-px bg-white/10" />
+            </div>
+            {card.origin_original && (
+              <p className="text-sm text-white/60">{card.origin_original}</p>
+            )}
+            {card.origin_localized && (
+              <p className="text-sm text-yellow-300/60 mt-1">{card.origin_localized}</p>
+            )}
+          </div>
+        )}
+
+        {/* Usage Notes */}
+        {(card.usage_note_original || card.usage_note_localized) && (
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-medium text-white/40 uppercase tracking-wider">Usage Notes</span>
+              <div className="flex-1 h-px bg-white/10" />
+            </div>
+            {card.usage_note_original && (
+              <p className="text-sm text-white/60">{card.usage_note_original}</p>
+            )}
+            {card.usage_note_localized && (
+              <p className="text-sm text-yellow-300/60 mt-1">{card.usage_note_localized}</p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function CardSidePanel({
   state,
   onClose,
@@ -570,6 +704,16 @@ export default function CardSidePanel({
           onEdit={onEditEntity ? () => onEditEntity(state.entityCard!.entity_id) : undefined}
         />
       )}
+
+      {/* Idiom card */}
+      {state.type === "idiom" && state.idiomCard && !state.loading && (
+        <SidePanelIdiomCard
+          card={state.idiomCard}
+          onClose={onClose}
+          onRefresh={onRefresh}
+          refreshing={refreshing}
+        />
+      )}
     </div>
     );
   }
@@ -644,6 +788,16 @@ export default function CardSidePanel({
           onRefresh={onRefresh}
           refreshing={refreshing}
           onEdit={onEditEntity ? () => onEditEntity(state.entityCard!.entity_id) : undefined}
+        />
+      )}
+
+      {/* Idiom card */}
+      {state.type === "idiom" && state.idiomCard && !state.loading && (
+        <SidePanelIdiomCard
+          card={state.idiomCard}
+          onClose={onClose}
+          onRefresh={onRefresh}
+          refreshing={refreshing}
         />
       )}
     </div>

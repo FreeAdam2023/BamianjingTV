@@ -115,6 +115,35 @@ class EntityCard(BaseModel):
         return EntityLocalization(name=self.name, description=self.description)
 
 
+# ============ Idiom Card Models ============
+
+class IdiomAnnotation(BaseModel):
+    """An idiom annotation within a segment."""
+    text: str  # Surface form in text
+    start_char: int
+    end_char: int
+    confidence: float = 1.0
+    category: str = "idiom"  # idiom, phrasal_verb, slang
+
+
+class IdiomCard(BaseModel):
+    """Idiom card with bilingual meaning, example, origin, and usage notes."""
+    text: str
+    category: str = "idiom"  # idiom, phrasal_verb, slang
+    meaning_original: str = ""
+    meaning_localized: str = ""
+    example_original: str = ""
+    example_localized: str = ""
+    origin_original: str = ""
+    origin_localized: str = ""
+    usage_note_original: str = ""
+    usage_note_localized: str = ""
+
+    # Metadata
+    source: str = "tomtrove"
+    fetched_at: datetime = Field(default_factory=datetime.now)
+
+
 # ============ NER Annotation Models ============
 
 class WordAnnotation(BaseModel):
@@ -142,6 +171,7 @@ class SegmentAnnotations(BaseModel):
     segment_id: int
     words: List[WordAnnotation] = Field(default_factory=list)
     entities: List[EntityAnnotation] = Field(default_factory=list)
+    idioms: List[IdiomAnnotation] = Field(default_factory=list)
 
 
 class TimelineAnnotations(BaseModel):
@@ -190,4 +220,12 @@ class EntityCardResponse(BaseModel):
     entity_id: str
     found: bool
     card: Optional[EntityCard] = None
+    error: Optional[str] = None
+
+
+class IdiomCardResponse(BaseModel):
+    """API response for an idiom card."""
+    text: str
+    found: bool
+    card: Optional[IdiomCard] = None
     error: Optional[str] = None

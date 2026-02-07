@@ -740,10 +740,41 @@ export interface EntityAnnotation {
   confidence: number;
 }
 
+export interface IdiomAnnotation {
+  text: string;
+  start_char: number;
+  end_char: number;
+  confidence: number;
+  category: string;  // idiom, phrasal_verb, slang
+}
+
+export interface IdiomCard {
+  text: string;
+  category: string;  // idiom, phrasal_verb, slang
+  meaning_original: string;
+  meaning_localized: string;
+  example_original: string;
+  example_localized: string;
+  origin_original: string;
+  origin_localized: string;
+  usage_note_original: string;
+  usage_note_localized: string;
+  source: string;
+  fetched_at: string;
+}
+
+export interface IdiomCardResponse {
+  text: string;
+  found: boolean;
+  card: IdiomCard | null;
+  error: string | null;
+}
+
 export interface SegmentAnnotations {
   segment_id: number;
   words: WordAnnotation[];
   entities: EntityAnnotation[];
+  idioms?: IdiomAnnotation[];
 }
 
 export interface TimelineAnnotations {

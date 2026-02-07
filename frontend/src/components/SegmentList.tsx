@@ -1,9 +1,9 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
-import type { EditableSegment, SegmentState, SegmentAnnotations, EntityAnnotation } from "@/lib/types";
+import type { EditableSegment, SegmentState, SegmentAnnotations, EntityAnnotation, IdiomAnnotation } from "@/lib/types";
 import { formatDuration } from "@/lib/api";
-import { ClickableSubtitle, EntityBadges } from "@/components/Cards";
+import { ClickableSubtitle, EntityBadges, IdiomBadges } from "@/components/Cards";
 import SplitSegmentModal from "./SplitSegmentModal";
 import type { OpenWordCardOptions } from "@/hooks/useCardPopup";
 
@@ -21,6 +21,7 @@ interface SegmentListProps {
   // Card handlers (passed from parent to display cards in video area)
   onWordClick?: (word: string, options?: OpenWordCardOptions) => void | Promise<void>;
   onEntityClick?: (entityIdOrText: string, position?: { x: number; y: number }) => void | Promise<void>;
+  onIdiomClick?: (idiomText: string, position?: { x: number; y: number }) => void | Promise<void>;
   // Entity editing handlers
   onAddEntity?: (segmentId: number, segmentText: string) => void;
   onEditEntity?: (segmentId: number, segmentText: string, entity: EntityAnnotation) => void;
@@ -37,6 +38,7 @@ export default function SegmentList({
   onRefreshAnnotations,
   onWordClick,
   onEntityClick,
+  onIdiomClick,
   onAddEntity,
   onEditEntity,
 }: SegmentListProps) {
@@ -69,6 +71,11 @@ export default function SegmentList({
   const handleEditEntity = useCallback((segmentId: number, segmentText: string, entity: EntityAnnotation) => {
     onEditEntity?.(segmentId, segmentText, entity);
   }, [onEditEntity]);
+
+  // Handle idiom click in badges
+  const handleIdiomClick = useCallback((idiom: IdiomAnnotation, position: { x: number; y: number }) => {
+    onIdiomClick?.(idiom.text, position);
+  }, [onIdiomClick]);
 
   // Auto-scroll to current segment
   useEffect(() => {
@@ -305,6 +312,15 @@ export default function SegmentList({
                       </svg>
                     </button>
                   )}
+                </div>
+              )}
+              {/* Idiom badges - show if annotations available */}
+              {segmentAnnotations?.get(segment.id)?.idioms && (segmentAnnotations.get(segment.id)!.idioms?.length ?? 0) > 0 && (
+                <div className="mt-1">
+                  <IdiomBadges
+                    idioms={segmentAnnotations.get(segment.id)!.idioms!}
+                    onIdiomClick={handleIdiomClick}
+                  />
                 </div>
               )}
               {/* Show add button even when no entities exist */}
