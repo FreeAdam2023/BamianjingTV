@@ -85,6 +85,10 @@ from app.api import (
     creative_router,
     set_creative_timeline_manager,
     set_config_generator,
+    # Music setup functions
+    music_router,
+    set_music_manager,
+    set_music_generator,
 )
 
 
@@ -223,6 +227,22 @@ async def lifespan(app: FastAPI):
 
     logger.info("Initialized Creative mode config generator")
 
+    # ========== Music: Initialize music manager and generator ==========
+    from app.services.music_manager import MusicManager
+    from app.workers.music_generator import MusicGeneratorWorker, AUDIOCRAFT_AVAILABLE
+
+    music_manager = MusicManager()
+    set_music_manager(music_manager)
+
+    music_generator = MusicGeneratorWorker(music_manager=music_manager)
+    set_music_generator(music_generator)
+
+    music_features = []
+    if AUDIOCRAFT_AVAILABLE:
+        music_features.append("musicgen")
+    music_features.append(f"device={music_generator.device}")
+    logger.info(f"Initialized Music: {len(music_manager.list_tracks())} tracks, features={music_features}")
+
     # v2: Get WebSocket connection manager
     ws_manager = get_connection_manager()
 
@@ -344,6 +364,7 @@ app.include_router(cards_router)
 app.include_router(memory_books_router)
 app.include_router(dubbing_router)
 app.include_router(creative_router)
+app.include_router(music_router)
 
 
 # ============ Root Endpoints ============

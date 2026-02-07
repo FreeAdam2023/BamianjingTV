@@ -814,3 +814,33 @@ export interface PinnedCardCheckResponse {
   is_pinned: boolean;
   pin_id?: string;
 }
+
+// ============ Music Types ============
+
+export type MusicTrackStatus = "generating" | "ready" | "failed";
+export type MusicModelSize = "small" | "medium" | "large";
+
+export interface MusicTrack {
+  id: string;
+  title: string;
+  prompt: string;
+  duration_seconds: number;
+  model_size: MusicModelSize;
+  status: MusicTrackStatus;
+  file_path: string | null;
+  created_at: string;
+  file_size_bytes: number | null;
+  error: string | null;
+}
+
+export interface MusicGenerateRequest {
+  prompt: string;
+  duration_seconds?: number;
+  model_size?: MusicModelSize;
+  title?: string;
+}
+
+export interface MusicGenerateResponse {
+  track: MusicTrack;
+  message: string;
+}

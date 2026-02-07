@@ -75,6 +75,10 @@ import type {
   PinnedCardCreate,
   PinnedCardType,
   PinnedCardCheckResponse,
+  // Music
+  MusicTrack,
+  MusicGenerateRequest,
+  MusicGenerateResponse,
 } from "./types";
 
 // Get API URL: use env var or derive from current host with port 8001
@@ -1500,4 +1504,39 @@ export async function getPinnedCardsDescription(
   return fetchAPI<PinnedCardsDescriptionResponse>(
     `/timelines/${timelineId}/pinned-cards/description?include_timestamps=${includeTimestamps}`
   );
+}
+
+// ============ Music API ============
+
+export async function generateMusic(
+  request: MusicGenerateRequest
+): Promise<MusicGenerateResponse> {
+  return fetchAPI<MusicGenerateResponse>("/music/generate", {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
+}
+
+export async function listMusicTracks(): Promise<MusicTrack[]> {
+  return fetchAPI<MusicTrack[]>("/music/tracks");
+}
+
+export async function getMusicTrack(trackId: string): Promise<MusicTrack> {
+  return fetchAPI<MusicTrack>(`/music/tracks/${trackId}`);
+}
+
+export function getMusicAudioUrl(trackId: string): string {
+  return `${API_BASE}/music/tracks/${trackId}/audio`;
+}
+
+export async function deleteMusicTrack(
+  trackId: string
+): Promise<{ message: string; track_id: string }> {
+  return fetchAPI(`/music/tracks/${trackId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getMusicStatus(): Promise<Record<string, unknown>> {
+  return fetchAPI<Record<string, unknown>>("/music/status");
 }

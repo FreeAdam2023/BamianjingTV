@@ -57,6 +57,11 @@ from .creative import (
     set_timeline_manager as set_creative_timeline_manager,
     set_config_generator,
 )
+from .music import (
+    router as music_router,
+    set_music_manager,
+    set_music_generator,
+)
 
 __all__ = [
     # v2 Routers
@@ -120,4 +125,8 @@ __all__ = [
     "creative_router",
     "set_creative_timeline_manager",
     "set_config_generator",
+    # Music Router and Setup functions
+    "music_router",
+    "set_music_manager",
+    "set_music_generator",
 ]

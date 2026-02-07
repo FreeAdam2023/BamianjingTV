@@ -64,6 +64,14 @@ class Settings(BaseSettings):
         """SceneMind uploaded videos directory."""
         return self.scenemind_dir / "videos"
 
+    @property
+    def music_dir(self) -> Path:
+        """Path to music directory."""
+        return self.data_dir / "music"
+
+    # Music generation settings
+    music_device: str = "cuda"
+
     # Upload settings
     max_upload_size_mb: int = 4096  # 4GB max upload
 
@@ -181,3 +189,4 @@ settings.models_cache_dir.mkdir(parents=True, exist_ok=True)
 settings.scenemind_sessions_dir.mkdir(parents=True, exist_ok=True)
 settings.scenemind_frames_dir.mkdir(parents=True, exist_ok=True)
 settings.scenemind_videos_dir.mkdir(parents=True, exist_ok=True)
+settings.music_dir.mkdir(parents=True, exist_ok=True)
