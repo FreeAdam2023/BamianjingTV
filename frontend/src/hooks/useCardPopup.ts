@@ -273,8 +273,8 @@ export function useCardPopup(): UseCardPopupReturn {
     try {
       const response = await getIdiomCard(normalizedText, { forceRefresh: forceRefresh ?? false });
 
-      // Only cache if card has meaningful content (non-empty meaning)
-      if (response.card?.meaning_original) {
+      // Always cache on force refresh; otherwise only cache meaningful content
+      if (forceRefresh || response.card?.meaning_original) {
         idiomCache.set(normalizedText, response.card);
       }
 
