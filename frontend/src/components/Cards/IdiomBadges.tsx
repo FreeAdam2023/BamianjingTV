@@ -23,14 +23,14 @@ function getIdiomCategoryColor(category: string): string {
   return colors[category.toLowerCase()] || colors.idiom;
 }
 
-// Get icon for idiom category
-function getIdiomCategoryIcon(category: string): string {
-  const icons: Record<string, string> = {
-    idiom: "\u{1F4AC}",       // 💬
-    phrasal_verb: "\u{1F517}", // 🔗
-    slang: "\u{1F5E3}",       // 🗣️
+// Get label for idiom category
+function getIdiomCategoryLabel(category: string): string {
+  const labels: Record<string, string> = {
+    idiom: "idiom",
+    phrasal_verb: "phrasal",
+    slang: "slang",
   };
-  return icons[category.toLowerCase()] || "\u{1F4AC}";
+  return labels[category.toLowerCase()] || "idiom";
 }
 
 export default function IdiomBadges({
@@ -68,7 +68,7 @@ export default function IdiomBadges({
           `}
           title={`${idiom.category}: ${idiom.text}`}
         >
-          <span>{getIdiomCategoryIcon(idiom.category)}</span>
+          <span className="opacity-60">{getIdiomCategoryLabel(idiom.category)}</span>
           <span className="max-w-[140px] truncate">{idiom.text}</span>
         </button>
       ))}

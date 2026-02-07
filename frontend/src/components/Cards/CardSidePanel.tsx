@@ -424,10 +424,10 @@ function SidePanelIdiomCard({ card, onClose, onRefresh, refreshing }: SidePanelI
     slang: "bg-orange-500/50",
   };
 
-  const categoryIcons: Record<string, string> = {
-    idiom: "\u{1F4AC}",       // 💬
-    phrasal_verb: "\u{1F517}", // 🔗
-    slang: "\u{1F5E3}",       // 🗣️
+  const categoryLabels: Record<string, string> = {
+    idiom: "Idiom",
+    phrasal_verb: "Phrasal Verb",
+    slang: "Slang",
   };
 
   return (
@@ -465,7 +465,7 @@ function SidePanelIdiomCard({ card, onClose, onRefresh, refreshing }: SidePanelI
         </div>
 
         <span className={`absolute top-2 left-2 px-2 py-0.5 ${categoryColors[card.category] || categoryColors.idiom} text-white text-xs font-medium rounded backdrop-blur-sm`}>
-          {categoryIcons[card.category] || categoryIcons.idiom} {card.category}
+          {categoryLabels[card.category] || card.category}
         </span>
       </div>
 
