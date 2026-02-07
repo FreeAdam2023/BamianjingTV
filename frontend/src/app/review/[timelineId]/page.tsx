@@ -28,9 +28,7 @@ import ExportPreviewModal from "./ExportPreviewModal";
 import KeyboardHelp from "./KeyboardHelp";
 import BulkActions from "./BulkActions";
 import SpeakerEditor from "./SpeakerEditor";
-import ObservationCapture from "./ObservationCapture";
-import ObservationList from "./ObservationList";
-import AIChatPanel from "./AIChatPanel";
+import AIChatPanel, { AIChatPanelRef } from "./AIChatPanel";
 import StyleSelector from "./StyleSelector";
 import CreativeConfigPanel from "./CreativeConfigPanel";
 import CreativeAIChat from "./CreativeAIChat";
@@ -80,8 +78,7 @@ export default function ReviewPage() {
   const [coverFrameUrl, setCoverFrameUrl] = useState<string | null>(null);
   const [exportPreviewType, setExportPreviewType] = useState<"full" | "essence" | null>(null);
 
-  // Observation capture state (for WATCHING mode)
-  const [showObservationCapture, setShowObservationCapture] = useState(false);
+  // Observations from timeline (legacy, used for quick questions in AI chat)
   const [observations, setObservations] = useState<Observation[]>([]);
 
   // NER annotations state - populated on-demand when segments are clicked
@@ -169,6 +166,7 @@ export default function ReviewPage() {
   }, []);
 
   const videoPlayerRef = useRef<VideoPlayerRef>(null);
+  const chatPanelRef = useRef<AIChatPanelRef>(null);
 
   // Video control handlers
   const handlePlayToggle = useCallback(() => {
@@ -200,16 +198,13 @@ export default function ReviewPage() {
     onPlaySegment: handlePlaySegment,
   });
 
-  // Observation keyboard shortcut (S to capture - only for WATCHING mode)
+  // Screenshot keyboard shortcut (S to capture and open AI chat)
   useEffect(() => {
-    if (timeline?.mode !== "watching") return;
-
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't capture if in input field or modal is open
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement ||
-        showObservationCapture ||
         showExportPanel ||
         showPreviewPanel
       ) {
@@ -218,33 +213,13 @@ export default function ReviewPage() {
 
       if (e.key === "s" || e.key === "S") {
         e.preventDefault();
-        setShowObservationCapture(true);
+        chatPanelRef.current?.captureAndExpand();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [timeline?.mode, showObservationCapture, showExportPanel, showPreviewPanel]);
-
-  // Handle observation save
-  const handleObservationSave = useCallback((observation: Observation) => {
-    setObservations((prev) => [...prev, observation]);
-    setShowObservationCapture(false);
-    toast.success("Observation saved");
-  }, [toast]);
-
-  // Handle observation delete
-  const handleObservationDelete = useCallback((observationId: string) => {
-    setObservations((prev) => prev.filter((o) => o.id !== observationId));
-    toast.success("Observation deleted");
-  }, [toast]);
-
-  // Handle observation click - seek to timecode
-  const handleObservationClick = useCallback((observation: Observation) => {
-    if (videoPlayerRef.current) {
-      videoPlayerRef.current.seekTo(observation.timecode);
-    }
-  }, []);
+  }, [showExportPanel, showPreviewPanel]);
 
   // Handle pinned card click - seek to timestamp and show card
   const handlePinnedCardClick = useCallback((card: PinnedCard) => {
@@ -800,37 +775,6 @@ export default function ReviewPage() {
             onEditEntity={handleEditEntity}
           />
 
-          {/* Observations section (for WATCHING mode) - below segment list */}
-          {timeline.mode === "watching" && (
-            <div className="border-t border-gray-700 flex-shrink-0">
-              <div className="flex items-center justify-between px-4 py-2 bg-gray-800/50">
-                <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A2 2 0 0011.172 3H8.828a2 2 0 00-1.414.586L6.293 4.707A1 1 0 015.586 5H4zm6 9a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-sm font-medium">Observations</span>
-                  <span className="px-1.5 py-0.5 text-xs bg-yellow-500/20 text-yellow-400 rounded">
-                    {observations.length}
-                  </span>
-                </div>
-                <button
-                  onClick={() => setShowObservationCapture(true)}
-                  className="text-xs text-blue-400 hover:text-blue-300"
-                >
-                  + Add (S)
-                </button>
-              </div>
-              <div className="max-h-32 overflow-y-auto">
-                <ObservationList
-                  timelineId={timelineId}
-                  observations={observations}
-                  onObservationClick={handleObservationClick}
-                  onDelete={handleObservationDelete}
-                />
-              </div>
-            </div>
-          )}
-
           {/* AI Chat Panel - at the bottom */}
           {isCreativeMode ? (
             <>
@@ -847,6 +791,7 @@ export default function ReviewPage() {
             </>
           ) : (
             <AIChatPanel
+              ref={chatPanelRef}
               timelineId={timelineId}
               videoTitle={timeline.source_title}
               currentTime={currentVideoTime}
@@ -896,16 +841,6 @@ export default function ReviewPage() {
           jobId={timeline.job_id}
           type={exportPreviewType}
           onClose={() => setExportPreviewType(null)}
-        />
-      )}
-
-      {/* Observation Capture Modal (for WATCHING mode) */}
-      {showObservationCapture && timeline.mode === "watching" && (
-        <ObservationCapture
-          timelineId={timelineId}
-          timecode={currentVideoTime}
-          onSave={handleObservationSave}
-          onCancel={() => setShowObservationCapture(false)}
         />
       )}
 

@@ -9,9 +9,13 @@
  * 3. Get suggestions for observations
  */
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
 import { API_BASE, pinCard } from "@/lib/api";
 import type { Observation, InsightCard } from "@/lib/types";
+
+export interface AIChatPanelRef {
+  captureAndExpand: () => void;
+}
 
 interface Message {
   id: string;
@@ -37,14 +41,14 @@ function formatTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-export default function AIChatPanel({
+const AIChatPanel = forwardRef<AIChatPanelRef, AIChatPanelProps>(function AIChatPanel({
   timelineId,
   videoTitle,
   currentTime,
   observations,
   onCaptureFrame,
   onInsightPinned,
-}: AIChatPanelProps) {
+}, ref) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -53,6 +57,21 @@ export default function AIChatPanel({
   const [savingInsightId, setSavingInsightId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Expose methods via ref
+  useImperativeHandle(ref, () => ({
+    captureAndExpand: () => {
+      if (onCaptureFrame) {
+        const image = onCaptureFrame();
+        if (image) {
+          setCapturedImage(image);
+          setExpanded(true);
+          // Focus input after expansion
+          setTimeout(() => inputRef.current?.focus(), 100);
+        }
+      }
+    },
+  }), [onCaptureFrame]);
 
   // Save AI response as insight card
   const saveAsInsight = useCallback(async (message: Message) => {
@@ -399,4 +418,6 @@ export default function AIChatPanel({
       )}
     </div>
   );
-}
+});
+
+export default AIChatPanel;
