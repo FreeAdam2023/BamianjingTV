@@ -554,6 +554,14 @@ export interface EntityCard {
   fetched_at: string;
 }
 
+export interface InsightCard {
+  title: string;
+  content: string;
+  category: string;  // general, vocabulary, expression, culture, etc.
+  related_text: string | null;  // The text/line being discussed
+  frame_data: string | null;  // Base64 image if screenshot was included
+}
+
 export interface WordCardResponse {
   word: string;
   found: boolean;
@@ -749,7 +757,7 @@ export interface TimelineAnnotations {
 
 // ============ Pinned Card Types ============
 
-export type PinnedCardType = "word" | "entity";
+export type PinnedCardType = "word" | "entity" | "insight";
 
 export interface PinnedCard {
   id: string;
@@ -759,7 +767,7 @@ export interface PinnedCard {
   timestamp: number;  // When card was pinned (seconds)
   display_start: number;  // When to show in video
   display_end: number;  // When to hide in video
-  card_data: WordCard | EntityCard | null;  // Cached card data
+  card_data: WordCard | EntityCard | InsightCard | null;  // Cached card data
   created_at: string;
 }
 
@@ -768,7 +776,7 @@ export interface PinnedCardCreate {
   card_id: string;
   segment_id: number;
   timestamp: number;
-  card_data?: WordCard | EntityCard | null;
+  card_data?: WordCard | EntityCard | InsightCard | null;
 }
 
 export interface PinnedCardCheckResponse {

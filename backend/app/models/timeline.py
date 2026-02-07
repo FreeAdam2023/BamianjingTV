@@ -96,6 +96,7 @@ class PinnedCardType(str, Enum):
 
     WORD = "word"
     ENTITY = "entity"
+    INSIGHT = "insight"  # AI-generated insight from chat
 
 
 class PinnedCard(BaseModel):
@@ -120,6 +121,16 @@ class PinnedCardCreate(BaseModel):
     segment_id: int
     timestamp: float
     card_data: Optional[dict] = None
+
+
+class InsightCard(BaseModel):
+    """AI-generated insight card data structure."""
+
+    title: str  # Short title for the insight
+    content: str  # Main explanation/analysis
+    category: str = "general"  # general, vocabulary, expression, culture, etc.
+    related_text: Optional[str] = None  # The text/line being discussed
+    frame_data: Optional[str] = None  # Base64 image if screenshot was included
 
 
 class SubtitleStyleMode(str, Enum):

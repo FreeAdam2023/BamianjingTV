@@ -10,14 +10,16 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { API_BASE } from "@/lib/api";
-import type { Observation } from "@/lib/types";
+import { API_BASE, pinCard } from "@/lib/api";
+import type { Observation, InsightCard } from "@/lib/types";
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  messageTime?: number;  // Video timestamp when message was sent
+  hasImage?: boolean;  // Whether message included a screenshot
 }
 
 interface AIChatPanelProps {
@@ -26,6 +28,7 @@ interface AIChatPanelProps {
   currentTime: number;
   observations: Observation[];
   onCaptureFrame?: () => string | null;
+  onInsightPinned?: () => void;  // Callback when insight is pinned
 }
 
 function formatTime(seconds: number): string {
@@ -40,14 +43,51 @@ export default function AIChatPanel({
   currentTime,
   observations,
   onCaptureFrame,
+  onInsightPinned,
 }: AIChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [savingInsightId, setSavingInsightId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Save AI response as insight card
+  const saveAsInsight = useCallback(async (message: Message) => {
+    if (savingInsightId) return;
+    setSavingInsightId(message.id);
+
+    try {
+      // Extract title from first line or first sentence
+      const lines = message.content.split("\n").filter(l => l.trim());
+      const firstLine = lines[0] || message.content;
+      const title = firstLine.length > 50 ? firstLine.slice(0, 47) + "..." : firstLine;
+
+      const insightData: InsightCard = {
+        title,
+        content: message.content,
+        category: "general",
+        related_text: null,
+        frame_data: null,
+      };
+
+      await pinCard(timelineId, {
+        card_type: "insight",
+        card_id: `insight-${message.id}`,
+        segment_id: 0,  // Not tied to specific segment
+        timestamp: message.messageTime || currentTime,
+        card_data: insightData,
+      });
+
+      onInsightPinned?.();
+    } catch (err) {
+      console.error("Failed to save insight:", err);
+    } finally {
+      setSavingInsightId(null);
+    }
+  }, [timelineId, currentTime, savingInsightId, onInsightPinned]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -73,6 +113,8 @@ export default function AIChatPanel({
         role: "user",
         content: capturedImage ? `[附带截图] ${trimmedInput}` : trimmedInput,
         timestamp: new Date(),
+        messageTime: currentTime,
+        hasImage: !!capturedImage,
       };
 
       setMessages((prev) => [...prev, userMessage]);
@@ -107,6 +149,7 @@ export default function AIChatPanel({
           role: "assistant",
           content: data.response,
           timestamp: new Date(),
+          messageTime: currentTime,
         };
 
         setMessages((prev) => [...prev, assistantMessage]);
@@ -215,13 +258,37 @@ export default function AIChatPanel({
                   className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[85%] px-3 py-2 rounded-lg text-sm ${
+                    className={`max-w-[85%] rounded-lg text-sm ${
                       msg.role === "user"
                         ? "bg-blue-600 text-white"
                         : "bg-gray-700 text-gray-100"
                     }`}
                   >
-                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                    <div className="px-3 py-2 whitespace-pre-wrap">{msg.content}</div>
+                    {/* Save as insight button for assistant messages */}
+                    {msg.role === "assistant" && (
+                      <div className="px-3 pb-2 pt-1 border-t border-gray-600/50">
+                        <button
+                          onClick={() => saveAsInsight(msg)}
+                          disabled={savingInsightId === msg.id}
+                          className="flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300 disabled:text-gray-500 transition-colors"
+                        >
+                          {savingInsightId === msg.id ? (
+                            <>
+                              <span className="w-3 h-3 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
+                              保存中...
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z" />
+                              </svg>
+                              钉为兴趣点
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))

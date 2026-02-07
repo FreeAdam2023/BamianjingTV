@@ -852,6 +852,7 @@ export default function ReviewPage() {
               currentTime={currentVideoTime}
               observations={observations}
               onCaptureFrame={captureVideoFrame}
+              onInsightPinned={() => refresh()}
             />
           )}
         </div>
