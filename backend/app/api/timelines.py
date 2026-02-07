@@ -597,6 +597,7 @@ class ChatRequest(BaseModel):
     """Request model for AI chat."""
     message: str
     include_transcript: bool = True
+    current_time: Optional[float] = None  # Current playback position in seconds
 
 
 class ChatResponse(BaseModel):
@@ -625,6 +626,31 @@ async def chat_with_ai(timeline_id: str, request: ChatRequest):
     if not timeline:
         raise HTTPException(status_code=404, detail="Timeline not found")
 
+    # Find current segment based on playback position
+    current_segment = None
+    current_segment_context = ""
+    if request.current_time is not None and timeline.segments:
+        for seg in timeline.segments:
+            if seg.start <= request.current_time <= seg.end:
+                current_segment = seg
+                break
+        # If not exactly in a segment, find the closest one
+        if not current_segment and timeline.segments:
+            closest = min(timeline.segments, key=lambda s: abs(s.start - request.current_time))
+            if abs(closest.start - request.current_time) < 5:  # Within 5 seconds
+                current_segment = closest
+
+        if current_segment:
+            current_segment_context = f"""
+【当前播放位置】 {request.current_time:.1f}秒
+【当前台词】
+  英文: {current_segment.en or "(无)"}
+  中文: {current_segment.zh or "(无)"}
+  时间: {current_segment.start:.1f}s - {current_segment.end:.1f}s
+
+当用户说"这个台词"、"这句话"、"当前内容"时，指的是上面这句台词。
+"""
+
     # Build transcript context
     transcript_context = ""
     if request.include_transcript and timeline.segments:
@@ -633,10 +659,12 @@ async def chat_with_ai(timeline_id: str, request: ChatRequest):
             time_str = f"[{seg.start:.1f}s]"
             text = seg.en or ""
             translation = seg.zh or ""
+            # Mark current segment
+            marker = " ◀ 当前" if current_segment and seg.id == current_segment.id else ""
             if translation:
-                lines.append(f"{time_str} {text} | {translation}")
+                lines.append(f"{time_str} {text} | {translation}{marker}")
             else:
-                lines.append(f"{time_str} {text}")
+                lines.append(f"{time_str} {text}{marker}")
         transcript_context = "\n".join(lines)
 
     # Build system prompt
@@ -645,7 +673,7 @@ async def chat_with_ai(timeline_id: str, request: ChatRequest):
 视频标题: {timeline.source_title or "未知"}
 视频时长: {timeline.source_duration:.0f}秒
 片段数量: {len(timeline.segments)}
-
+{current_segment_context}
 {"完整字幕内容：" if transcript_context else "（无字幕）"}
 {transcript_context}
 

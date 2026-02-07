@@ -83,6 +83,7 @@ export default function AIChatPanel({
           body: JSON.stringify({
             message: trimmedInput,
             include_transcript: true,
+            current_time: currentTime,
           }),
         });
 
@@ -113,7 +114,7 @@ export default function AIChatPanel({
         setLoading(false);
       }
     },
-    [input, loading, timelineId]
+    [input, loading, timelineId, currentTime]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
