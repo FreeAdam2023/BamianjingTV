@@ -33,7 +33,6 @@ import StyleSelector from "./StyleSelector";
 import CreativeConfigPanel from "./CreativeConfigPanel";
 import CreativeAIChat from "./CreativeAIChat";
 import RemotionExportPanel from "./RemotionExportPanel";
-import PinnedCardsList from "./PinnedCardsList";
 import type { Observation, EntityAnnotation } from "@/lib/types";
 import type { RemotionConfig } from "@/lib/creative-types";
 import { EntityEditModal } from "@/components/Cards";
@@ -339,15 +338,17 @@ export default function ReviewPage() {
   }, [currentSegmentId, timeline, segmentAnnotations]);
 
   // Handle entity edit success
-  const handleEntityEditSuccess = useCallback(async () => {
+  const handleEntityEditSuccess = useCallback(async (newEntityId?: string) => {
     // Refresh the segment annotations after edit
+    // Use forceRefresh: false to read the backend cache (already updated by add_manual_entity)
+    // forceRefresh: true would re-recognize from TomTrove and overwrite the manual edit
     if (entityEditModal && timeline) {
       const segment = timeline.segments.find((s) => s.id === entityEditModal.segmentId);
       if (segment) {
         const annotation = await getSegmentAnnotations(segment.en, {
           timelineId: timeline.timeline_id,
           segmentId: entityEditModal.segmentId,
-          forceRefresh: true,
+          forceRefresh: false,
         });
         setSegmentAnnotations((prev) => {
           const newMap = new Map(prev || []);
@@ -355,11 +356,15 @@ export default function ReviewPage() {
           return newMap;
         });
       }
+      // Open the new entity card directly using the ID returned by the backend
+      if (newEntityId) {
+        openEntityCard(newEntityId, undefined, true);
+      }
+    } else {
+      refreshCard();
     }
-    // Refresh the card panel if open
-    refreshCard();
     toast.success("实体已更新");
-  }, [entityEditModal, timeline, toast, refreshCard]);
+  }, [entityEditModal, timeline, toast, refreshCard, openEntityCard]);
 
   // Handle full-text entity analysis
   const handleAnalyzeAllEntities = useCallback(async () => {
@@ -711,15 +716,6 @@ export default function ReviewPage() {
           />
           <SpeakerEditor timelineId={timelineId} onSpeakerNamesChange={() => refresh()} />
 
-          {/* Pinned cards list */}
-          {(timeline.pinned_cards?.length ?? 0) > 0 && (
-            <PinnedCardsList
-              timelineId={timeline.timeline_id}
-              pinnedCards={timeline.pinned_cards || []}
-              onCardClick={handlePinnedCardClick}
-              onRefresh={() => refresh()}
-            />
-          )}
 
           {/* Entity analysis section */}
           <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700 bg-gray-800/50">

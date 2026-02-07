@@ -84,7 +84,7 @@ interface EntityEditModalProps {
   segmentText: string;
   /** Existing entity to edit, or null for adding new */
   entity?: EntityAnnotation | null;
-  onSuccess: () => void;
+  onSuccess: (newEntityId?: string) => void;
 }
 
 export default function EntityEditModal({
@@ -175,7 +175,7 @@ export default function EntityEditModal({
       });
 
       if (result.success) {
-        onSuccess();
+        onSuccess(result.entity_id);
         onClose();
       } else {
         setError(result.message);
