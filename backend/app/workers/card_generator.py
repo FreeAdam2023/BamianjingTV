@@ -133,8 +133,8 @@ class CardGeneratorWorker:
         # Fetch from TomTrove API
         card = await self._fetch_word_from_tomtrove(word, tomtrove_lang)
 
-        # Cache result
-        if card and use_cache:
+        # Always cache the result (even on force refresh, to update stale data)
+        if card:
             self.cache.set_word_card(card, cache_key=cache_key)
 
         return card
@@ -453,8 +453,8 @@ class CardGeneratorWorker:
         # Fetch from TomTrove API
         card = await self._fetch_entity_from_tomtrove(entity_id, target_lang)
 
-        # Cache result
-        if card and use_cache:
+        # Always cache the result (even on force refresh, to update stale data)
+        if card:
             self.cache.set_entity_card(card)
 
         return card
@@ -905,8 +905,8 @@ class CardGeneratorWorker:
         # Fetch from TomTrove API
         card = await self._fetch_idiom_from_tomtrove(idiom_text, lang)
 
-        # Cache result
-        if card and use_cache:
+        # Always cache the result (even on force refresh, to update stale data)
+        if card:
             self.cache.set_idiom_card(card)
 
         return card
