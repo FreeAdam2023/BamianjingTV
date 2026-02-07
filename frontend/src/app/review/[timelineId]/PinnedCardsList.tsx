@@ -26,6 +26,7 @@ function formatTimestamp(seconds: number): string {
 const CARD_TYPE_CONFIG: Record<PinnedCardType, { color: string; bgColor: string; label: string }> = {
   word: { color: "text-purple-400", bgColor: "bg-purple-500/20", label: "Word" },
   entity: { color: "text-cyan-400", bgColor: "bg-cyan-500/20", label: "Entity" },
+  idiom: { color: "text-amber-400", bgColor: "bg-amber-500/20", label: "Idiom" },
   insight: { color: "text-yellow-400", bgColor: "bg-yellow-500/20", label: "Insight" },
 };
 

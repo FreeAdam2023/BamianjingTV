@@ -96,6 +96,7 @@ class PinnedCardType(str, Enum):
 
     WORD = "word"
     ENTITY = "entity"
+    IDIOM = "idiom"
     INSIGHT = "insight"  # AI-generated insight from chat
 
 
@@ -455,15 +456,18 @@ class Timeline(BaseModel):
                 return f"{hours}:{minutes:02d}:{secs:02d}"
             return f"{minutes}:{secs:02d}"
 
-        # Separate words and entities
+        # Separate words, entities, and idioms
         words = []
         entities = []
+        idioms = []
 
         for card in sorted(self.pinned_cards, key=lambda c: c.timestamp):
             if card.card_type == PinnedCardType.WORD and card.card_data:
                 words.append(card)
             elif card.card_type == PinnedCardType.ENTITY and card.card_data:
                 entities.append(card)
+            elif card.card_type == PinnedCardType.IDIOM and card.card_data:
+                idioms.append(card)
 
         lines = []
 
@@ -527,6 +531,23 @@ class Timeline(BaseModel):
                     lines.append(f"   ↳ {wiki_url}")
                 else:
                     lines.append(f"{timestamp_str}{display_name}")
+
+            lines.append("")
+
+        # Idiom list section
+        if idioms:
+            lines.append("💬 习语短语 | Idioms & Phrases")
+            lines.append("-" * 30)
+            for card in idioms:
+                data = card.card_data
+                text = data.get("text", "")
+                meaning_zh = data.get("meaning_zh", "")
+
+                timestamp_str = f"[{format_timestamp(card.timestamp)}] " if include_timestamps else ""
+                if meaning_zh:
+                    lines.append(f"{timestamp_str}{text} — {meaning_zh}")
+                else:
+                    lines.append(f"{timestamp_str}{text}")
 
             lines.append("")
 

@@ -413,11 +413,15 @@ function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTogglePin,
 interface SidePanelIdiomCardProps {
   card: IdiomCard;
   onClose: () => void;
+  isPinned?: boolean;
+  pinLoading?: boolean;
+  onTogglePin?: () => void;
+  canPin?: boolean;
   onRefresh?: () => void;
   refreshing?: boolean;
 }
 
-function SidePanelIdiomCard({ card, onClose, onRefresh, refreshing }: SidePanelIdiomCardProps) {
+function SidePanelIdiomCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin, onRefresh, refreshing }: SidePanelIdiomCardProps) {
   const categoryColors: Record<string, string> = {
     idiom: "bg-amber-500/50",
     phrasal_verb: "bg-amber-600/50",
@@ -451,6 +455,24 @@ function SidePanelIdiomCard({ card, onClose, onRefresh, refreshing }: SidePanelI
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
+              )}
+            </button>
+          )}
+          {canPin && (
+            <button
+              onClick={onTogglePin}
+              disabled={pinLoading}
+              className={`p-1.5 rounded-full transition ${
+                isPinned
+                  ? "text-purple-400 bg-purple-500/20 hover:bg-purple-500/30"
+                  : "bg-black/50 text-white hover:bg-black/70"
+              } ${pinLoading ? "opacity-50 cursor-wait" : ""}`}
+              title={isPinned ? "取消钉住" : "钉住到视频"}
+            >
+              {pinLoading ? (
+                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <PinIcon filled={isPinned || false} />
               )}
             </button>
           )}
@@ -576,6 +598,9 @@ export default function CardSidePanel({
     } else if (state.type === "entity" && state.entityCard) {
       cardId = state.entityCard.entity_id;
       cardType = "entity";
+    } else if (state.type === "idiom" && state.idiomCard) {
+      cardId = state.idiomCard.text;
+      cardType = "idiom";
     }
 
     if (!cardId || !cardType) return { isPinned: false, pinId: null };
@@ -590,12 +615,15 @@ export default function CardSidePanel({
   const { isPinned, pinId } = getCurrentPinInfo();
 
   // Get current card info
-  const getCardInfo = useCallback((): { cardType: PinnedCardType; cardId: string; cardData: WordCard | EntityCard } | null => {
+  const getCardInfo = useCallback((): { cardType: PinnedCardType; cardId: string; cardData: WordCard | EntityCard | IdiomCard } | null => {
     if (state.type === "word" && state.wordCard) {
       return { cardType: "word", cardId: state.wordCard.word, cardData: state.wordCard };
     }
     if (state.type === "entity" && state.entityCard) {
       return { cardType: "entity", cardId: state.entityCard.entity_id, cardData: state.entityCard };
+    }
+    if (state.type === "idiom" && state.idiomCard) {
+      return { cardType: "idiom", cardId: state.idiomCard.text, cardData: state.idiomCard };
     }
     return null;
   }, [state]);
@@ -710,6 +738,10 @@ export default function CardSidePanel({
         <SidePanelIdiomCard
           card={state.idiomCard}
           onClose={onClose}
+          isPinned={isPinned}
+          pinLoading={pinLoading}
+          onTogglePin={handleTogglePin}
+          canPin={canPin}
           onRefresh={onRefresh}
           refreshing={refreshing}
         />
@@ -796,6 +828,10 @@ export default function CardSidePanel({
         <SidePanelIdiomCard
           card={state.idiomCard}
           onClose={onClose}
+          isPinned={isPinned}
+          pinLoading={pinLoading}
+          onTogglePin={handleTogglePin}
+          canPin={canPin}
           onRefresh={onRefresh}
           refreshing={refreshing}
         />

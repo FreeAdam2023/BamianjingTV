@@ -788,7 +788,7 @@ export interface TimelineAnnotations {
 
 // ============ Pinned Card Types ============
 
-export type PinnedCardType = "word" | "entity" | "insight";
+export type PinnedCardType = "word" | "entity" | "idiom" | "insight";
 
 export interface PinnedCard {
   id: string;
@@ -798,7 +798,7 @@ export interface PinnedCard {
   timestamp: number;  // When card was pinned (seconds)
   display_start: number;  // When to show in video
   display_end: number;  // When to hide in video
-  card_data: WordCard | EntityCard | InsightCard | null;  // Cached card data
+  card_data: WordCard | EntityCard | IdiomCard | InsightCard | null;  // Cached card data
   created_at: string;
 }
 
@@ -807,7 +807,7 @@ export interface PinnedCardCreate {
   card_id: string;
   segment_id: number;
   timestamp: number;
-  card_data?: WordCard | EntityCard | InsightCard | null;
+  card_data?: WordCard | EntityCard | IdiomCard | InsightCard | null;
 }
 
 export interface PinnedCardCheckResponse {

@@ -27,6 +27,11 @@ const CARD_TYPE_COLORS: Record<PinnedCardType, { bg: string; border: string; tex
     border: "border-cyan-400",
     text: "text-cyan-300",
   },
+  idiom: {
+    bg: "bg-amber-500/30",
+    border: "border-amber-400",
+    text: "text-amber-300",
+  },
   insight: {
     bg: "bg-yellow-500/30",
     border: "border-yellow-400",
