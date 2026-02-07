@@ -542,6 +542,26 @@ export default function ReviewPage() {
     setCurrentVideoTime(time);
   }, []);
 
+  // Capture video frame as base64 image
+  const captureVideoFrame = useCallback((): string | null => {
+    const videoElement = videoPlayerRef.current?.getVideoElement();
+    if (!videoElement) return null;
+
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = videoElement.videoWidth;
+      canvas.height = videoElement.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return null;
+
+      ctx.drawImage(videoElement, 0, 0);
+      return canvas.toDataURL("image/jpeg", 0.8);
+    } catch (err) {
+      console.error("Failed to capture video frame:", err);
+      return null;
+    }
+  }, []);
+
   // Timeline keyboard shortcuts
   useTimelineKeyboard({
     fps: 30,
@@ -831,6 +851,7 @@ export default function ReviewPage() {
               videoTitle={timeline.source_title}
               currentTime={currentVideoTime}
               observations={observations}
+              onCaptureFrame={captureVideoFrame}
             />
           )}
         </div>

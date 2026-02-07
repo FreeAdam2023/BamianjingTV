@@ -25,6 +25,7 @@ interface AIChatPanelProps {
   videoTitle?: string;
   currentTime: number;
   observations: Observation[];
+  onCaptureFrame?: () => string | null;
 }
 
 function formatTime(seconds: number): string {
@@ -38,11 +39,13 @@ export default function AIChatPanel({
   videoTitle,
   currentTime,
   observations,
+  onCaptureFrame,
 }: AIChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -68,7 +71,7 @@ export default function AIChatPanel({
       const userMessage: Message = {
         id: `user-${Date.now()}`,
         role: "user",
-        content: trimmedInput,
+        content: capturedImage ? `[附带截图] ${trimmedInput}` : trimmedInput,
         timestamp: new Date(),
       };
 
@@ -84,8 +87,14 @@ export default function AIChatPanel({
             message: trimmedInput,
             include_transcript: true,
             current_time: currentTime,
+            image: capturedImage || undefined,
           }),
         });
+
+        // Clear captured image after sending
+        if (capturedImage) {
+          setCapturedImage(null);
+        }
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
@@ -114,7 +123,7 @@ export default function AIChatPanel({
         setLoading(false);
       }
     },
-    [input, loading, timelineId, currentTime]
+    [input, loading, timelineId, currentTime, capturedImage]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -237,22 +246,75 @@ export default function AIChatPanel({
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Captured image preview */}
+          {capturedImage && (
+            <div className="border-t border-gray-700 px-2 pt-2">
+              <div className="relative inline-block">
+                <img
+                  src={capturedImage}
+                  alt="截图预览"
+                  className="h-16 rounded border border-gray-600"
+                />
+                <button
+                  onClick={() => setCapturedImage(null)}
+                  className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center text-white text-xs"
+                  title="移除截图"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Input area */}
           <div className="border-t border-gray-700 p-2">
             <div className="flex gap-2">
+              {/* Capture button */}
+              {onCaptureFrame && (
+                <button
+                  onClick={() => {
+                    const image = onCaptureFrame();
+                    if (image) {
+                      setCapturedImage(image);
+                    }
+                  }}
+                  disabled={loading}
+                  className={`px-3 py-2 rounded-lg transition-colors ${
+                    capturedImage
+                      ? "bg-green-600 hover:bg-green-700"
+                      : "bg-gray-600 hover:bg-gray-500"
+                  } disabled:opacity-50`}
+                  title="截取当前画面"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                  </svg>
+                </button>
+              )}
               <textarea
                 ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={`问关于 ${formatTime(currentTime)} 的问题...`}
+                placeholder={capturedImage ? "描述你想问的问题..." : `问关于 ${formatTime(currentTime)} 的问题...`}
                 disabled={loading}
                 rows={1}
                 className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 resize-none disabled:opacity-50"
               />
               <button
                 onClick={() => sendMessage()}
-                disabled={!input.trim() || loading}
+                disabled={(!input.trim() && !capturedImage) || loading}
                 className="px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

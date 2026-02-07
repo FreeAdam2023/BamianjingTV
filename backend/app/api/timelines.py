@@ -598,6 +598,7 @@ class ChatRequest(BaseModel):
     message: str
     include_transcript: bool = True
     current_time: Optional[float] = None  # Current playback position in seconds
+    image: Optional[str] = None  # Base64 encoded image (data:image/jpeg;base64,...)
 
 
 class ChatResponse(BaseModel):
@@ -683,8 +684,10 @@ async def chat_with_ai(timeline_id: str, request: ChatRequest):
 3. 找出有趣或重要的片段
 4. 帮助用户决定哪些片段值得保留
 5. 解释翻译或语言相关的问题
+6. 分析用户截取的视频画面（如果提供）
 
-请用简洁的中文回答。如果引用具体片段，请标注时间戳。"""
+请用简洁的中文回答。如果引用具体片段，请标注时间戳。
+如果用户发送了视频截图，请结合当前台词和画面内容来回答问题。"""
 
     # Call LLM
     try:
@@ -705,12 +708,25 @@ async def chat_with_ai(timeline_id: str, request: ChatRequest):
             )
             model = settings.llm_model
 
+        # Build user message content (with optional image)
+        if request.image:
+            # GPT-4o vision format: content is a list
+            user_content = [
+                {"type": "text", "text": request.message},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": request.image, "detail": "low"},
+                },
+            ]
+        else:
+            user_content = request.message
+
         response = await asyncio.wait_for(
             client.chat.completions.create(
                 model=model,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": request.message},
+                    {"role": "user", "content": user_content},
                 ],
                 temperature=0.7,
                 max_tokens=1000,
