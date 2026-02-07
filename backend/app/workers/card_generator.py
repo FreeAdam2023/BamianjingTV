@@ -961,7 +961,9 @@ class CardGeneratorWorker:
                 return None
 
             # Parse response into IdiomCard
-            idiom_data = data.get("data", {})
+            # TomTrove nests idiom fields under data.detail
+            raw_data = data.get("data", {})
+            idiom_data = raw_data.get("detail", raw_data)
 
             card = IdiomCard(
                 text=idiom_text,
