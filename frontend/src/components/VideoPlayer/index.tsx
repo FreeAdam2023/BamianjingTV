@@ -457,6 +457,9 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   const isOverlayMode = subtitleStyle.displayMode === "overlay";
   const hasCardOpen = cardState?.isOpen === true;
   const hasActivePinnedCards = pinnedCards.length > 0;
+  const hasActivePinnedCardNow = pinnedCards.some(
+    (c) => currentTime >= c.display_start && currentTime <= c.display_end
+  );
 
   // Calculate heights for split mode
   const videoHeightPercent = isOverlayMode ? 100 : (1 - subtitleHeightRatio) * 100;
@@ -522,10 +525,10 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
           className="w-[35%] flex-shrink-0 border-l border-white/10 relative overflow-hidden"
           style={{ backgroundColor: containerBgColor }}
         >
-          {/* Layer 1: Placeholder (visible when no card is showing) */}
+          {/* Layer 1: Placeholder (visible when nothing else is showing) */}
           <div
             className={`absolute inset-0 flex flex-col items-center justify-center p-6 transition-opacity duration-300 ${
-              hasCardOpen ? "opacity-0 pointer-events-none" : "opacity-100"
+              hasCardOpen || hasActivePinnedCardNow ? "opacity-0 pointer-events-none" : "opacity-100"
             }`}
           >
             <div className="text-center space-y-4">
