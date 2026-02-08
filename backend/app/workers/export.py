@@ -262,20 +262,18 @@ class ExportWorker:
 
             t_start = start
             t_fade_in_end = start + fade_in_duration
-            t_fade_out_start = end - fade_in_duration
             t_end = end
 
-            # Card position: centered in right panel area
-            # Compact cards are smaller than the panel — center them
-            center_x = f"{left_width}+({right_width}-overlay_w)/2"
-            center_y = f"({video_area_height}-overlay_h)/2"
+            # Full panel cards fill the right panel area exactly
+            card_x = left_width
+            card_y = 0
 
-            # X position expression: slide in from right (24px offset from center)
+            # X position expression: slide in from right (24px offset)
             x_expr = (
                 f"if(lt(t,{t_start}),{left_width}+{right_width},"
                 f"if(lt(t,{t_fade_in_end}),"
-                f"{center_x}+{slide_distance}*(1-(t-{t_start})/{fade_in_duration}),"
-                f"{center_x}))"
+                f"{card_x}+{slide_distance}*(1-(t-{t_start})/{fade_in_duration}),"
+                f"{card_x}))"
             )
 
             enable_expr = f"between(t,{t_start},{t_end})"
@@ -283,17 +281,34 @@ class ExportWorker:
             out_label = f"card{i}"
             filters.append(
                 f"[{prev_label}][{input_idx}:v]overlay="
-                f"x='{x_expr}':y='{center_y}':"
+                f"x='{x_expr}':y='{card_y}':"
                 f"enable='{enable_expr}':"
                 f"format=auto"
                 f"[{out_label}]"
             )
             prev_label = out_label
 
-        # Step 5: Burn subtitles (spans full 1920px width)
-        final_label = f"final_out"
+        # Step 5: Draw subtle divider lines between areas
+        # Vertical divider: between video (left) and card panel (right)
+        # Horizontal divider: between video+card area and subtitle area
+        divider_color = "rgba(255,255,255,0.1)"
         filters.append(
-            f"[{prev_label}]ass={ass_path_escaped}[{final_label}]"
+            f"[{prev_label}]drawbox="
+            f"x={left_width}:y=0:w=1:h={video_area_height}:"
+            f"color={divider_color}:t=fill"
+            f"[div1]"
+        )
+        filters.append(
+            f"[div1]drawbox="
+            f"x=0:y={video_area_height}:w={OUTPUT_WIDTH}:h=1:"
+            f"color={divider_color}:t=fill"
+            f"[with_dividers]"
+        )
+
+        # Step 6: Burn subtitles (spans full 1920px width)
+        final_label = "final_out"
+        filters.append(
+            f"[with_dividers]ass={ass_path_escaped}[{final_label}]"
         )
 
         filter_complex = ";".join(filters)
@@ -761,10 +776,12 @@ class ExportWorker:
             video_area_height = int(OUTPUT_HEIGHT * (1 - subtitle_ratio))
             panel_width = OUTPUT_WIDTH - int(OUTPUT_WIDTH * VIDEO_AREA_RATIO)
 
-            # Render compact pinned cards (same style as frontend PinnedCardOverlay)
-            rendered_cards = await self.render_pinned_cards(
+            # Render full-panel pinned cards (WYSIWYG — matches frontend SidePanel cards)
+            rendered_cards = await self.render_pinned_cards_full_panel(
                 pinned_cards=pinned_cards,
                 output_dir=cards_dir,
+                panel_width=panel_width,
+                panel_height=video_area_height,
                 time_offset=time_offset,
             )
 
@@ -1059,11 +1076,13 @@ class ExportWorker:
                 ]
                 retimed_pinned = self._retime_pinned_cards(pinned_cards, keep_segments)
 
-                # Render compact pinned cards with retimed timing
+                # Render full-panel pinned cards with retimed timing (WYSIWYG)
                 cards_dir = output_path.parent / "cards"
-                rendered_cards = await self.render_pinned_cards(
+                rendered_cards = await self.render_pinned_cards_full_panel(
                     pinned_cards=retimed_pinned,
                     output_dir=cards_dir,
+                    panel_width=panel_width,
+                    panel_height=video_area_height,
                 )
 
                 # Generate ASS with output canvas height (1080)
