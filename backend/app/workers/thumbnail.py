@@ -1042,6 +1042,23 @@ class ThumbnailWorker:
         draw.text((line1_x, 20 + badge_padding_y), badge_line1, font=badge_font, fill=(0, 0, 0))
         draw.text((line2_x, 20 + badge_padding_y + line_height + line_spacing), badge_line2, font=badge_font, fill=(0, 0, 0))
 
+        # Draw corner badge (top-right) - two lines: "知识" / "卡片"
+        r_line1 = "知识"
+        r_line2 = "卡片"
+        r_bbox1 = draw.textbbox((0, 0), r_line1, font=badge_font)
+        r_bbox2 = draw.textbbox((0, 0), r_line2, font=badge_font)
+        r_line1_w = r_bbox1[2] - r_bbox1[0]
+        r_line2_w = r_bbox2[2] - r_bbox2[0]
+        r_line_h = r_bbox1[3] - r_bbox1[1]
+
+        r_badge_w = max(r_line1_w, r_line2_w) + badge_padding_x * 2
+        r_badge_h = r_line_h * 2 + line_spacing + badge_padding_y * 2
+        r_x = YOUTUBE_WIDTH - 20 - r_badge_w
+
+        draw.rectangle([(r_x, 20), (r_x + r_badge_w, 20 + r_badge_h)], fill=yellow)
+        draw.text((r_x + (r_badge_w - r_line1_w) // 2, 20 + badge_padding_y), r_line1, font=badge_font, fill=(0, 0, 0))
+        draw.text((r_x + (r_badge_w - r_line2_w) // 2, 20 + badge_padding_y + r_line_h + line_spacing), r_line2, font=badge_font, fill=(0, 0, 0))
+
         # Save to bytes
         output = io.BytesIO()
         img.save(output, format="PNG", quality=95)
