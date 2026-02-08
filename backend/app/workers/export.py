@@ -291,17 +291,17 @@ class ExportWorker:
         # Step 5: Draw subtle divider lines between areas
         # Vertical divider: between video (left) and card panel (right)
         # Horizontal divider: between video+card area and subtitle area
-        divider_color = "rgba(255,255,255,0.1)"
+        # FFmpeg hex color: 0xRRGGBB@opacity (white at 10%)
         filters.append(
             f"[{prev_label}]drawbox="
             f"x={left_width}:y=0:w=1:h={video_area_height}:"
-            f"color={divider_color}:t=fill"
+            f"color=0xFFFFFF@0.1:t=fill"
             f"[div1]"
         )
         filters.append(
             f"[div1]drawbox="
             f"x=0:y={video_area_height}:w={OUTPUT_WIDTH}:h=1:"
-            f"color={divider_color}:t=fill"
+            f"color=0xFFFFFF@0.1:t=fill"
             f"[with_dividers]"
         )
 
