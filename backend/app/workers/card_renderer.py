@@ -8,8 +8,10 @@ Supports two rendering modes:
 import base64
 import hashlib
 import io
+import time
 from pathlib import Path
 from typing import Optional, Tuple, List
+from urllib.parse import urlparse
 from loguru import logger
 
 try:
@@ -24,16 +26,32 @@ except ImportError:
 IMAGE_CACHE_DIR = Path("data/cards/images")
 
 
-_IMAGE_HEADERS = {
-    "User-Agent": "SceneMind/1.0 (educational video tool; +https://github.com/scenemind)",
+# Domain-specific headers — Wikimedia requires bot UA; Pixabay wants browser UA
+_WIKIMEDIA_HEADERS = {
+    "User-Agent": "SceneMindBot/1.0 (https://github.com/FreeAdam2023/BamianjingTV; scenemind@proton.me) python-httpx/0.27",
 }
+_BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+}
+# Track last download time for throttling
+_last_download_time: float = 0.0
+_DOWNLOAD_INTERVAL = 0.5  # seconds between downloads (gentle rate)
 
 
-def _download_image(url: str) -> Optional[Image.Image]:
+def _headers_for_url(url: str) -> dict:
+    """Pick headers based on the image host."""
+    host = urlparse(url).hostname or ""
+    if "wikimedia" in host or "wikipedia" in host:
+        return _WIKIMEDIA_HEADERS
+    return _BROWSER_HEADERS
+
+
+def _download_image(url: str, throttle: bool = False) -> Optional[Image.Image]:
     """Download an image from URL with caching.
 
     Args:
         url: Image URL to download
+        throttle: If True, wait between requests to avoid rate limits
 
     Returns:
         PIL Image or None on failure
@@ -51,15 +69,32 @@ def _download_image(url: str) -> Optional[Image.Image]:
         except Exception:
             pass
 
-    # Download image
+    # Throttle if requested (batch downloads)
+    global _last_download_time
+    if throttle:
+        elapsed = time.monotonic() - _last_download_time
+        if elapsed < _DOWNLOAD_INTERVAL:
+            time.sleep(_DOWNLOAD_INTERVAL - elapsed)
+
+    # Download image with domain-specific headers
     try:
         import httpx
+
+        headers = _headers_for_url(url)
         with httpx.Client(
-            timeout=10.0,
+            timeout=15.0,
             follow_redirects=True,
-            headers=_IMAGE_HEADERS,
+            headers=headers,
         ) as client:
             response = client.get(url)
+
+            # Handle rate limiting with retry
+            if response.status_code == 429:
+                retry_after = int(response.headers.get("Retry-After", 5))
+                logger.info(f"Rate limited, waiting {retry_after}s: {url}")
+                time.sleep(retry_after)
+                response = client.get(url)
+
             response.raise_for_status()
             img = Image.open(io.BytesIO(response.content)).convert("RGBA")
 
@@ -67,10 +102,23 @@ def _download_image(url: str) -> Optional[Image.Image]:
             IMAGE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
             img.save(cache_path, "PNG")
             logger.debug(f"Cached image: {url} -> {cache_path}")
+            _last_download_time = time.monotonic()
             return img
     except Exception as e:
         logger.warning(f"Failed to download image {url}: {e}")
+        _last_download_time = time.monotonic()
         return None
+
+
+def _extract_image_urls(card_data: Optional[dict], card_type: str) -> list[str]:
+    """Extract image URLs from card data."""
+    if not card_data:
+        return []
+    if card_type == "entity" and card_data.get("image_url"):
+        return [card_data["image_url"]]
+    if card_type == "word":
+        return list(card_data.get("images", [])[:3])
+    return []
 
 
 def precache_card_images(card_data: Optional[dict], card_type: str) -> int:
@@ -79,26 +127,42 @@ def precache_card_images(card_data: Optional[dict], card_type: str) -> int:
     Called when a card is pinned so images are already local during export.
     Returns the number of images successfully cached.
     """
-    if not card_data:
-        return 0
-
-    urls: list[str] = []
-
-    if card_type == "entity":
-        if card_data.get("image_url"):
-            urls.append(card_data["image_url"])
-    elif card_type == "word":
-        urls.extend(card_data.get("images", [])[:3])
-    elif card_type == "insight":
-        # insight cards may have frame_data (base64) but no URL
-        pass
-    # idiom cards have no images
-
+    urls = _extract_image_urls(card_data, card_type)
     cached = 0
     for url in urls:
-        if _download_image(url) is not None:
+        if _download_image(url, throttle=True) is not None:
             cached += 1
+    if urls:
+        logger.info(f"Pre-cached {cached}/{len(urls)} images for {card_type} card")
     return cached
+
+
+def batch_precache_images(
+    pinned_cards: list[dict],
+) -> int:
+    """Pre-download all images for a list of pinned cards before export.
+
+    Throttles requests to avoid triggering rate limits. Cards whose images
+    are already cached will be skipped (fast path via cache_path.exists()).
+    """
+    total = 0
+    skipped = 0
+    for card in pinned_cards:
+        card_type = card.get("card_type", "")
+        card_data = card.get("card_data")
+        urls = _extract_image_urls(card_data, card_type)
+        for url in urls:
+            url_hash = hashlib.md5(url.encode()).hexdigest()
+            cache_path = IMAGE_CACHE_DIR / f"{url_hash}.png"
+            if cache_path.exists():
+                skipped += 1
+                continue
+            if _download_image(url, throttle=True) is not None:
+                total += 1
+    logger.info(
+        f"Batch pre-cache complete: {total} downloaded, {skipped} already cached"
+    )
+    return total
 
 
 class CardRenderer:

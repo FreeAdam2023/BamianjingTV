@@ -776,6 +776,15 @@ class ExportWorker:
             video_area_height = int(OUTPUT_HEIGHT * (1 - subtitle_ratio))
             panel_width = OUTPUT_WIDTH - int(OUTPUT_WIDTH * VIDEO_AREA_RATIO)
 
+            # Pre-download all card images with throttling before rendering
+            from app.workers.card_renderer import batch_precache_images
+            card_dicts = [
+                {"card_type": c.card_type.value if hasattr(c.card_type, 'value') else c.card_type,
+                 "card_data": c.card_data}
+                for c in pinned_cards if c.card_data
+            ]
+            batch_precache_images(card_dicts)
+
             # Render full-panel pinned cards (WYSIWYG — matches frontend SidePanel cards)
             rendered_cards = await self.render_pinned_cards_full_panel(
                 pinned_cards=pinned_cards,
@@ -1075,6 +1084,15 @@ class ExportWorker:
                     if c.segment_id not in dropped_seg_ids
                 ]
                 retimed_pinned = self._retime_pinned_cards(pinned_cards, keep_segments)
+
+                # Pre-download all card images with throttling before rendering
+                from app.workers.card_renderer import batch_precache_images
+                card_dicts = [
+                    {"card_type": c.card_type.value if hasattr(c.card_type, 'value') else c.card_type,
+                     "card_data": c.card_data}
+                    for c in retimed_pinned if c.card_data
+                ]
+                batch_precache_images(card_dicts)
 
                 # Render full-panel pinned cards with retimed timing (WYSIWYG)
                 cards_dir = output_path.parent / "cards"
