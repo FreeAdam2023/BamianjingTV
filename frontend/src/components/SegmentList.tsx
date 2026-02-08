@@ -419,50 +419,27 @@ export default function SegmentList({
             </div>
           )}
 
-          {/* State buttons - hide when editing */}
+          {/* State toggle button - hide when editing */}
           {editingId !== segment.id && (
-            <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+            <div onClick={(e) => e.stopPropagation()}>
               <button
                 className={`
-                  flex-1 py-1 px-2 text-xs rounded transition
-                  ${
-                    segment.state === "keep"
-                      ? "bg-green-500 text-white"
-                      : "bg-gray-700 text-gray-300 hover:bg-green-600"
-                  }
-                `}
-                onClick={() => onStateChange(segment.id, "keep")}
-                title="Shift+K"
-              >
-                保留
-              </button>
-              <button
-                className={`
-                  flex-1 py-1 px-2 text-xs rounded transition
+                  w-full py-1 px-3 text-xs rounded transition
                   ${
                     segment.state === "drop"
-                      ? "bg-red-500 text-white"
-                      : "bg-gray-700 text-gray-300 hover:bg-red-600"
+                      ? "bg-red-500 text-white hover:bg-green-500"
+                      : "bg-green-500 text-white hover:bg-red-500"
                   }
                 `}
-                onClick={() => onStateChange(segment.id, "drop")}
-                title="D"
+                onClick={() =>
+                  onStateChange(
+                    segment.id,
+                    segment.state === "drop" ? "keep" : "drop"
+                  )
+                }
+                title={segment.state === "drop" ? "K: 保留" : "D: 丢弃"}
               >
-                丢弃
-              </button>
-              <button
-                className={`
-                  flex-1 py-1 px-2 text-xs rounded transition
-                  ${
-                    segment.state === "undecided"
-                      ? "bg-gray-500 text-white"
-                      : "bg-gray-700 text-gray-300 hover:bg-gray-500"
-                  }
-                `}
-                onClick={() => onStateChange(segment.id, "undecided")}
-                title="U"
-              >
-                ?
+                {segment.state === "drop" ? "丢弃" : "保留"}
               </button>
             </div>
           )}

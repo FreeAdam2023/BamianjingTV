@@ -145,9 +145,9 @@ export function useCardPopup(): UseCardPopupReturn {
     }
     abortControllerRef.current = new AbortController();
 
-    // Check if it's a Wikidata QID (starts with Q followed by numbers)
-    const isQID = /^Q\d+$/i.test(entityIdOrText);
-    const entityId = isQID ? entityIdOrText.toUpperCase() : null;
+    // Check if it's a known entity ID (Wikidata QID or CUSTOM_ prefix)
+    const isEntityId = /^(Q\d+|CUSTOM_\w+)$/i.test(entityIdOrText);
+    const entityId = isEntityId ? entityIdOrText.toUpperCase() : null;
 
     // Track current card for refresh
     currentCardRef.current = { type: "entity", id: entityIdOrText };

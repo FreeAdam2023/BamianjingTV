@@ -6,7 +6,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { EntityAnnotation } from "@/lib/types";
-import { addManualEntity, deleteSegmentEntity } from "@/lib/api";
+import { addManualEntity, deleteSegmentEntity, getEntityCard } from "@/lib/api";
 
 /**
  * Extract article title from Wikipedia URL
@@ -120,6 +120,16 @@ export default function EntityEditModal({
       setError(null);
       setDeleteConfirm(false);
       setResolving(false);
+
+      // Fetch card data for CUSTOM_ entities to pre-populate name/description
+      if (entity?.entity_id && /^CUSTOM_/i.test(entity.entity_id)) {
+        getEntityCard(entity.entity_id).then((res) => {
+          if (res.found && res.card) {
+            setCustomName(res.card.name || "");
+            setCustomDescription(res.card.description || "");
+          }
+        }).catch(() => { /* ignore fetch errors */ });
+      }
     }
   }, [isOpen, entity, segmentId]);
 

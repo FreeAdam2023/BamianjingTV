@@ -21,6 +21,13 @@ from app.workers.subtitle_styles import (
 CARD_PANEL_WIDTH = 400  # Width of card panel on right side
 CARD_ANIMATION_DURATION = 0.3  # Slide/fade duration in seconds
 
+# WYSIWYG export constants (matches UI 65/35 split)
+OUTPUT_WIDTH = 1920
+OUTPUT_HEIGHT = 1080
+VIDEO_AREA_RATIO = 0.65  # Left 65% for video
+CARD_PANEL_RATIO = 0.35  # Right 35% for card panel
+PANEL_BG_COLOR = "0x1a2744"
+
 
 # ASS subtitle template with bilingual style (both at bottom, English above Chinese)
 # Alignment: 2 = bottom center
@@ -123,6 +130,240 @@ class ExportWorker:
 
         logger.info(f"Rendered {len(rendered_cards)} pinned cards")
         return rendered_cards
+
+    async def render_pinned_cards_full_panel(
+        self,
+        pinned_cards: List[PinnedCard],
+        output_dir: Path,
+        panel_width: int,
+        panel_height: int,
+        time_offset: float = 0.0,
+    ) -> List[Tuple[Path, float, float]]:
+        """Render pinned cards as full-detail panel images for WYSIWYG export.
+
+        Args:
+            pinned_cards: List of pinned cards
+            output_dir: Directory to save card images
+            panel_width: Width of the right panel area
+            panel_height: Height of the panel area (video area height)
+            time_offset: Time offset for card timing
+
+        Returns:
+            List of (image_path, display_start, display_end) tuples
+        """
+        renderer = self._get_card_renderer()
+        if not renderer:
+            logger.warning("Card renderer not available, skipping card rendering")
+            return []
+
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        rendered_cards = []
+        for i, card in enumerate(pinned_cards):
+            if not card.card_data:
+                logger.warning(f"Card {card.id} has no data, skipping")
+                continue
+
+            card_path = output_dir / f"panel_card_{i:03d}_{card.id}.png"
+            try:
+                card_type = card.card_type.value if hasattr(card.card_type, 'value') else card.card_type
+                renderer.render_full_panel_card(
+                    card_data=card.card_data,
+                    card_type=card_type,
+                    panel_width=panel_width,
+                    panel_height=panel_height,
+                    output_path=card_path,
+                )
+
+                display_start = max(0, card.display_start - time_offset)
+                display_end = max(0, card.display_end - time_offset)
+
+                if display_end > display_start:
+                    rendered_cards.append((card_path, display_start, display_end))
+                    logger.debug(
+                        f"Rendered full panel card {card.id} ({card_type}): "
+                        f"{display_start:.1f}s - {display_end:.1f}s"
+                    )
+            except Exception as e:
+                logger.error(f"Failed to render full panel card {card.id}: {e}")
+
+        logger.info(f"Rendered {len(rendered_cards)} full panel cards ({panel_width}x{panel_height})")
+        return rendered_cards
+
+    def _build_wysiwyg_filter(
+        self,
+        cards: List[Tuple[Path, float, float]],
+        video_duration: float,
+        subtitle_ratio: float,
+        ass_path: Path,
+    ) -> Tuple[str, List[str], str]:
+        """Build FFmpeg filter_complex for WYSIWYG 65/35 side-by-side layout.
+
+        Layout:
+        +---- Left 1248px (65%) ----+--- Right 672px (35%) ---+
+        |  Video (scaled, centered,  |  Full Card Detail Panel  |
+        |  padded with #1a2744)      |  bg: #1a2744             |
+        |  Height: 756px             |  Height: 756px           |
+        +----------------------------+--------------------------+
+        | Subtitle Area (1920px full width, bg: #1a2744)        |
+        | Height: 324px                                         |
+        +-------------------------------------------------------+
+
+        Args:
+            cards: List of (image_path, start_time, end_time) tuples
+            video_duration: Total video duration for canvas
+            subtitle_ratio: Subtitle area ratio (e.g. 0.3)
+            ass_path: Path to ASS subtitle file
+
+        Returns:
+            Tuple of (filter_complex string, input arguments, final output label)
+        """
+        left_width = int(OUTPUT_WIDTH * VIDEO_AREA_RATIO)  # 1248
+        right_width = OUTPUT_WIDTH - left_width  # 672
+        video_area_height = int(OUTPUT_HEIGHT * (1 - subtitle_ratio))  # 756
+
+        # Escape ASS path for ffmpeg filter
+        ass_path_escaped = str(ass_path).replace("\\", "/").replace(":", "\\:")
+
+        input_args = []
+        filters = []
+
+        # Step 1: Create background canvas (dark blue, full output size)
+        filters.append(
+            f"color=c={PANEL_BG_COLOR}:s={OUTPUT_WIDTH}x{OUTPUT_HEIGHT}"
+            f":d={video_duration}:r=30[canvas]"
+        )
+
+        # Step 2: Scale source video to fit left panel area
+        # Left panel is left_width x video_area_height
+        filters.append(
+            f"[0:v]scale={left_width}:{video_area_height}"
+            f":force_original_aspect_ratio=decrease[scaled_v]"
+        )
+
+        # Step 3: Overlay scaled video centered in left panel area
+        # Center: x = (left_width - overlay_w) / 2, y = (video_area_height - overlay_h) / 2
+        filters.append(
+            f"[canvas][scaled_v]overlay="
+            f"x='({left_width}-overlay_w)/2':y='({video_area_height}-overlay_h)/2'"
+            f"[with_video]"
+        )
+
+        # Step 4: Overlay card PNGs in right panel area with animation
+        prev_label = "with_video"
+        for i, (card_path, start, end) in enumerate(cards):
+            input_idx = i + 1  # 0 is the source video
+            input_args.extend(["-i", str(card_path)])
+
+            # Animation parameters
+            fade_in_duration = CARD_ANIMATION_DURATION
+            slide_distance = 24  # Subtle slide matching React animation
+
+            t_start = start
+            t_fade_in_end = start + fade_in_duration
+            t_fade_out_start = end - fade_in_duration
+            t_end = end
+
+            # Card position: right panel area, centered
+            # Cards are rendered at full panel size (right_width x video_area_height)
+            card_x = left_width
+            card_y = 0
+
+            # X position expression: slide in from right (24px)
+            x_expr = (
+                f"if(lt(t,{t_start}),{card_x + slide_distance},"
+                f"if(lt(t,{t_fade_in_end}),"
+                f"{card_x}+{slide_distance}*(1-(t-{t_start})/{fade_in_duration}),"
+                f"{card_x}))"
+            )
+
+            enable_expr = f"between(t,{t_start},{t_end})"
+
+            out_label = f"card{i}"
+            filters.append(
+                f"[{prev_label}][{input_idx}:v]overlay="
+                f"x='{x_expr}':y={card_y}:"
+                f"enable='{enable_expr}':"
+                f"format=auto"
+                f"[{out_label}]"
+            )
+            prev_label = out_label
+
+        # Step 5: Burn subtitles (spans full 1920px width)
+        final_label = f"final_out"
+        filters.append(
+            f"[{prev_label}]ass={ass_path_escaped}[{final_label}]"
+        )
+
+        filter_complex = ";".join(filters)
+
+        logger.info(
+            f"WYSIWYG filter: {left_width}x{video_area_height} video + "
+            f"{right_width}x{video_area_height} card panel, "
+            f"{len(cards)} cards, subtitles at bottom"
+        )
+
+        return filter_complex, input_args, final_label
+
+    def _retime_pinned_cards(
+        self,
+        pinned_cards: List[PinnedCard],
+        keep_segments: List[EditableSegment],
+    ) -> List[PinnedCard]:
+        """Retime pinned cards to match concatenated KEEP-segment video.
+
+        Uses the same cumulative-offset approach as _retime_segments().
+
+        Args:
+            pinned_cards: Original pinned cards
+            keep_segments: KEEP segments in order
+
+        Returns:
+            New PinnedCard list with adjusted display_start/display_end
+        """
+        # Build time mapping: original time -> retimed time
+        # Each keep segment maps to a contiguous block in the output
+        retimed_cards = []
+        cumulative_time = 0.0
+
+        # Build segment time ranges
+        segment_offsets = []
+        for seg in keep_segments:
+            seg_start = seg.effective_start
+            seg_end = seg.effective_end
+            seg_duration = seg.effective_duration
+            # offset = retimed_start - original_start
+            offset = cumulative_time - seg_start
+            segment_offsets.append((seg_start, seg_end, offset))
+            cumulative_time += seg_duration
+
+        for card in pinned_cards:
+            if not card.card_data:
+                continue
+
+            # Find which segment this card belongs to
+            new_start = None
+            new_end = None
+            for seg_start, seg_end, offset in segment_offsets:
+                # Card display window overlaps with this segment
+                if card.display_start < seg_end and card.display_end > seg_start:
+                    # Clamp card timing to segment boundaries, then apply offset
+                    clamped_start = max(card.display_start, seg_start)
+                    clamped_end = min(card.display_end, seg_end)
+                    new_start = clamped_start + offset
+                    new_end = clamped_end + offset
+                    break
+
+            if new_start is not None and new_end is not None and new_end > new_start:
+                # Create a copy with new timing
+                retimed_card = card.model_copy(
+                    update={"display_start": new_start, "display_end": new_end}
+                )
+                retimed_cards.append(retimed_card)
+
+        logger.info(f"Retimed {len(retimed_cards)}/{len(pinned_cards)} pinned cards for essence export")
+        return retimed_cards
 
     def _build_card_overlay_filter(
         self,
@@ -312,6 +553,24 @@ class ExportWorker:
         except Exception:
             return 1920, 1080
 
+    def _get_video_duration(self, video_path: Path) -> float:
+        """Get video duration in seconds using ffprobe."""
+        cmd = [
+            "ffprobe", "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "format=duration",
+            "-of", "csv=s=x:p=0",
+            str(video_path)
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            logger.warning(f"ffprobe duration failed: {result.stderr}")
+            return 0.0
+        try:
+            return float(result.stdout.strip())
+        except (ValueError, TypeError):
+            return 0.0
+
     def _hex_to_ass_color(self, hex_color: str, opacity: int = 0) -> str:
         """Convert hex color (#RRGGBB) to ASS format (&HAABBGGRR).
 
@@ -496,92 +755,135 @@ class ExportWorker:
             if c.segment_id not in dropped_seg_ids
         ]
         cards_dir = output_path.parent / "cards"
-        rendered_cards = await self.render_pinned_cards(
-            pinned_cards=pinned_cards,
-            output_dir=cards_dir,
-            time_offset=time_offset,
-        )
 
-        # Generate ASS subtitle file based on mode
-        ass_path = output_path.parent / "subtitles_full.ass"
-        await self.generate_ass_with_layout(
-            segments=trimmed_segments,
-            output_path=ass_path,
-            use_traditional=timeline.use_traditional_chinese,
-            time_offset=time_offset,
-            video_height=orig_height,
-            subtitle_area_ratio=subtitle_ratio,
-            subtitle_style=subtitle_style,
-            subtitle_style_mode=subtitle_style_mode,
-            subtitle_language_mode=subtitle_language_mode,
-        )
-
-        # Build ffmpeg command based on mode
+        # WYSIWYG mode: HALF_SCREEN uses 65/35 side-by-side composite layout
         if subtitle_style_mode == SubtitleStyleMode.HALF_SCREEN:
-            # Learning mode: Scale video to top portion, subtitles in bottom area
-            vf_filter = self._build_half_screen_filter(
-                orig_width, orig_height, subtitle_ratio, ass_path
+            video_area_height = int(OUTPUT_HEIGHT * (1 - subtitle_ratio))
+            panel_width = OUTPUT_WIDTH - int(OUTPUT_WIDTH * VIDEO_AREA_RATIO)
+
+            # Render full-detail panel cards
+            rendered_cards = await self.render_pinned_cards_full_panel(
+                pinned_cards=pinned_cards,
+                output_dir=cards_dir,
+                panel_width=panel_width,
+                panel_height=video_area_height,
+                time_offset=time_offset,
             )
-            mode_name = "half_screen (Learning)"
-        elif subtitle_style_mode == SubtitleStyleMode.FLOATING:
-            # Watching mode: Overlay transparent subtitles on full video
-            vf_filter = self._build_floating_filter(ass_path)
-            mode_name = "floating (Watching)"
-        else:
-            # None mode: No subtitles, just copy/re-encode video
-            vf_filter = None
-            mode_name = "none (Dubbing)"
 
-        # Build ffmpeg command with trim support
-        cmd = ["ffmpeg"]
+            # Generate ASS with output canvas height (1080), not source video height
+            ass_path = output_path.parent / "subtitles_full.ass"
+            await self.generate_ass_with_layout(
+                segments=trimmed_segments,
+                output_path=ass_path,
+                use_traditional=timeline.use_traditional_chinese,
+                time_offset=time_offset,
+                video_height=OUTPUT_HEIGHT,
+                subtitle_area_ratio=subtitle_ratio,
+                subtitle_style=subtitle_style,
+                subtitle_style_mode=subtitle_style_mode,
+                subtitle_language_mode=subtitle_language_mode,
+            )
 
-        # Add seek option if trim start is set (faster when placed before -i)
-        if trim_start > 0:
-            cmd.extend(["-ss", str(trim_start)])
+            # Get video duration for canvas
+            video_duration = self._get_video_duration(video_path)
+            if trim_end is not None:
+                video_duration = min(video_duration, trim_end - trim_start)
 
-        cmd.extend(["-i", str(video_path)])
-
-        # Add card inputs and overlay filter if we have pinned cards
-        card_filter = ""
-        card_inputs = []
-        final_label = ""
-        if rendered_cards:
-            card_filter, card_inputs, final_label = self._build_card_overlay_filter(
+            # Build WYSIWYG composite filter
+            filter_complex, card_inputs, final_label = self._build_wysiwyg_filter(
                 cards=rendered_cards,
-                video_width=orig_width,
-                video_height=orig_height,
+                video_duration=video_duration,
+                subtitle_ratio=subtitle_ratio,
+                ass_path=ass_path,
             )
+
+            # Build ffmpeg command
+            cmd = ["ffmpeg"]
+            if trim_start > 0:
+                cmd.extend(["-ss", str(trim_start)])
+            cmd.extend(["-i", str(video_path)])
             cmd.extend(card_inputs)
-
-        # Add duration limit if trim end is set
-        if trim_end is not None:
-            duration = trim_end - trim_start
-            cmd.extend(["-t", str(duration)])
-
-        # Build combined filter
-        if card_filter and vf_filter:
-            # Apply subtitle filter first, then card overlays
-            # We need to chain them properly
-            cmd.extend(["-filter_complex", f"{vf_filter}[subtitled];{card_filter.replace('[0:v]', '[subtitled]')}"])
+            if trim_end is not None:
+                cmd.extend(["-t", str(trim_end - trim_start)])
+            cmd.extend(["-filter_complex", filter_complex])
             cmd.extend(["-map", f"[{final_label}]", "-map", "0:a?"])
-        elif card_filter:
-            cmd.extend(["-filter_complex", card_filter])
-            cmd.extend(["-map", f"[{final_label}]", "-map", "0:a?"])
-        elif vf_filter:
-            cmd.extend(["-vf", vf_filter])
 
-        if self.use_nvenc:
-            cmd.extend(["-c:v", "h264_nvenc", "-preset", "p4"])
+            if self.use_nvenc:
+                cmd.extend(["-c:v", "h264_nvenc", "-preset", "p4"])
+            else:
+                cmd.extend(["-c:v", "libx264", "-preset", "medium", "-crf", "23"])
+            cmd.extend(["-c:a", "aac", "-b:a", "192k", "-y", str(output_path)])
+
+            mode_name = "half_screen WYSIWYG (Learning)"
+            cards_info = f", {len(rendered_cards)} panel cards" if rendered_cards else ""
         else:
-            cmd.extend(["-c:v", "libx264", "-preset", "medium", "-crf", "23"])
+            # FLOATING / NONE modes: existing behavior (full-width video)
+            rendered_cards = await self.render_pinned_cards(
+                pinned_cards=pinned_cards,
+                output_dir=cards_dir,
+                time_offset=time_offset,
+            )
 
-        cmd.extend(["-c:a", "aac", "-b:a", "192k", "-y", str(output_path)])
+            ass_path = output_path.parent / "subtitles_full.ass"
+            await self.generate_ass_with_layout(
+                segments=trimmed_segments,
+                output_path=ass_path,
+                use_traditional=timeline.use_traditional_chinese,
+                time_offset=time_offset,
+                video_height=orig_height,
+                subtitle_area_ratio=subtitle_ratio,
+                subtitle_style=subtitle_style,
+                subtitle_style_mode=subtitle_style_mode,
+                subtitle_language_mode=subtitle_language_mode,
+            )
+
+            if subtitle_style_mode == SubtitleStyleMode.FLOATING:
+                vf_filter = self._build_floating_filter(ass_path)
+                mode_name = "floating (Watching)"
+            else:
+                vf_filter = None
+                mode_name = "none (Dubbing)"
+
+            cmd = ["ffmpeg"]
+            if trim_start > 0:
+                cmd.extend(["-ss", str(trim_start)])
+            cmd.extend(["-i", str(video_path)])
+
+            card_filter = ""
+            card_inputs = []
+            final_label = ""
+            if rendered_cards:
+                card_filter, card_inputs, final_label = self._build_card_overlay_filter(
+                    cards=rendered_cards,
+                    video_width=orig_width,
+                    video_height=orig_height,
+                )
+                cmd.extend(card_inputs)
+
+            if trim_end is not None:
+                cmd.extend(["-t", str(trim_end - trim_start)])
+
+            if card_filter and vf_filter:
+                cmd.extend(["-filter_complex", f"{vf_filter}[subtitled];{card_filter.replace('[0:v]', '[subtitled]')}"])
+                cmd.extend(["-map", f"[{final_label}]", "-map", "0:a?"])
+            elif card_filter:
+                cmd.extend(["-filter_complex", card_filter])
+                cmd.extend(["-map", f"[{final_label}]", "-map", "0:a?"])
+            elif vf_filter:
+                cmd.extend(["-vf", vf_filter])
+
+            if self.use_nvenc:
+                cmd.extend(["-c:v", "h264_nvenc", "-preset", "p4"])
+            else:
+                cmd.extend(["-c:v", "libx264", "-preset", "medium", "-crf", "23"])
+            cmd.extend(["-c:a", "aac", "-b:a", "192k", "-y", str(output_path)])
+
+            cards_info = f", {len(rendered_cards)} cards" if rendered_cards else ""
 
         trim_info = ""
         if trim_start > 0 or trim_end is not None:
             trim_info = f", trim={trim_start:.1f}s-{trim_end or 'end'}"
         lang_info = f", lang={subtitle_language_mode.value}"
-        cards_info = f", {len(rendered_cards)} cards" if rendered_cards else ""
         logger.info(f"Exporting full video with {mode_name} mode{lang_info}{trim_info}{cards_info}: {output_path}")
         result = subprocess.run(cmd, capture_output=True, text=True)
 
@@ -745,35 +1047,81 @@ class ExportWorker:
 
             # Generate re-timed ASS subtitles for essence based on mode
             retimed_segments = self._retime_segments(keep_segments)
-            ass_path = output_path.parent / "subtitles_essence.ass"
-            await self._generate_essence_ass(
-                retimed_segments,
-                ass_path,
-                timeline.use_traditional_chinese,
-                video_height=concat_height,
-                subtitle_area_ratio=subtitle_ratio,
-                subtitle_style=subtitle_style,
-                subtitle_style_mode=subtitle_style_mode,
-                subtitle_language_mode=subtitle_language_mode,
-            )
 
-            # Build ffmpeg filter based on mode
+            # WYSIWYG mode: HALF_SCREEN uses 65/35 composite layout
             if subtitle_style_mode == SubtitleStyleMode.HALF_SCREEN:
-                vf_filter = self._build_half_screen_filter(
-                    concat_width, concat_height, subtitle_ratio, ass_path
+                video_area_height = int(OUTPUT_HEIGHT * (1 - subtitle_ratio))
+                panel_width = OUTPUT_WIDTH - int(OUTPUT_WIDTH * VIDEO_AREA_RATIO)
+
+                # Retime pinned cards to match concatenated segments
+                dropped_seg_ids = {seg.id for seg in timeline.segments if seg.state == SegmentState.DROP}
+                pinned_cards = [
+                    c for c in (getattr(timeline, 'pinned_cards', []) or [])
+                    if c.segment_id not in dropped_seg_ids
+                ]
+                retimed_pinned = self._retime_pinned_cards(pinned_cards, keep_segments)
+
+                # Render full-detail panel cards with retimed timing
+                cards_dir = output_path.parent / "cards"
+                rendered_cards = await self.render_pinned_cards_full_panel(
+                    pinned_cards=retimed_pinned,
+                    output_dir=cards_dir,
+                    panel_width=panel_width,
+                    panel_height=video_area_height,
                 )
-                mode_name = "half_screen"
-            elif subtitle_style_mode == SubtitleStyleMode.FLOATING:
-                vf_filter = self._build_floating_filter(ass_path)
-                mode_name = "floating"
+
+                # Generate ASS with output canvas height (1080)
+                ass_path = output_path.parent / "subtitles_essence.ass"
+                await self._generate_essence_ass(
+                    retimed_segments,
+                    ass_path,
+                    timeline.use_traditional_chinese,
+                    video_height=OUTPUT_HEIGHT,
+                    subtitle_area_ratio=subtitle_ratio,
+                    subtitle_style=subtitle_style,
+                    subtitle_style_mode=subtitle_style_mode,
+                    subtitle_language_mode=subtitle_language_mode,
+                )
+
+                # Get concatenated video duration
+                concat_duration = self._get_video_duration(concat_output)
+
+                # Build WYSIWYG composite filter
+                filter_complex, card_inputs, final_label = self._build_wysiwyg_filter(
+                    cards=rendered_cards,
+                    video_duration=concat_duration,
+                    subtitle_ratio=subtitle_ratio,
+                    ass_path=ass_path,
+                )
+
+                cmd = ["ffmpeg", "-i", str(concat_output)]
+                cmd.extend(card_inputs)
+                cmd.extend(["-filter_complex", filter_complex])
+                cmd.extend(["-map", f"[{final_label}]", "-map", "0:a?"])
+                mode_name = "half_screen WYSIWYG"
             else:
-                vf_filter = None
-                mode_name = "none"
+                ass_path = output_path.parent / "subtitles_essence.ass"
+                await self._generate_essence_ass(
+                    retimed_segments,
+                    ass_path,
+                    timeline.use_traditional_chinese,
+                    video_height=concat_height,
+                    subtitle_area_ratio=subtitle_ratio,
+                    subtitle_style=subtitle_style,
+                    subtitle_style_mode=subtitle_style_mode,
+                    subtitle_language_mode=subtitle_language_mode,
+                )
 
-            cmd = ["ffmpeg", "-i", str(concat_output)]
+                if subtitle_style_mode == SubtitleStyleMode.FLOATING:
+                    vf_filter = self._build_floating_filter(ass_path)
+                    mode_name = "floating"
+                else:
+                    vf_filter = None
+                    mode_name = "none"
 
-            if vf_filter:
-                cmd.extend(["-vf", vf_filter])
+                cmd = ["ffmpeg", "-i", str(concat_output)]
+                if vf_filter:
+                    cmd.extend(["-vf", vf_filter])
 
             if self.use_nvenc:
                 cmd.extend(["-c:v", "h264_nvenc", "-preset", "p4"])

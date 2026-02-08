@@ -213,6 +213,35 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
       setCurrentTime(time);
       onTimeUpdate?.(time);
 
+      // Skip dropped segments instantly during playback
+      if (!video.paused) {
+        const segAtTime = segments.find((seg) => time >= seg.start && time < seg.end);
+        if (segAtTime && segAtTime.state === "drop") {
+          // Find the next non-dropped segment after this one
+          const nextKeep = segments
+            .filter((seg) => seg.start >= segAtTime.end && seg.state !== "drop")
+            .sort((a, b) => a.start - b.start)[0];
+          if (nextKeep) {
+            // Respect trim end
+            if (trimEnd !== null && nextKeep.start >= trimEnd) {
+              video.currentTime = trimEnd;
+              if (!isLooping) video.pause();
+              else video.currentTime = trimStart;
+            } else {
+              video.currentTime = nextKeep.start;
+            }
+          } else {
+            // No more kept segments, go to end
+            if (trimEnd !== null) {
+              video.currentTime = trimEnd;
+              if (!isLooping) video.pause();
+              else video.currentTime = trimStart;
+            }
+          }
+          return;
+        }
+      }
+
       // Update current segment (skip if within grace period from explicit click)
       if (Date.now() > segmentLockUntilRef.current) {
         const segment = findSegmentAtTime(time);
@@ -427,6 +456,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   const containerBgColor = "#1a2744";
   const isOverlayMode = subtitleStyle.displayMode === "overlay";
   const hasCardOpen = cardState?.isOpen === true;
+  const hasActivePinnedCards = pinnedCards.length > 0;
 
   // Calculate heights for split mode
   const videoHeightPercent = isOverlayMode ? 100 : (1 - subtitleHeightRatio) * 100;
@@ -485,55 +515,50 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
             />
           )}
 
-          {/* Pinned card live preview */}
-          {pinnedCards.length > 0 && (
-            <PinnedCardOverlay
-              pinnedCards={pinnedCards}
-              currentTime={currentTime}
-            />
-          )}
         </div>
 
-        {/* Card panel (next to video only) */}
-        <div className="w-[35%] flex-shrink-0 border-l border-white/10 bg-gradient-to-b from-slate-900/80 to-slate-800/60 backdrop-blur-sm relative overflow-hidden">
-          {/* Placeholder when no card is open */}
+        {/* Card panel (next to video only) — matches export card area */}
+        <div
+          className="w-[35%] flex-shrink-0 border-l border-white/10 relative overflow-hidden"
+          style={{ backgroundColor: containerBgColor }}
+        >
+          {/* Layer 1: Placeholder (visible when no card open AND no active pinned cards) */}
           <div
             className={`absolute inset-0 flex flex-col items-center justify-center p-6 transition-opacity duration-300 ${
-              hasCardOpen ? "opacity-0 pointer-events-none" : "opacity-100"
+              hasCardOpen || hasActivePinnedCards ? "opacity-0 pointer-events-none" : "opacity-100"
             }`}
           >
             <div className="text-center space-y-4">
-              {/* Icon */}
               <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center">
                 <svg className="w-8 h-8 text-purple-400/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
-
-              {/* Title */}
               <h3 className="text-white/70 font-medium text-lg">学习卡片</h3>
-
-              {/* Description */}
               <p className="text-white/40 text-sm leading-relaxed max-w-[200px]">
                 点击字幕中高亮的单词或实体查看详细卡片
               </p>
-
-              {/* Hint badges */}
               <div className="flex flex-wrap justify-center gap-2 pt-2">
-                <span className="px-2 py-1 bg-blue-500/10 text-blue-400/60 text-xs rounded-full">
-                  单词
-                </span>
-                <span className="px-2 py-1 bg-purple-500/10 text-purple-400/60 text-xs rounded-full">
-                  实体
-                </span>
-                <span className="px-2 py-1 bg-amber-500/10 text-amber-400/60 text-xs rounded-full">
-                  习语
-                </span>
+                <span className="px-2 py-1 bg-blue-500/10 text-blue-400/60 text-xs rounded-full">单词</span>
+                <span className="px-2 py-1 bg-purple-500/10 text-purple-400/60 text-xs rounded-full">实体</span>
+                <span className="px-2 py-1 bg-amber-500/10 text-amber-400/60 text-xs rounded-full">习语</span>
               </div>
             </div>
           </div>
 
-          {/* Card content with slide-in animation */}
+          {/* Layer 2: Pinned card live preview (visible when pinned cards exist and no card detail open) */}
+          <div
+            className={`absolute inset-0 transition-opacity duration-300 ${
+              !hasCardOpen && hasActivePinnedCards ? "opacity-100" : "opacity-0 pointer-events-none"
+            }`}
+          >
+            <PinnedCardOverlay
+              pinnedCards={pinnedCards}
+              currentTime={currentTime}
+            />
+          </div>
+
+          {/* Layer 3: Card detail panel (highest priority, shown when user clicks a word) */}
           <div
             className={`h-full transition-all duration-300 ease-out ${
               hasCardOpen

@@ -113,8 +113,8 @@ function MiniCard({ pinnedCard }: { pinnedCard: PinnedCard }) {
 
   return (
     <div
-      className={`rounded-lg border-l-2 ${colors.border} backdrop-blur-sm px-3 py-2 w-[260px] shadow-lg`}
-      style={{ backgroundColor: "rgba(26, 39, 68, 0.92)" }}
+      className={`rounded-lg border-l-2 ${colors.border} px-4 py-3 w-full shadow-lg`}
+      style={{ backgroundColor: "rgba(26, 39, 68, 0.95)" }}
     >
       {pinnedCard.card_type === "word" && data && (
         <WordMiniCard card={data as WordCard} />
@@ -236,16 +236,25 @@ export default function PinnedCardOverlay({ pinnedCards, currentTime }: PinnedCa
     setExitingCards((prev) => prev.filter((c) => c.id !== id));
   }, []);
 
-  if (visibleCards.length === 0 && exitingCards.length === 0) return null;
+  const hasContent = visibleCards.length > 0 || exitingCards.length > 0;
 
   return (
-    <div className="absolute right-2 top-2 flex flex-col items-end gap-2 pointer-events-none z-10">
-      {exitingCards.map((card) => (
-        <ExitingCard key={`exit-${card.id}`} pinnedCard={card} onDone={handleExitDone} />
-      ))}
-      {visibleCards.map((card) => (
-        <EnteringCard key={card.id} pinnedCard={card} />
-      ))}
+    <div className="h-full flex flex-col items-center justify-center p-4 gap-3">
+      {hasContent ? (
+        <>
+          {exitingCards.map((card) => (
+            <ExitingCard key={`exit-${card.id}`} pinnedCard={card} onDone={handleExitDone} />
+          ))}
+          {visibleCards.map((card) => (
+            <EnteringCard key={card.id} pinnedCard={card} />
+          ))}
+        </>
+      ) : (
+        <div className="text-center space-y-2">
+          <p className="text-white/30 text-xs">卡片将在播放时自动展示</p>
+          <p className="text-white/20 text-[10px]">{pinnedCards.length} 张已钉住</p>
+        </div>
+      )}
     </div>
   );
 }
