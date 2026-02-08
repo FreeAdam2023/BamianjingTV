@@ -522,10 +522,10 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
           className="w-[35%] flex-shrink-0 border-l border-white/10 relative overflow-hidden"
           style={{ backgroundColor: containerBgColor }}
         >
-          {/* Layer 1: Placeholder (visible when no card open AND no active pinned cards) */}
+          {/* Layer 1: Placeholder (visible when no card is showing) */}
           <div
             className={`absolute inset-0 flex flex-col items-center justify-center p-6 transition-opacity duration-300 ${
-              hasCardOpen || hasActivePinnedCards ? "opacity-0 pointer-events-none" : "opacity-100"
+              hasCardOpen ? "opacity-0 pointer-events-none" : "opacity-100"
             }`}
           >
             <div className="text-center space-y-4">

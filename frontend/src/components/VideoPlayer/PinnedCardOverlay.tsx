@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * PinnedCardOverlay - Renders compact mini-cards over the video area
+ * PinnedCardOverlay - Renders full card detail in the right panel
  * during playback when currentTime falls within a card's display window.
  *
- * Caps at MAX_VISIBLE simultaneous cards, always showing the newest.
- * Bumped or expired cards exit with a smooth slide-out animation.
+ * Shows the same CardSidePanel-style content the user sees when clicking a word.
+ * Caps at MAX_VISIBLE=1, with smooth enter/exit animations.
  */
 
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
@@ -16,126 +16,77 @@ import type {
   IdiomCard,
   InsightCard,
 } from "@/lib/types";
+import {
+  SidePanelWordCard,
+  SidePanelEntityCard,
+  SidePanelIdiomCard,
+} from "@/components/Cards/CardSidePanel";
 
 interface PinnedCardOverlayProps {
   pinnedCards: PinnedCard[];
   currentTime: number;
 }
 
-/** Max cards visible at once — one card displays cleanly without clutter */
+/** Max cards visible at once */
 const MAX_VISIBLE = 1;
 
-// Color config per card type
-const CARD_COLORS: Record<string, { border: string; badge: string }> = {
-  word: { border: "border-l-blue-400", badge: "bg-blue-500/20 text-blue-300" },
-  entity: { border: "border-l-cyan-400", badge: "bg-cyan-500/20 text-cyan-300" },
-  idiom: { border: "border-l-amber-400", badge: "bg-amber-500/20 text-amber-300" },
-  insight: { border: "border-l-purple-400", badge: "bg-purple-500/20 text-purple-300" },
-};
-
-function WordMiniCard({ card }: { card: WordCard }) {
-  const ipa = card.pronunciations?.[0]?.ipa;
-  const firstSense = card.senses?.[0];
-  return (
-    <div className="space-y-0.5">
-      <div className="flex items-baseline gap-2">
-        <span className="font-bold text-white text-sm">{card.word}</span>
-        {ipa && <span className="text-blue-300 text-xs">/{ipa}/</span>}
-        {card.cefr_level && (
-          <span className="text-[10px] px-1 py-0.5 rounded bg-blue-500/20 text-blue-300 leading-none">
-            {card.cefr_level}
-          </span>
-        )}
-      </div>
-      {firstSense && (
-        <p className="text-gray-300 text-xs leading-snug line-clamp-2">
-          <span className="text-blue-300/70 text-[10px] mr-1">{firstSense.part_of_speech}</span>
-          {firstSense.definition_zh || firstSense.definition}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function EntityMiniCard({ card }: { card: EntityCard }) {
-  const zhName = card.localizations?.zh?.name;
-  return (
-    <div className="space-y-0.5">
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 leading-none capitalize">
-          {card.entity_type}
-        </span>
-        <span className="font-bold text-white text-sm truncate">{card.name}</span>
-      </div>
-      {zhName && zhName !== card.name && (
-        <p className="text-cyan-200/60 text-xs">{zhName}</p>
-      )}
-      <p className="text-gray-300 text-xs leading-snug line-clamp-2">
-        {card.localizations?.zh?.description || card.description}
-      </p>
-    </div>
-  );
-}
-
-function IdiomMiniCard({ card }: { card: IdiomCard }) {
-  return (
-    <div className="space-y-0.5">
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 leading-none capitalize">
-          {card.category}
-        </span>
-        <span className="font-bold text-amber-200 text-sm truncate">{card.text}</span>
-      </div>
-      <p className="text-gray-300 text-xs leading-snug line-clamp-2">
-        {card.meaning_localized || card.meaning_original}
-      </p>
-    </div>
-  );
-}
-
-function InsightMiniCard({ card }: { card: InsightCard }) {
-  return (
-    <div className="space-y-0.5">
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 leading-none capitalize">
-          {card.category}
-        </span>
-        <span className="font-bold text-purple-200 text-sm truncate">{card.title}</span>
-      </div>
-      <p className="text-gray-300 text-xs leading-snug line-clamp-2">{card.content}</p>
-    </div>
-  );
-}
-
-function MiniCard({ pinnedCard }: { pinnedCard: PinnedCard }) {
-  const colors = CARD_COLORS[pinnedCard.card_type] || CARD_COLORS.word;
+/** Renders a full card based on type — same style as CardSidePanel */
+function FullCard({ pinnedCard }: { pinnedCard: PinnedCard }) {
   const data = pinnedCard.card_data;
+  const noop = () => {};
 
+  if (!data) {
+    return (
+      <div className="flex items-center justify-center h-full text-white/30 text-sm">
+        {pinnedCard.card_type}: {pinnedCard.card_id}
+      </div>
+    );
+  }
+
+  if (pinnedCard.card_type === "word") {
+    return (
+      <SidePanelWordCard
+        card={data as WordCard}
+        onClose={noop}
+        canPin={false}
+      />
+    );
+  }
+
+  if (pinnedCard.card_type === "entity") {
+    return (
+      <SidePanelEntityCard
+        card={data as EntityCard}
+        onClose={noop}
+        canPin={false}
+      />
+    );
+  }
+
+  if (pinnedCard.card_type === "idiom") {
+    return (
+      <SidePanelIdiomCard
+        card={data as IdiomCard}
+        onClose={noop}
+        canPin={false}
+      />
+    );
+  }
+
+  // insight or unknown — fallback
+  const insight = data as InsightCard;
   return (
-    <div
-      className={`rounded-lg border-l-2 ${colors.border} px-4 py-3 w-full shadow-lg`}
-      style={{ backgroundColor: "rgba(26, 39, 68, 0.95)" }}
-    >
-      {pinnedCard.card_type === "word" && data && (
-        <WordMiniCard card={data as WordCard} />
-      )}
-      {pinnedCard.card_type === "entity" && data && (
-        <EntityMiniCard card={data as EntityCard} />
-      )}
-      {pinnedCard.card_type === "idiom" && data && (
-        <IdiomMiniCard card={data as IdiomCard} />
-      )}
-      {pinnedCard.card_type === "insight" && data && (
-        <InsightMiniCard card={data as InsightCard} />
-      )}
-      {!data && (
-        <div className="flex items-center gap-2">
-          <span className={`text-[10px] px-1.5 py-0.5 rounded ${colors.badge} leading-none`}>
-            {pinnedCard.card_type}
-          </span>
-          <span className="text-white/50 text-xs">{pinnedCard.card_id}</span>
-        </div>
-      )}
+    <div className="h-full flex flex-col p-4">
+      <div className="relative flex-shrink-0">
+        <div className="h-16 bg-gradient-to-r from-purple-900/30 to-purple-800/20" />
+        <span className="absolute top-2 left-2 px-2 py-0.5 bg-purple-500/50 text-white text-xs font-medium rounded backdrop-blur-sm">
+          {insight.category || "insight"}
+        </span>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        <h2 className="text-xl font-bold text-white">{insight.title}</h2>
+        <p className="text-sm text-white/60">{insight.content}</p>
+      </div>
     </div>
   );
 }
@@ -151,13 +102,13 @@ function EnteringCard({ pinnedCard }: { pinnedCard: PinnedCard }) {
 
   return (
     <div
-      className="transition-all duration-300 ease-out"
+      className="h-full transition-all duration-300 ease-out"
       style={{
         opacity: visible ? 1 : 0,
         transform: visible ? "translateX(0)" : "translateX(24px)",
       }}
     >
-      <MiniCard pinnedCard={pinnedCard} />
+      <FullCard pinnedCard={pinnedCard} />
     </div>
   );
 }
@@ -167,7 +118,6 @@ function ExitingCard({ pinnedCard, onDone }: { pinnedCard: PinnedCard; onDone: (
   const [gone, setGone] = useState(false);
 
   useEffect(() => {
-    // Kick off exit on next frame so the browser paints at opacity 1 first
     const raf = requestAnimationFrame(() => setGone(true));
     const timer = setTimeout(() => onDone(pinnedCard.id), 280);
     return () => { cancelAnimationFrame(raf); clearTimeout(timer); };
@@ -175,17 +125,13 @@ function ExitingCard({ pinnedCard, onDone }: { pinnedCard: PinnedCard; onDone: (
 
   return (
     <div
-      className="transition-all duration-250 ease-in"
+      className="h-full transition-all duration-250 ease-in absolute inset-0"
       style={{
         opacity: gone ? 0 : 1,
         transform: gone ? "translateX(24px)" : "translateX(0)",
-        // Collapse height smoothly so cards below slide up
-        maxHeight: gone ? 0 : 200,
-        marginBottom: gone ? 0 : undefined,
-        overflow: "hidden",
       }}
     >
-      <MiniCard pinnedCard={pinnedCard} />
+      <FullCard pinnedCard={pinnedCard} />
     </div>
   );
 }
@@ -220,7 +166,6 @@ export default function PinnedCardOverlay({ pinnedCards, currentTime }: PinnedCa
     prev.forEach((id) => { if (!currentIds.has(id)) departedIds.add(id); });
 
     if (departedIds.size > 0) {
-      // Resolve full card objects from either allActive or pinnedCards
       const departedCards = pinnedCards.filter((c) => departedIds.has(c.id));
       setExitingCards((ex) => {
         const existingIds = new Set(ex.map((c) => c.id));
@@ -239,7 +184,7 @@ export default function PinnedCardOverlay({ pinnedCards, currentTime }: PinnedCa
   const hasContent = visibleCards.length > 0 || exitingCards.length > 0;
 
   return (
-    <div className="h-full flex flex-col items-center justify-center p-4 gap-3">
+    <div className="h-full relative">
       {hasContent ? (
         <>
           {exitingCards.map((card) => (
@@ -249,12 +194,7 @@ export default function PinnedCardOverlay({ pinnedCards, currentTime }: PinnedCa
             <EnteringCard key={card.id} pinnedCard={card} />
           ))}
         </>
-      ) : (
-        <div className="text-center space-y-2">
-          <p className="text-white/30 text-xs">卡片将在播放时自动展示</p>
-          <p className="text-white/20 text-[10px]">{pinnedCards.length} 张已钉住</p>
-        </div>
-      )}
+      ) : null}
     </div>
   );
 }

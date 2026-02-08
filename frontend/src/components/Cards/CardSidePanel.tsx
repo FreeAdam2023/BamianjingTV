@@ -51,8 +51,8 @@ function PinIcon({ filled }: { filled: boolean }) {
   );
 }
 
-// Inline WordCard component optimized for side panel
-interface SidePanelWordCardProps {
+// Exported for reuse in PinnedCardOverlay
+export interface SidePanelWordCardProps {
   card: WordCard;
   onClose: () => void;
   isPinned?: boolean;
@@ -63,7 +63,7 @@ interface SidePanelWordCardProps {
   refreshing?: boolean;
 }
 
-function SidePanelWordCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin, onRefresh, refreshing }: SidePanelWordCardProps) {
+export function SidePanelWordCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin, onRefresh, refreshing }: SidePanelWordCardProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [imageError, setImageError] = useState(false);
 
@@ -258,8 +258,7 @@ function SidePanelWordCard({ card, onClose, isPinned, pinLoading, onTogglePin, c
   );
 }
 
-// Inline EntityCard component optimized for side panel
-interface SidePanelEntityCardProps {
+export interface SidePanelEntityCardProps {
   card: EntityCard;
   onClose: () => void;
   isPinned?: boolean;
@@ -271,7 +270,7 @@ interface SidePanelEntityCardProps {
   onEdit?: () => void;
 }
 
-function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin, onRefresh, refreshing, onEdit }: SidePanelEntityCardProps) {
+export function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin, onRefresh, refreshing, onEdit }: SidePanelEntityCardProps) {
   const typeColors: Record<string, string> = {
     person: "bg-blue-500/50",
     place: "bg-green-500/50",
@@ -409,8 +408,7 @@ function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTogglePin,
   );
 }
 
-// Inline IdiomCard component optimized for side panel
-interface SidePanelIdiomCardProps {
+export interface SidePanelIdiomCardProps {
   card: IdiomCard;
   onClose: () => void;
   isPinned?: boolean;
@@ -421,7 +419,7 @@ interface SidePanelIdiomCardProps {
   refreshing?: boolean;
 }
 
-function SidePanelIdiomCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin, onRefresh, refreshing }: SidePanelIdiomCardProps) {
+export function SidePanelIdiomCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin, onRefresh, refreshing }: SidePanelIdiomCardProps) {
   const categoryColors: Record<string, string> = {
     idiom: "bg-amber-500/50",
     phrasal_verb: "bg-amber-600/50",
