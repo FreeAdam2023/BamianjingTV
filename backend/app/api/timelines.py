@@ -774,7 +774,11 @@ async def pin_card(timeline_id: str, create: PinnedCardCreate):
     if not timeline:
         raise HTTPException(status_code=404, detail="Timeline not found")
 
-    pinned = manager.add_pinned_card(timeline_id, create)
+    try:
+        pinned = manager.add_pinned_card(timeline_id, create)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
     if not pinned:
         raise HTTPException(status_code=500, detail="Failed to pin card")
 
@@ -793,13 +797,19 @@ async def unpin_card(timeline_id: str, card_id: str):
 
 
 @router.get("/{timeline_id}/pinned-cards/check/{card_type}/{card_id}")
-async def check_card_pinned(timeline_id: str, card_type: str, card_id: str):
+async def check_card_pinned(
+    timeline_id: str,
+    card_type: str,
+    card_id: str,
+    segment_id: Optional[int] = None,
+):
     """Check if a specific card is pinned to the timeline.
 
     Args:
         timeline_id: Timeline ID
         card_type: Card type (word or entity)
         card_id: The card identifier (word string or entity QID)
+        segment_id: Optional segment ID for per-segment check
 
     Returns:
         Object with is_pinned boolean and optional pin_id
@@ -810,7 +820,7 @@ async def check_card_pinned(timeline_id: str, card_type: str, card_id: str):
     if not timeline:
         raise HTTPException(status_code=404, detail="Timeline not found")
 
-    return manager.is_card_pinned(timeline_id, card_type, card_id)
+    return manager.is_card_pinned(timeline_id, card_type, card_id, segment_id)
 
 
 class CardDisplayDurationUpdate(BaseModel):

@@ -4,7 +4,7 @@
  * ExportPanel - Modal for export settings and thumbnail generation
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { ExportProfile, ExportRequest, Timeline, TitleCandidate, MetadataDraft, SubtitleStyleOptions } from "@/lib/types";
 import { generateThumbnail, generateUnifiedMetadata, getMetadataDraft, saveMetadataDraft, formatDuration, setSubtitleAreaRatio } from "@/lib/api";
 import { useToast } from "@/components/ui";
@@ -31,8 +31,7 @@ export default function ExportPanel({
   const toast = useToast();
   const [exportProfile, setExportProfile] = useState<ExportProfile>("full");
   const [useTraditional, setUseTraditional] = useState(false);
-  const [subtitleRatio, setSubtitleRatio] = useState(timeline.subtitle_area_ratio || 0.5);
-  const [exporting, setExporting] = useState(false);
+  const [subtitleRatio, setSubtitleRatio] = useState(timeline.subtitle_area_ratio || 0.3);
   const subtitleRatioTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // YouTube metadata (for draft saving, upload happens in PreviewUploadPanel)
@@ -59,6 +58,17 @@ export default function ExportPanel({
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [generatingThumbnail, setGeneratingThumbnail] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
+  const [showCardInfo, setShowCardInfo] = useState(false);
+
+  // Compute pinned card counts by type
+  const cardCounts = useMemo(() => {
+    const cards = timeline.pinned_cards || [];
+    const word = cards.filter(c => c.card_type === "word").length;
+    const entity = cards.filter(c => c.card_type === "entity").length;
+    const idiom = cards.filter(c => c.card_type === "idiom").length;
+    const insight = cards.filter(c => c.card_type === "insight").length;
+    return { word, entity, idiom, insight, total: cards.length };
+  }, [timeline.pinned_cards]);
 
   // Auto-save draft function
   const saveDraft = useCallback(async () => {
@@ -178,27 +188,26 @@ export default function ExportPanel({
 
   const handleExport = async () => {
     console.log("[ExportPanel] Starting export...", { profile: exportProfile, subtitleStyle });
-    setExporting(true);
-    try {
-      const request: ExportRequest = {
-        profile: exportProfile,
-        use_traditional_chinese: useTraditional,
-        subtitle_style: subtitleStyle,
-        upload_to_youtube: false, // Don't upload yet, user will preview first
-      };
+    const request: ExportRequest = {
+      profile: exportProfile,
+      use_traditional_chinese: useTraditional,
+      subtitle_style: subtitleStyle,
+      upload_to_youtube: false, // Don't upload yet, user will preview first
+    };
 
+    // Close panel immediately — progress will show in header
+    onExportStarted?.();
+    onClose();
+    toast.success("开始导出视频，进度显示在顶部...");
+
+    // Fire API call after panel closes
+    try {
       console.log("[ExportPanel] Export request:", request);
       await onExport(request);
       console.log("[ExportPanel] Export started");
-      toast.success("开始导出视频，进度显示在顶部...");
-
-      // Notify parent and close modal - progress shows in header
-      onExportStarted?.();
-      onClose();
     } catch (err) {
       console.error("[ExportPanel] Export failed:", err);
       toast.error("导出失败: " + (err instanceof Error ? err.message : "Unknown error"));
-      setExporting(false);
     }
   };
 
@@ -331,6 +340,79 @@ export default function ExportPanel({
             </label>
           </div>
         </div>
+
+        {/* Pinned cards indicator (only for full/both) */}
+        {(exportProfile === "full" || exportProfile === "both") && (
+          <div className="mb-4 relative">
+            <div className="flex items-center gap-2 px-3 py-2.5 bg-gray-700/50 rounded-lg">
+              <svg className="w-4 h-4 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+              <span className="text-sm">
+                {cardCounts.total > 0 ? (
+                  <>
+                    <span className="text-blue-300 font-medium">{cardCounts.total} 张卡片</span>
+                    <span className="text-gray-400"> 将嵌入视频</span>
+                  </>
+                ) : (
+                  <span className="text-gray-500">暂无 pin 卡片</span>
+                )}
+              </span>
+              {cardCounts.total > 0 && (
+                <button
+                  onClick={() => setShowCardInfo(!showCardInfo)}
+                  className="ml-auto text-gray-400 hover:text-gray-200 transition-colors"
+                  title="查看卡片详情"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </button>
+              )}
+            </div>
+            {/* Info popup */}
+            {showCardInfo && cardCounts.total > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1 z-10 p-3 bg-gray-900 border border-gray-600 rounded-lg shadow-xl text-sm">
+                <p className="text-gray-300 mb-2">
+                  完整视频导出时，Pin 的卡片会以浮层形式渲染到视频右侧，在对应时间段自动显示和隐藏。
+                </p>
+                <div className="space-y-1">
+                  {cardCounts.word > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-blue-400" />
+                      <span className="text-gray-400">单词卡片</span>
+                      <span className="ml-auto text-blue-300">{cardCounts.word}</span>
+                    </div>
+                  )}
+                  {cardCounts.entity > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-cyan-400" />
+                      <span className="text-gray-400">实体卡片</span>
+                      <span className="ml-auto text-cyan-300">{cardCounts.entity}</span>
+                    </div>
+                  )}
+                  {cardCounts.idiom > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-amber-400" />
+                      <span className="text-gray-400">俚语卡片</span>
+                      <span className="ml-auto text-amber-300">{cardCounts.idiom}</span>
+                    </div>
+                  )}
+                  {cardCounts.insight > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-purple-400" />
+                      <span className="text-gray-400">洞察卡片</span>
+                      <span className="ml-auto text-purple-300">{cardCounts.insight}</span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  精华片段模式不包含卡片。如需调整，请返回审阅页面管理 Pin。
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Target Language dropdown */}
         <div className="mb-4">
@@ -770,25 +852,12 @@ export default function ExportPanel({
           </button>
           <button
             onClick={handleExport}
-            disabled={exporting}
-            className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 rounded flex items-center justify-center gap-2"
+            className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 rounded flex items-center justify-center gap-2"
           >
-            {exporting ? (
-              <>
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                正在开始...
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
-                开始导出
-              </>
-            )}
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            开始导出
           </button>
         </div>
         <p className="text-xs text-gray-500 text-center mt-2">

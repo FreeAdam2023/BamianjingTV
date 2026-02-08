@@ -581,6 +581,7 @@ export default function CardSidePanel({
 }: CardSidePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [pinLoading, setPinLoading] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
 
   // Determine if pinning is available
   const canPin = !!(sourceTimelineId && sourceSegmentId !== undefined && sourceTimecode !== undefined);
@@ -606,11 +607,11 @@ export default function CardSidePanel({
     if (!cardId || !cardType) return { isPinned: false, pinId: null };
 
     const pinned = pinnedCards.find(
-      (p) => p.card_type === cardType && p.card_id === cardId
+      (p) => p.card_type === cardType && p.card_id === cardId && p.segment_id === sourceSegmentId
     );
 
     return { isPinned: !!pinned, pinId: pinned?.id || null };
-  }, [state, pinnedCards]);
+  }, [state, pinnedCards, sourceSegmentId]);
 
   const { isPinned, pinId } = getCurrentPinInfo();
 
@@ -631,12 +632,26 @@ export default function CardSidePanel({
   // Note: Pin status is now checked locally via pinnedCards prop instead of API call
   // This avoids unnecessary network requests when opening cards
 
+  // Max pinned cards per segment
+  const MAX_PINS_PER_SEGMENT = 2;
+
   // Handle pin/unpin toggle
   const handleTogglePin = useCallback(async () => {
     if (!canPin || pinLoading) return;
+    setPinError(null);
 
     const cardInfo = getCardInfo();
     if (!cardInfo) return;
+
+    // Pre-check: max 2 cards per segment (only when pinning, not unpinning)
+    if (!isPinned) {
+      const segmentPinCount = pinnedCards.filter((p) => p.segment_id === sourceSegmentId).length;
+      if (segmentPinCount >= MAX_PINS_PER_SEGMENT) {
+        setPinError(`每条台词最多钉住 ${MAX_PINS_PER_SEGMENT} 张卡片`);
+        setTimeout(() => setPinError(null), 3000);
+        return;
+      }
+    }
 
     setPinLoading(true);
     try {
@@ -655,12 +670,19 @@ export default function CardSidePanel({
         });
         onPinChange?.(pinned);
       }
-    } catch (err) {
-      console.error("Failed to toggle pin:", err);
+    } catch (err: unknown) {
+      // Handle 409 from backend (segment limit exceeded)
+      const apiErr = err as { response?: { status?: number; data?: { detail?: string } } };
+      if (apiErr?.response?.status === 409) {
+        setPinError(apiErr.response.data?.detail || `每条台词最多钉住 ${MAX_PINS_PER_SEGMENT} 张卡片`);
+        setTimeout(() => setPinError(null), 3000);
+      } else {
+        console.error("Failed to toggle pin:", err);
+      }
     } finally {
       setPinLoading(false);
     }
-  }, [canPin, pinLoading, isPinned, pinId, sourceTimelineId, sourceSegmentId, sourceTimecode, getCardInfo, onPinChange]);
+  }, [canPin, pinLoading, isPinned, pinId, sourceTimelineId, sourceSegmentId, sourceTimecode, getCardInfo, onPinChange, pinnedCards]);
 
   // Close on escape key
   useEffect(() => {
@@ -745,6 +767,13 @@ export default function CardSidePanel({
           onRefresh={onRefresh}
           refreshing={refreshing}
         />
+      )}
+
+      {/* Pin error toast */}
+      {pinError && (
+        <div className="absolute bottom-3 left-3 right-3 bg-red-500/90 text-white text-xs px-3 py-2 rounded-lg shadow-lg text-center animate-in fade-in slide-in-from-bottom-2 duration-200">
+          {pinError}
+        </div>
       )}
     </div>
     );
@@ -835,6 +864,13 @@ export default function CardSidePanel({
           onRefresh={onRefresh}
           refreshing={refreshing}
         />
+      )}
+
+      {/* Pin error toast */}
+      {pinError && (
+        <div className="absolute bottom-3 left-3 right-3 bg-red-500/90 text-white text-xs px-3 py-2 rounded-lg shadow-lg text-center animate-in fade-in slide-in-from-bottom-2 duration-200">
+          {pinError}
+        </div>
       )}
     </div>
   );

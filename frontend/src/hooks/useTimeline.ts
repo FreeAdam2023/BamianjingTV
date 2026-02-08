@@ -73,6 +73,42 @@ export function useTimeline(timelineId: string) {
     [timeline, timelineId]
   );
 
+  // Toggle bookmark on a segment
+  const toggleBookmark = useCallback(
+    async (segmentId: number) => {
+      if (!timeline) return;
+
+      const segment = timeline.segments.find((s) => s.id === segmentId);
+      if (!segment) return;
+
+      const newBookmarked = !segment.bookmarked;
+
+      // Optimistic update
+      setTimeline((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          segments: prev.segments.map((seg) =>
+            seg.id === segmentId ? { ...seg, bookmarked: newBookmarked } : seg
+          ),
+        };
+      });
+
+      // Persist to backend
+      setSaving(true);
+      try {
+        await updateSegment(timelineId, segmentId, { bookmarked: newBookmarked });
+      } catch (err) {
+        // Revert on error
+        console.error("Failed to toggle bookmark:", err);
+        getTimeline(timelineId).then(setTimeline);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [timeline, timelineId]
+  );
+
   // Mark as reviewed
   const markReviewed = useCallback(async () => {
     if (!timeline) return;
@@ -195,6 +231,7 @@ export function useTimeline(timelineId: string) {
     setSegmentState,
     setSegmentText,
     setSegmentTrim,
+    toggleBookmark,
     markReviewed,
     startExport,
     refresh,

@@ -266,6 +266,9 @@ class ExportWorker:
         lines = [ASS_HEADER]
 
         for seg in segments:
+            # Skip dropped segments
+            if seg.state == SegmentState.DROP:
+                continue
             # Apply time offset
             start = _seconds_to_ass_time(seg.effective_start - time_offset)
             end = _seconds_to_ass_time(seg.effective_end - time_offset)
@@ -335,7 +338,7 @@ class ExportWorker:
         use_traditional: bool = True,
         time_offset: float = 0.0,
         video_height: int = 1080,
-        subtitle_area_ratio: float = 0.5,
+        subtitle_area_ratio: float = 0.3,
         subtitle_style=None,
         subtitle_style_mode: SubtitleStyleMode = SubtitleStyleMode.HALF_SCREEN,
         subtitle_language_mode: SubtitleLanguageMode = SubtitleLanguageMode.BOTH,
@@ -397,6 +400,9 @@ class ExportWorker:
         lines = [ass_header]
 
         for seg in segments:
+            # Skip dropped segments
+            if seg.state == SegmentState.DROP:
+                continue
             start = _seconds_to_ass_time(seg.effective_start - time_offset)
             end = _seconds_to_ass_time(seg.effective_end - time_offset)
 
@@ -455,7 +461,7 @@ class ExportWorker:
 
         # Get video dimensions
         orig_width, orig_height = self._get_video_dimensions(video_path)
-        subtitle_ratio = getattr(timeline, 'subtitle_area_ratio', 0.5)
+        subtitle_ratio = getattr(timeline, 'subtitle_area_ratio', 0.3)
 
         # Get subtitle style mode (default to HALF_SCREEN for backwards compatibility)
         subtitle_style_mode = getattr(timeline, 'subtitle_style_mode', SubtitleStyleMode.HALF_SCREEN)
@@ -467,20 +473,28 @@ class ExportWorker:
         if subtitle_language_mode is None:
             subtitle_language_mode = SubtitleLanguageMode.BOTH
 
-        # Filter segments to only include those within trim range
+        # Filter segments: exclude dropped, apply trim range
         if trim_start > 0 or trim_end is not None:
             effective_trim_end = trim_end if trim_end is not None else float('inf')
             trimmed_segments = [
                 seg for seg in timeline.segments
-                if seg.start >= trim_start and seg.end <= effective_trim_end
+                if seg.state != SegmentState.DROP
+                and seg.start >= trim_start and seg.end <= effective_trim_end
             ]
             time_offset = trim_start
         else:
-            trimmed_segments = timeline.segments
+            trimmed_segments = [
+                seg for seg in timeline.segments
+                if seg.state != SegmentState.DROP
+            ]
             time_offset = 0.0
 
-        # Render pinned cards
-        pinned_cards = getattr(timeline, 'pinned_cards', []) or []
+        # Render pinned cards (skip cards on dropped segments)
+        dropped_seg_ids = {seg.id for seg in timeline.segments if seg.state == SegmentState.DROP}
+        pinned_cards = [
+            c for c in (getattr(timeline, 'pinned_cards', []) or [])
+            if c.segment_id not in dropped_seg_ids
+        ]
         cards_dir = output_path.parent / "cards"
         rendered_cards = await self.render_pinned_cards(
             pinned_cards=pinned_cards,
@@ -727,7 +741,7 @@ class ExportWorker:
 
             # Get concatenated video dimensions for ASS header
             concat_width, concat_height = self._get_video_dimensions(concat_output)
-            subtitle_ratio = getattr(timeline, 'subtitle_area_ratio', 0.5)
+            subtitle_ratio = getattr(timeline, 'subtitle_area_ratio', 0.3)
 
             # Generate re-timed ASS subtitles for essence based on mode
             retimed_segments = self._retime_segments(keep_segments)
@@ -888,7 +902,7 @@ class ExportWorker:
         output_path: Path,
         use_traditional: bool = True,
         video_height: int = 1080,
-        subtitle_area_ratio: float = 0.5,
+        subtitle_area_ratio: float = 0.3,
         subtitle_style=None,
         subtitle_style_mode: SubtitleStyleMode = SubtitleStyleMode.HALF_SCREEN,
         subtitle_language_mode: SubtitleLanguageMode = SubtitleLanguageMode.BOTH,

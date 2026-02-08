@@ -16,8 +16,9 @@ interface SegmentListProps {
   onSplitSegment?: (segmentId: number, enIndex: number, zhIndex: number) => Promise<void>;
   // NER annotations for segments (optional)
   segmentAnnotations?: Map<number, SegmentAnnotations>;
-  // Force refresh entity recognition for a segment
-  onRefreshAnnotations?: (segmentId: number) => Promise<void>;
+  // Separate refresh for entities and idioms
+  onRefreshEntities?: (segmentId: number) => Promise<void>;
+  onRefreshIdioms?: (segmentId: number) => Promise<void>;
   // Card handlers (passed from parent to display cards in video area)
   onWordClick?: (word: string, options?: OpenWordCardOptions) => void | Promise<void>;
   onEntityClick?: (entityIdOrText: string, position?: { x: number; y: number }) => void | Promise<void>;
@@ -25,6 +26,12 @@ interface SegmentListProps {
   // Entity editing handlers
   onAddEntity?: (segmentId: number, segmentText: string) => void;
   onEditEntity?: (segmentId: number, segmentText: string, entity: EntityAnnotation) => void;
+  // Idiom editing handlers
+  onAddIdiom?: (segmentId: number, segmentText: string) => void;
+  onEditIdiom?: (segmentId: number, segmentText: string, idiom: IdiomAnnotation) => void;
+  // Bookmark handlers
+  onToggleBookmark?: (segmentId: number) => void;
+  bookmarkFilter?: boolean | null;  // null = show all, true = bookmarked only
 }
 
 export default function SegmentList({
@@ -35,12 +42,17 @@ export default function SegmentList({
   onTextChange,
   onSplitSegment,
   segmentAnnotations,
-  onRefreshAnnotations,
+  onRefreshEntities,
+  onRefreshIdioms,
   onWordClick,
   onEntityClick,
   onIdiomClick,
   onAddEntity,
   onEditEntity,
+  onAddIdiom,
+  onEditIdiom,
+  onToggleBookmark,
+  bookmarkFilter,
 }: SegmentListProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -48,7 +60,13 @@ export default function SegmentList({
   const [editZh, setEditZh] = useState("");
   const [saving, setSaving] = useState(false);
   const [splittingSegment, setSplittingSegment] = useState<EditableSegment | null>(null);
-  const [refreshingSegmentId, setRefreshingSegmentId] = useState<number | null>(null);
+  const [refreshingEntities, setRefreshingEntities] = useState<number | null>(null);
+  const [refreshingIdioms, setRefreshingIdioms] = useState<number | null>(null);
+
+  // Filter segments by bookmark status
+  const filteredSegments = bookmarkFilter === true
+    ? segments.filter((s) => s.bookmarked)
+    : segments;
 
   // Check if segment is long enough to split (at least 50 chars EN or 25 chars ZH)
   const canSplit = (segment: EditableSegment) => {
@@ -76,6 +94,11 @@ export default function SegmentList({
   const handleIdiomClick = useCallback((idiom: IdiomAnnotation, position: { x: number; y: number }) => {
     onIdiomClick?.(idiom.text, position);
   }, [onIdiomClick]);
+
+  // Handle idiom edit (right-click on badge)
+  const handleEditIdiom = useCallback((segmentId: number, segmentText: string, idiom: IdiomAnnotation) => {
+    onEditIdiom?.(segmentId, segmentText, idiom);
+  }, [onEditIdiom]);
 
   // Auto-scroll to current segment
   useEffect(() => {
@@ -141,7 +164,7 @@ export default function SegmentList({
   return (
     <>
     <div ref={listRef} className="h-full overflow-y-auto space-y-2 p-2">
-      {segments.map((segment) => (
+      {filteredSegments.map((segment) => (
         <div
           key={segment.id}
           data-segment-id={segment.id}
@@ -162,6 +185,31 @@ export default function SegmentList({
                 <span className="bg-gray-700 px-2 py-0.5 rounded">
                   {segment.speaker}
                 </span>
+              )}
+              {/* Bookmark button */}
+              {editingId !== segment.id && onToggleBookmark && (
+                <button
+                  className={`p-1 text-xs rounded transition ${
+                    segment.bookmarked
+                      ? "text-amber-400 bg-amber-500/20 hover:bg-amber-500/30"
+                      : "text-gray-400 bg-gray-700 hover:text-amber-400 hover:bg-amber-500/20"
+                  }`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleBookmark(segment.id);
+                  }}
+                  title={segment.bookmarked ? "取消书签" : "添加书签 (稍後再閱)"}
+                >
+                  {segment.bookmarked ? (
+                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                    </svg>
+                  )}
+                </button>
               )}
               {/* Edit button */}
               {editingId !== segment.id && onTextChange && (
@@ -189,34 +237,7 @@ export default function SegmentList({
                   拆分
                 </button>
               )}
-              {/* Refresh entity recognition button - only show on active segment */}
-              {editingId !== segment.id && segment.id === currentSegmentId && onRefreshAnnotations && (
-                <button
-                  className="p-1 text-xs bg-gray-700 text-cyan-300 rounded hover:bg-cyan-600 hover:text-white transition disabled:opacity-50"
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    setRefreshingSegmentId(segment.id);
-                    try {
-                      await onRefreshAnnotations(segment.id);
-                    } finally {
-                      setRefreshingSegmentId(null);
-                    }
-                  }}
-                  disabled={refreshingSegmentId === segment.id}
-                  title="刷新实体识别"
-                >
-                  {refreshingSegmentId === segment.id ? (
-                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                  ) : (
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                  )}
-                </button>
-              )}
+              {/* Refresh buttons moved to badge rows */}
             </div>
           </div>
 
@@ -289,55 +310,111 @@ export default function SegmentList({
               <div className="text-yellow-400 text-sm mb-2 group-hover:bg-gray-700/50 rounded px-1 -mx-1 transition">
                 {segment.zh}
               </div>
-              {/* Entity badges - show if annotations available */}
-              {segmentAnnotations?.get(segment.id)?.entities && (
+              {/* Entity row — label + badges + refresh + add */}
+              {(segmentAnnotations?.get(segment.id)?.entities || (segment.id === currentSegmentId && onAddEntity)) && (
                 <div className="flex items-center gap-1 mt-1">
-                  <EntityBadges
-                    entities={segmentAnnotations.get(segment.id)!.entities}
-                    onEntityClick={handleEntityClick}
-                    onEditEntity={onEditEntity ? (entity) => handleEditEntity(segment.id, segment.en, entity) : undefined}
-                    className="flex-1"
-                  />
+                  <span className="text-[10px] text-cyan-400/70 font-medium shrink-0">实体</span>
+                  {segmentAnnotations?.get(segment.id)?.entities ? (
+                    <EntityBadges
+                      entities={segmentAnnotations.get(segment.id)!.entities}
+                      onEntityClick={handleEntityClick}
+                      onEditEntity={onEditEntity ? (entity) => handleEditEntity(segment.id, segment.en, entity) : undefined}
+                      className="flex-1"
+                    />
+                  ) : (
+                    <div className="flex-1" />
+                  )}
+                  {segment.id === currentSegmentId && onRefreshEntities && (
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setRefreshingEntities(segment.id);
+                        try { await onRefreshEntities(segment.id); } finally { setRefreshingEntities(null); }
+                      }}
+                      disabled={refreshingEntities === segment.id}
+                      className="p-0.5 text-cyan-400/60 hover:text-cyan-300 hover:bg-cyan-500/20 rounded transition-colors disabled:opacity-50"
+                      title="刷新实体识别"
+                    >
+                      {refreshingEntities === segment.id ? (
+                        <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
                   {onAddEntity && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         onAddEntity(segment.id, segment.en);
                       }}
-                      className="p-1 text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/20 rounded transition-colors"
+                      className="p-0.5 text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/20 rounded transition-colors"
                       title="添加实体"
                     >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                       </svg>
                     </button>
                   )}
                 </div>
               )}
-              {/* Idiom badges - show if annotations available */}
-              {segmentAnnotations?.get(segment.id)?.idioms && (segmentAnnotations.get(segment.id)!.idioms?.length ?? 0) > 0 && (
-                <div className="mt-1">
-                  <IdiomBadges
-                    idioms={segmentAnnotations.get(segment.id)!.idioms!}
-                    onIdiomClick={handleIdiomClick}
-                  />
+              {/* Idiom row — label + badges + refresh + add */}
+              {((segmentAnnotations?.get(segment.id)?.idioms?.length ?? 0) > 0 || (segment.id === currentSegmentId && onAddIdiom)) && (
+                <div className="flex items-center gap-1 mt-1">
+                  <span className="text-[10px] text-amber-400/70 font-medium shrink-0">俚语</span>
+                  {(segmentAnnotations?.get(segment.id)?.idioms?.length ?? 0) > 0 ? (
+                    <IdiomBadges
+                      idioms={segmentAnnotations!.get(segment.id)!.idioms!}
+                      onIdiomClick={handleIdiomClick}
+                      onEditIdiom={onEditIdiom ? (idiom) => handleEditIdiom(segment.id, segment.en, idiom) : undefined}
+                      className="flex-1"
+                    />
+                  ) : (
+                    <div className="flex-1" />
+                  )}
+                  {segment.id === currentSegmentId && onRefreshIdioms && (
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setRefreshingIdioms(segment.id);
+                        try { await onRefreshIdioms(segment.id); } finally { setRefreshingIdioms(null); }
+                      }}
+                      disabled={refreshingIdioms === segment.id}
+                      className="p-0.5 text-amber-400/60 hover:text-amber-300 hover:bg-amber-500/20 rounded transition-colors disabled:opacity-50"
+                      title="刷新俚语识别"
+                    >
+                      {refreshingIdioms === segment.id ? (
+                        <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
+                  {onAddIdiom && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAddIdiom(segment.id, segment.en);
+                      }}
+                      className="p-0.5 text-gray-400 hover:text-amber-400 hover:bg-amber-500/20 rounded transition-colors"
+                      title="添加俚语"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
-              )}
-              {/* Show add button even when no entities exist */}
-              {!segmentAnnotations?.get(segment.id)?.entities && segment.id === currentSegmentId && onAddEntity && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAddEntity(segment.id, segment.en);
-                  }}
-                  className="mt-1 px-2 py-0.5 text-xs text-gray-400 hover:text-cyan-400 border border-dashed border-gray-600 hover:border-cyan-500 rounded-full transition-colors flex items-center gap-1"
-                  title="添加实体"
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  <span>添加实体</span>
-                </button>
               )}
             </div>
           )}

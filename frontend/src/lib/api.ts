@@ -945,6 +945,7 @@ export async function getSegmentAnnotations(
     segmentId?: number;
     forceRefresh?: boolean;
     extractionMethod?: string;
+    refreshTarget?: "all" | "entities" | "idioms";
   }
 ): Promise<SegmentAnnotations> {
   return fetchAPI<SegmentAnnotations>(`/cards/segments/annotations`, {
@@ -955,6 +956,7 @@ export async function getSegmentAnnotations(
       extraction_method: options?.extractionMethod ?? "llm",
       timeline_id: options?.timelineId,
       segment_id: options?.segmentId,
+      refresh_target: options?.refreshTarget ?? "all",
     }),
   });
 }
@@ -994,6 +996,8 @@ export interface ManualEntityRequest {
   entity_id?: string;
   start_char?: number;
   end_char?: number;
+  custom_name?: string;
+  custom_description?: string;
 }
 
 export interface ManualEntityResponse {
@@ -1024,6 +1028,45 @@ export async function deleteSegmentEntity(
 ): Promise<{ message: string }> {
   return fetchAPI<{ message: string }>(
     `/cards/timelines/${timelineId}/segments/${segmentId}/entities/${encodeURIComponent(entityText)}`,
+    { method: "DELETE" }
+  );
+}
+
+// ============ Manual Idiom Management ============
+
+export interface ManualIdiomRequest {
+  segment_id: number;
+  text: string;
+  category?: string;  // idiom | phrasal_verb | slang
+}
+
+export interface ManualIdiomResponse {
+  success: boolean;
+  idiom_text?: string;
+  message: string;
+}
+
+export async function addManualIdiom(
+  timelineId: string,
+  segmentId: number,
+  data: ManualIdiomRequest
+): Promise<ManualIdiomResponse> {
+  return fetchAPI<ManualIdiomResponse>(
+    `/cards/timelines/${timelineId}/segments/${segmentId}/idioms`,
+    {
+      method: "POST",
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+export async function deleteSegmentIdiom(
+  timelineId: string,
+  segmentId: number,
+  idiomText: string
+): Promise<{ message: string }> {
+  return fetchAPI<{ message: string }>(
+    `/cards/timelines/${timelineId}/segments/${segmentId}/idioms/${encodeURIComponent(idiomText)}`,
     { method: "DELETE" }
   );
 }
@@ -1473,10 +1516,12 @@ export async function unpinCard(
 export async function checkCardPinned(
   timelineId: string,
   cardType: PinnedCardType,
-  cardId: string
+  cardId: string,
+  segmentId?: number
 ): Promise<PinnedCardCheckResponse> {
+  const params = segmentId !== undefined ? `?segment_id=${segmentId}` : "";
   return fetchAPI<PinnedCardCheckResponse>(
-    `/timelines/${timelineId}/pinned-cards/check/${cardType}/${encodeURIComponent(cardId)}`
+    `/timelines/${timelineId}/pinned-cards/check/${cardType}/${encodeURIComponent(cardId)}${params}`
   );
 }
 

@@ -10,6 +10,7 @@ import type { IdiomAnnotation } from "@/lib/types";
 interface IdiomBadgesProps {
   idioms: IdiomAnnotation[];
   onIdiomClick: (idiom: IdiomAnnotation, position: { x: number; y: number }) => void;
+  onEditIdiom?: (idiom: IdiomAnnotation) => void;
   className?: string;
 }
 
@@ -36,6 +37,7 @@ function getIdiomCategoryLabel(category: string): string {
 export default function IdiomBadges({
   idioms,
   onIdiomClick,
+  onEditIdiom,
   className = "",
 }: IdiomBadgesProps) {
   if (!idioms || idioms.length === 0) {
@@ -61,12 +63,17 @@ export default function IdiomBadges({
         <button
           key={`${idiom.text}-${idx}`}
           onClick={(e) => handleClick(e, idiom)}
+          onContextMenu={onEditIdiom ? (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onEditIdiom(idiom);
+          } : undefined}
           className={`
             inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full
             border transition-colors cursor-pointer
             ${getIdiomCategoryColor(idiom.category)}
           `}
-          title={`${idiom.category}: ${idiom.text}`}
+          title={`${idiom.category}: ${idiom.text}${onEditIdiom ? " (右键编辑)" : ""}`}
         >
           <span className="opacity-60">{getIdiomCategoryLabel(idiom.category)}</span>
           <span className="max-w-[140px] truncate">{idiom.text}</span>

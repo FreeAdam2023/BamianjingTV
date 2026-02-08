@@ -592,6 +592,8 @@ class ManualEntityRequest(BaseModel):
     entity_id: Opt[str] = None  # Or directly provide Wikidata QID
     start_char: Opt[int] = None  # Position in segment text
     end_char: Opt[int] = None
+    custom_name: Opt[str] = None  # Custom entity name (no Wikipedia/Wikidata)
+    custom_description: Opt[str] = None  # Custom entity description
 
 
 class ManualEntityResponse(BaseModel):
@@ -707,15 +709,34 @@ async def add_manual_entity(
             )
 
     if not entity_id:
-        return ManualEntityResponse(
-            success=False,
-            message="Could not find Wikidata entity. Please provide a valid Wikipedia URL or QID."
-        )
+        if request.custom_name:
+            import hashlib
+            entity_id = f"CUSTOM_{hashlib.md5(request.text.encode()).hexdigest()[:8]}"
+            entity_name = request.custom_name
+            entity_type = EntityType.OTHER
 
-    # Fetch entity details to get name and type
-    entity_card = await generator.get_entity_card(entity_id, use_cache=True)
-    entity_name = entity_card.name if entity_card else request.text
-    entity_type = entity_card.entity_type if entity_card else EntityType.OTHER
+            # Create and cache a custom EntityCard
+            from app.models.card import EntityCard
+            from app.services.card_cache import CardCache
+            cache = CardCache()
+            custom_card = EntityCard(
+                entity_id=entity_id,
+                entity_type=entity_type,
+                name=request.custom_name,
+                description=request.custom_description or "",
+                source="custom",
+            )
+            cache.set_entity_card(custom_card)
+        else:
+            return ManualEntityResponse(
+                success=False,
+                message="Could not find Wikidata entity. Please provide a valid Wikipedia URL, QID, or custom name."
+            )
+    else:
+        # Fetch entity details to get name and type
+        entity_card = await generator.get_entity_card(entity_id, use_cache=True)
+        entity_name = entity_card.name if entity_card else request.text
+        entity_type = entity_card.entity_type if entity_card else EntityType.OTHER
 
     # Calculate position if not provided
     start_char = request.start_char
@@ -808,6 +829,143 @@ async def delete_segment_entity(
     return {"message": f"Deleted entity: {entity_text}"}
 
 
+class ManualIdiomRequest(BaseModel):
+    """Request body for manually adding an idiom."""
+    segment_id: int
+    text: str  # Idiom text (e.g. "break the ice")
+    category: str = "idiom"  # idiom | phrasal_verb | slang
+
+
+class ManualIdiomResponse(BaseModel):
+    """Response from manual idiom operation."""
+    success: bool
+    idiom_text: Opt[str] = None
+    message: str
+
+
+@router.post("/timelines/{timeline_id}/segments/{segment_id}/idioms", response_model=ManualIdiomResponse)
+async def add_manual_idiom(
+    timeline_id: str,
+    segment_id: int,
+    request: ManualIdiomRequest,
+):
+    """Manually add an idiom annotation for a segment.
+
+    Args:
+        timeline_id: Timeline ID.
+        segment_id: Segment ID to add idiom to.
+        request: Idiom details including text and category.
+    """
+    from app.models.card import SegmentAnnotations, IdiomAnnotation
+
+    manager = _get_timeline_manager()
+    timeline = manager.get_timeline(timeline_id)
+
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    # Find the segment
+    segment = next((s for s in timeline.segments if s.id == segment_id), None)
+    if not segment:
+        raise HTTPException(status_code=404, detail="Segment not found")
+
+    # Try to fetch idiom card from TomTrove and cache it
+    generator = _get_card_generator()
+    try:
+        card = await generator.get_idiom_card(request.text, use_cache=True)
+        if card:
+            cache = _get_card_cache()
+            cache.set_idiom_card(card)
+            logger.info(f"Cached idiom card for '{request.text}'")
+    except Exception as e:
+        logger.warning(f"Failed to fetch idiom card for '{request.text}': {e}")
+
+    # Calculate position in segment text
+    pos = segment.en.lower().find(request.text.lower())
+    start_char = pos if pos >= 0 else 0
+    end_char = pos + len(request.text) if pos >= 0 else len(request.text)
+
+    # Create new idiom annotation
+    new_idiom = IdiomAnnotation(
+        text=request.text,
+        start_char=start_char,
+        end_char=end_char,
+        confidence=1.0,
+        category=request.category,
+    )
+
+    # Get or create segment annotations
+    if segment_id not in timeline.segment_annotations:
+        timeline.segment_annotations[segment_id] = {
+            "segment_id": segment_id,
+            "words": [],
+            "entities": [],
+            "idioms": [],
+        }
+
+    # Ensure idioms list exists
+    if "idioms" not in timeline.segment_annotations[segment_id]:
+        timeline.segment_annotations[segment_id]["idioms"] = []
+
+    # Check if idiom already exists (by text), update if so
+    existing_idioms = timeline.segment_annotations[segment_id].get("idioms", [])
+    updated = False
+    for i, idiom in enumerate(existing_idioms):
+        if idiom.get("text", "").lower() == request.text.lower():
+            existing_idioms[i] = new_idiom.model_dump()
+            updated = True
+            break
+
+    if not updated:
+        existing_idioms.append(new_idiom.model_dump())
+
+    timeline.segment_annotations[segment_id]["idioms"] = existing_idioms
+    manager.save_timeline(timeline)
+
+    logger.info(f"{'Updated' if updated else 'Added'} manual idiom '{request.text}' to segment {segment_id}")
+
+    return ManualIdiomResponse(
+        success=True,
+        idiom_text=request.text,
+        message=f"{'Updated' if updated else 'Added'} idiom: {request.text}"
+    )
+
+
+@router.delete("/timelines/{timeline_id}/segments/{segment_id}/idioms/{idiom_text}")
+async def delete_segment_idiom(
+    timeline_id: str,
+    segment_id: int,
+    idiom_text: str,
+):
+    """Delete an idiom annotation from a segment.
+
+    Args:
+        timeline_id: Timeline ID.
+        segment_id: Segment ID.
+        idiom_text: Text of the idiom to delete.
+    """
+    manager = _get_timeline_manager()
+    timeline = manager.get_timeline(timeline_id)
+
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    if segment_id not in timeline.segment_annotations:
+        raise HTTPException(status_code=404, detail="Segment has no annotations")
+
+    idioms = timeline.segment_annotations[segment_id].get("idioms", [])
+    original_count = len(idioms)
+    idioms = [i for i in idioms if i.get("text") != idiom_text]
+
+    if len(idioms) == original_count:
+        raise HTTPException(status_code=404, detail="Idiom not found")
+
+    timeline.segment_annotations[segment_id]["idioms"] = idioms
+    manager.save_timeline(timeline)
+
+    return {"message": f"Deleted idiom: {idiom_text}"}
+
+
 class SegmentAnnotationRequest(BaseModel):
     """Request body for segment annotation."""
     text: str
@@ -816,6 +974,7 @@ class SegmentAnnotationRequest(BaseModel):
     # Optional: for caching in timeline
     timeline_id: Opt[str] = None
     segment_id: Opt[int] = None
+    refresh_target: str = "all"  # "all" | "entities" | "idioms"
 
 
 @router.post("/segments/annotations")
@@ -846,11 +1005,22 @@ async def get_segment_annotations(request: SegmentAnnotationRequest):
             cached = timeline.segment_annotations[request.segment_id]
             return SegmentAnnotations(**cached)
 
-    # Use TomTrove for entity AND idiom recognition in parallel
+    # Use TomTrove for entity AND idiom recognition (optionally in parallel)
     import asyncio
     from app.models.card import IdiomAnnotation
 
     generator = _get_card_generator()
+    refresh_target = request.refresh_target  # "all", "entities", or "idioms"
+
+    # If partial refresh, preserve existing data for the non-refreshed part
+    existing_entities = []
+    existing_idioms = []
+    if refresh_target != "all" and timeline and request.segment_id is not None:
+        cached = timeline.segment_annotations.get(request.segment_id, {})
+        if refresh_target == "entities":
+            existing_idioms = cached.get("idioms", [])
+        elif refresh_target == "idioms":
+            existing_entities = cached.get("entities", [])
 
     async def _recognize_entities() -> list:
         """Call TomTrove entity recognition."""
@@ -932,11 +1102,19 @@ async def get_segment_annotations(request: SegmentAnnotationRequest):
             logger.error(f"Failed to call TomTrove idiom recognition: {e}")
         return idioms
 
-    # Run entity and idiom recognition in parallel
-    entities, idioms = await asyncio.gather(
-        _recognize_entities(),
-        _recognize_idioms(),
-    )
+    # Run entity and/or idiom recognition based on refresh_target
+    if refresh_target == "entities":
+        entities = await _recognize_entities()
+        idioms = [IdiomAnnotation(**i) if isinstance(i, dict) else i for i in existing_idioms]
+    elif refresh_target == "idioms":
+        idioms = await _recognize_idioms()
+        entities = [EntityAnnotation(**e) if isinstance(e, dict) else e for e in existing_entities]
+    else:
+        # Run both in parallel
+        entities, idioms = await asyncio.gather(
+            _recognize_entities(),
+            _recognize_idioms(),
+        )
 
     # Create annotation with entities and idioms (skip vocabulary extraction)
     annotation = SegmentAnnotations(

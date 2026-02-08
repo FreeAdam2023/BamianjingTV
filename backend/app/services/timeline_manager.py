@@ -639,17 +639,24 @@ class TimelineManager:
         if not timeline:
             return None
 
-        # Check if already pinned
-        existing = timeline.is_card_pinned(create.card_type, create.card_id)
+        # Check if already pinned on the same segment
+        existing = timeline.is_card_pinned(create.card_type, create.card_id, create.segment_id)
         if existing:
             logger.info(
                 f"Card {create.card_type.value}:{create.card_id} already pinned "
-                f"to timeline {timeline_id}"
+                f"on segment {create.segment_id} in timeline {timeline_id}"
             )
             return existing
 
-        # Calculate display timing
-        display_start, display_end = timeline.calculate_card_timing(create.timestamp)
+        # Enforce max 2 cards per segment
+        same_seg_count = sum(1 for c in timeline.pinned_cards if c.segment_id == create.segment_id)
+        if same_seg_count >= 2:
+            raise ValueError(
+                f"每条台词最多钉住 2 张卡片（当前台词已有 {same_seg_count} 张）"
+            )
+
+        # Calculate display timing (segment-aware to prevent spillover)
+        display_start, display_end = timeline.calculate_card_timing(create.timestamp, create.segment_id)
 
         pinned_card = PinnedCard(
             card_type=create.card_type,
@@ -703,6 +710,7 @@ class TimelineManager:
         timeline_id: str,
         card_type: str,
         card_id: str,
+        segment_id: int | None = None,
     ) -> dict:
         """Check if a card is pinned to a timeline.
 
@@ -710,6 +718,7 @@ class TimelineManager:
             timeline_id: Timeline ID
             card_type: Card type (word or entity)
             card_id: Card ID (word or entity QID)
+            segment_id: Optional segment ID for per-segment check
 
         Returns:
             Dict with is_pinned and optional pin_id
@@ -723,7 +732,7 @@ class TimelineManager:
         except ValueError:
             return {"is_pinned": False}
 
-        existing = timeline.is_card_pinned(pinned_type, card_id)
+        existing = timeline.is_card_pinned(pinned_type, card_id, segment_id)
         if existing:
             return {"is_pinned": True, "pin_id": existing.id}
         return {"is_pinned": False}

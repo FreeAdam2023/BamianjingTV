@@ -10,6 +10,7 @@ import type { CardPopupState } from "@/hooks/useCardPopup";
 import { useVideoState } from "./useVideoState";
 import SubtitleOverlay from "./SubtitleOverlay";
 import VideoControls from "./VideoControls";
+import PinnedCardOverlay from "./PinnedCardOverlay";
 import { CardSidePanel } from "@/components/Cards";
 
 interface VideoPlayerProps {
@@ -99,6 +100,9 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
 }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Grace period: after an explicit segment click/seek, ignore timeupdate-driven
+  // segment changes briefly so short segments don't get overridden.
+  const segmentLockUntilRef = useRef<number>(0);
 
   const {
     isPlaying,
@@ -160,6 +164,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     pause: () => videoRef.current?.pause(),
     seekTo: (time: number) => {
       if (videoRef.current) {
+        // Lock segment selection briefly so timeupdate doesn't override
+        segmentLockUntilRef.current = Date.now() + 300;
         // Constrain seek to trimmed range
         const constrainedTime = Math.max(trimStart, Math.min(actualTrimEnd, time));
         videoRef.current.currentTime = constrainedTime;
@@ -207,10 +213,12 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
       setCurrentTime(time);
       onTimeUpdate?.(time);
 
-      // Update current segment
-      const segment = findSegmentAtTime(time);
-      if (segment && segment.id !== currentSegmentId) {
-        onSegmentChange?.(segment.id);
+      // Update current segment (skip if within grace period from explicit click)
+      if (Date.now() > segmentLockUntilRef.current) {
+        const segment = findSegmentAtTime(time);
+        if (segment && segment.id !== currentSegmentId) {
+          onSegmentChange?.(segment.id);
+        }
       }
 
       // Handle trim end boundary
@@ -308,6 +316,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
 
   const seekTo = useCallback((time: number) => {
     if (videoRef.current) {
+      // Lock segment selection briefly so timeupdate doesn't override
+      segmentLockUntilRef.current = Date.now() + 300;
       // Constrain seek to trimmed range
       const constrainedTime = Math.max(trimStart, Math.min(actualTrimEnd, time));
       videoRef.current.currentTime = constrainedTime;
@@ -402,10 +412,11 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [toggle, toggleLoop, playSegment, currentSegmentId, seekTo, currentTime, duration, trimStart, actualTrimEnd]);
 
-  // Get current segment for subtitle display
-  const currentSegment = currentSegmentId !== null
+  // Get current segment for subtitle display (skip dropped segments)
+  const currentSegmentRaw = currentSegmentId !== null
     ? segments.find((s) => s.id === currentSegmentId)
     : findSegmentAtTime(currentTime);
+  const currentSegment = currentSegmentRaw?.state === "drop" ? null : currentSegmentRaw;
 
   // Video source URL (always source video, export preview in modal)
   const videoUrl = typeof window !== "undefined"
@@ -471,6 +482,14 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
               onStyleChange={handleStyleChange}
               onStyleReset={resetSubtitleStyle}
               overlayMode={true}
+            />
+          )}
+
+          {/* Pinned card live preview */}
+          {pinnedCards.length > 0 && (
+            <PinnedCardOverlay
+              pinnedCards={pinnedCards}
+              currentTime={currentTime}
             />
           )}
         </div>

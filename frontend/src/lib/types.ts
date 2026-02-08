@@ -43,6 +43,7 @@ export interface EditableSegment {
   zh: string;
   speaker: string | null;
   state: SegmentState;
+  bookmarked: boolean;
   trim_start: number;
   trim_end: number;
 }
@@ -58,7 +59,7 @@ export interface Timeline {
   is_reviewed: boolean;
   export_profile: ExportProfile;
   use_traditional_chinese: boolean;
-  subtitle_area_ratio: number;  // 0.3-0.7, default 0.5
+  subtitle_area_ratio: number;  // 0.3-0.7, default 0.3
   subtitle_style_mode: SubtitleStyleMode;  // half_screen, floating, none
   subtitle_language_mode: SubtitleLanguageMode;  // both, en, zh, none
   // Video-level trim (independent of subtitle segments)
@@ -112,6 +113,7 @@ export interface TimelineSummary {
 
 export interface SegmentUpdate {
   state?: SegmentState;
+  bookmarked?: boolean;
   trim_start?: number;
   trim_end?: number;
   en?: string;

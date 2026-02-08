@@ -99,6 +99,8 @@ export default function EntityEditModal({
   const [text, setText] = useState(entity?.text || "");
   const [wikipediaUrl, setWikipediaUrl] = useState("");
   const [entityId, setEntityId] = useState(entity?.entity_id || "");
+  const [customName, setCustomName] = useState("");
+  const [customDescription, setCustomDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +115,8 @@ export default function EntityEditModal({
       setText(entity?.text || "");
       setWikipediaUrl("");
       setEntityId(entity?.entity_id || "");
+      setCustomName("");
+      setCustomDescription("");
       setError(null);
       setDeleteConfirm(false);
       setResolving(false);
@@ -158,8 +162,8 @@ export default function EntityEditModal({
       return;
     }
 
-    if (!wikipediaUrl.trim() && !entityId.trim()) {
-      setError("请输入 Wikipedia 链接或 Wikidata QID");
+    if (!wikipediaUrl.trim() && !entityId.trim() && !customName.trim()) {
+      setError("请输入 Wikipedia 链接、Wikidata QID 或自定义名称");
       return;
     }
 
@@ -172,6 +176,8 @@ export default function EntityEditModal({
         text: text.trim(),
         wikipedia_url: wikipediaUrl.trim() || undefined,
         entity_id: entityId.trim() || undefined,
+        custom_name: customName.trim() || undefined,
+        custom_description: customDescription.trim() || undefined,
       });
 
       if (result.success) {
@@ -316,6 +322,44 @@ export default function EntityEditModal({
             <p className="mt-1 text-xs text-gray-500">
               直接输入 Wikidata ID（可在 wikidata.org 查找）
             </p>
+          </div>
+
+          {/* Or divider */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 border-t border-gray-600" />
+            <span className="text-xs text-gray-500">或</span>
+            <div className="flex-1 border-t border-gray-600" />
+          </div>
+
+          {/* Custom entity name */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">
+              自定义名称
+            </label>
+            <input
+              type="text"
+              value={customName}
+              onChange={(e) => setCustomName(e.target.value)}
+              placeholder="例如: Casino Journal"
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Wikipedia/Wikidata 中不存在的实体可手动输入
+            </p>
+          </div>
+
+          {/* Custom entity description */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">
+              自定义描述
+            </label>
+            <textarea
+              value={customDescription}
+              onChange={(e) => setCustomDescription(e.target.value)}
+              placeholder="简要描述该实体..."
+              rows={2}
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none resize-none"
+            />
           </div>
 
           {/* Error message */}

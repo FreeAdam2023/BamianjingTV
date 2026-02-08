@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useRef, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTimelineContext } from "./TimelineContext";
+
+const LABEL_WIDTH = 96; // Track label width in pixels
 
 interface PlayheadProps {
   height: number;
@@ -12,8 +14,10 @@ export default function Playhead({ height, containerRef }: PlayheadProps) {
   const { playheadTime, scrollX, duration, zoom, setPlayheadTime, timeToPixels } = useTimelineContext();
   const [isDragging, setIsDragging] = useState(false);
 
-  // Calculate playhead position
-  const position = timeToPixels(playheadTime) - scrollX;
+  // Absolute position in the content div (aligned with track content after label)
+  const absolutePosition = LABEL_WIDTH + timeToPixels(playheadTime);
+  // Visual position relative to scroll container viewport (for visibility check)
+  const visualPosition = absolutePosition - scrollX;
 
   // Handle drag start
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -31,7 +35,8 @@ export default function Playhead({ height, containerRef }: PlayheadProps) {
 
       const rect = containerRef.current.getBoundingClientRect();
       const x = e.clientX - rect.left;
-      const time = (x + scrollX) / zoom;
+      // Convert viewport-relative position to time, accounting for scroll and label width
+      const time = (x + scrollX - LABEL_WIDTH) / zoom;
       setPlayheadTime(Math.max(0, Math.min(duration, time)));
     };
 
@@ -48,8 +53,8 @@ export default function Playhead({ height, containerRef }: PlayheadProps) {
     };
   }, [isDragging, containerRef, scrollX, zoom, duration, setPlayheadTime]);
 
-  // Don't render if playhead is outside visible area
-  if (position < -10 || position > 2000) {
+  // Don't render if playhead is far outside the visible area
+  if (visualPosition < -20 || visualPosition > 5000) {
     return null;
   }
 
@@ -57,7 +62,7 @@ export default function Playhead({ height, containerRef }: PlayheadProps) {
     <div
       className="absolute top-0 pointer-events-none z-20"
       style={{
-        left: position,
+        left: absolutePosition,
         height: height,
         transform: "translateX(-1px)",
       }}

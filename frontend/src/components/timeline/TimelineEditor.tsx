@@ -120,6 +120,8 @@ function TimelineEditorInner({
   // Calculate timeline total width
   const timelineWidth = Math.max(containerWidth, timeToPixels(duration) + 100);
 
+  const LABEL_WIDTH = 96; // Track label width in pixels
+
   // Log timeline dimensions for debugging
   useEffect(() => {
     console.log("[TimelineEditor] Dimensions:", {
@@ -130,6 +132,28 @@ function TimelineEditorInner({
       pixelsFromDuration: timeToPixels(duration),
     });
   }, [containerWidth, duration, zoom, timelineWidth, timeToPixels]);
+
+  // Auto-scroll to keep playhead visible during playback
+  useEffect(() => {
+    if (!scrollContainerRef.current) return;
+
+    const container = scrollContainerRef.current;
+    const playheadPx = LABEL_WIDTH + timeToPixels(playheadTime);
+    const viewportLeft = container.scrollLeft;
+    const viewportWidth = container.clientWidth;
+    const viewportRight = viewportLeft + viewportWidth;
+
+    const rightMargin = viewportWidth * 0.15; // 15% buffer from right edge
+    const leftMargin = LABEL_WIDTH + 20;
+
+    if (playheadPx > viewportRight - rightMargin) {
+      // Playhead near right edge — scroll to put playhead at ~30% from left
+      container.scrollLeft = Math.max(0, playheadPx - viewportWidth * 0.3);
+    } else if (playheadPx < viewportLeft + leftMargin && viewportLeft > 0) {
+      // Playhead past left edge — scroll to put playhead at ~30% from left
+      container.scrollLeft = Math.max(0, playheadPx - viewportWidth * 0.3);
+    }
+  }, [playheadTime, timeToPixels]);
 
   // Format playhead time for display
   const formatPlayheadTime = (time: number): string => {

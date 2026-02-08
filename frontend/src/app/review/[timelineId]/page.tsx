@@ -33,9 +33,9 @@ import StyleSelector from "./StyleSelector";
 import CreativeConfigPanel from "./CreativeConfigPanel";
 import CreativeAIChat from "./CreativeAIChat";
 import RemotionExportPanel from "./RemotionExportPanel";
-import type { Observation, EntityAnnotation } from "@/lib/types";
+import type { Observation, EntityAnnotation, IdiomAnnotation } from "@/lib/types";
 import type { RemotionConfig } from "@/lib/creative-types";
-import { EntityEditModal } from "@/components/Cards";
+import { EntityEditModal, IdiomEditModal } from "@/components/Cards";
 
 // Lazy load RemotionPreview to avoid SSR issues with Remotion
 const RemotionPreview = lazy(() => import("./RemotionPreview"));
@@ -56,6 +56,7 @@ export default function ReviewPage() {
     setSegmentState,
     setSegmentText,
     setSegmentTrim,
+    toggleBookmark,
     markReviewed,
     startExport,
     refresh,
@@ -66,6 +67,7 @@ export default function ReviewPage() {
   const [regenerateProgress, setRegenerateProgress] = useState<{ current: number; total: number } | null>(null);
 
   const [currentSegmentId, setCurrentSegmentId] = useState<number | null>(null);
+  const [bookmarkFilter, setBookmarkFilter] = useState<boolean | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
   const [showExportPanel, setShowExportPanel] = useState(false);
@@ -90,6 +92,14 @@ export default function ReviewPage() {
     segmentId: number;
     segmentText: string;
     entity: EntityAnnotation | null;
+  } | null>(null);
+
+  // Idiom editing modal state
+  const [idiomEditModal, setIdiomEditModal] = useState<{
+    isOpen: boolean;
+    segmentId: number;
+    segmentText: string;
+    idiom: IdiomAnnotation | null;
   } | null>(null);
 
   // Card popup state (shared between video and segment list)
@@ -274,8 +284,8 @@ export default function ReviewPage() {
     }
   }, [timeline, segmentAnnotations]);
 
-  // Handle force refresh entity recognition for a segment
-  const handleRefreshAnnotations = useCallback(async (segmentId: number) => {
+  // Handle refresh entity recognition for a segment (entities only)
+  const handleRefreshEntities = useCallback(async (segmentId: number) => {
     if (!timeline) return;
     const segment = timeline.segments.find((s) => s.id === segmentId);
     if (!segment) return;
@@ -285,6 +295,7 @@ export default function ReviewPage() {
         timelineId: timeline.timeline_id,
         segmentId: segmentId,
         forceRefresh: true,
+        refreshTarget: "entities",
       });
       setSegmentAnnotations((prev) => {
         const newMap = new Map(prev || []);
@@ -294,6 +305,31 @@ export default function ReviewPage() {
       toast.success("实体识别已刷新");
     } catch (err) {
       console.error("Failed to refresh segment entities:", err);
+      toast.error("刷新失败");
+    }
+  }, [timeline, toast]);
+
+  // Handle refresh idiom recognition for a segment (idioms only)
+  const handleRefreshIdioms = useCallback(async (segmentId: number) => {
+    if (!timeline) return;
+    const segment = timeline.segments.find((s) => s.id === segmentId);
+    if (!segment) return;
+
+    try {
+      const annotation = await getSegmentAnnotations(segment.en, {
+        timelineId: timeline.timeline_id,
+        segmentId: segmentId,
+        forceRefresh: true,
+        refreshTarget: "idioms",
+      });
+      setSegmentAnnotations((prev) => {
+        const newMap = new Map(prev || []);
+        newMap.set(segmentId, annotation);
+        return newMap;
+      });
+      toast.success("俚语识别已刷新");
+    } catch (err) {
+      console.error("Failed to refresh segment idioms:", err);
       toast.error("刷新失败");
     }
   }, [timeline, toast]);
@@ -336,6 +372,46 @@ export default function ReviewPage() {
       entity,
     });
   }, [currentSegmentId, timeline, segmentAnnotations]);
+
+  // Handle add idiom (open modal for adding new idiom)
+  const handleAddIdiom = useCallback((segmentId: number, segmentText: string) => {
+    setIdiomEditModal({
+      isOpen: true,
+      segmentId,
+      segmentText,
+      idiom: null,
+    });
+  }, []);
+
+  // Handle edit idiom (open modal for editing existing idiom)
+  const handleEditIdiom = useCallback((segmentId: number, segmentText: string, idiom: IdiomAnnotation) => {
+    setIdiomEditModal({
+      isOpen: true,
+      segmentId,
+      segmentText,
+      idiom,
+    });
+  }, []);
+
+  // Handle idiom edit success
+  const handleIdiomEditSuccess = useCallback(async () => {
+    if (idiomEditModal && timeline) {
+      const segment = timeline.segments.find((s) => s.id === idiomEditModal.segmentId);
+      if (segment) {
+        const annotation = await getSegmentAnnotations(segment.en, {
+          timelineId: timeline.timeline_id,
+          segmentId: idiomEditModal.segmentId,
+          forceRefresh: false,
+        });
+        setSegmentAnnotations((prev) => {
+          const newMap = new Map(prev || []);
+          newMap.set(idiomEditModal.segmentId, annotation);
+          return newMap;
+        });
+      }
+    }
+    toast.success("俚语已更新");
+  }, [idiomEditModal, timeline, toast]);
 
   // Handle entity edit success
   const handleEntityEditSuccess = useCallback(async (newEntityId?: string) => {
@@ -755,6 +831,28 @@ export default function ReviewPage() {
             </button>
           </div>
 
+          {/* Bookmark filter */}
+          {(() => {
+            const bookmarkedCount = timeline.segments.filter((s) => s.bookmarked).length;
+            return bookmarkedCount > 0 ? (
+              <div className="flex items-center justify-between px-4 py-1.5 border-b border-gray-700">
+                <button
+                  onClick={() => setBookmarkFilter((prev) => (prev === true ? null : true))}
+                  className={`flex items-center gap-1.5 px-2 py-1 text-xs rounded transition ${
+                    bookmarkFilter === true
+                      ? "bg-amber-500/20 text-amber-400 border border-amber-500/50"
+                      : "bg-gray-700 text-gray-400 hover:text-amber-400 hover:bg-amber-500/10"
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5" fill={bookmarkFilter === true ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                  </svg>
+                  书签 {bookmarkedCount}
+                </button>
+              </div>
+            ) : null;
+          })()}
+
           {/* Segment list - scrollable */}
           <SegmentList
             segments={timeline.segments}
@@ -764,12 +862,17 @@ export default function ReviewPage() {
             onTextChange={setSegmentText}
             onSplitSegment={handleSplitSegment}
             segmentAnnotations={segmentAnnotations}
-            onRefreshAnnotations={handleRefreshAnnotations}
+            onRefreshEntities={handleRefreshEntities}
+            onRefreshIdioms={handleRefreshIdioms}
             onWordClick={openWordCard}
             onEntityClick={openEntityCard}
             onIdiomClick={openIdiomCard}
             onAddEntity={handleAddEntity}
             onEditEntity={handleEditEntity}
+            onAddIdiom={handleAddIdiom}
+            onEditIdiom={handleEditIdiom}
+            onToggleBookmark={toggleBookmark}
+            bookmarkFilter={bookmarkFilter}
           />
 
           {/* AI Chat Panel - at the bottom */}
@@ -851,6 +954,19 @@ export default function ReviewPage() {
           segmentText={entityEditModal.segmentText}
           entity={entityEditModal.entity}
           onSuccess={handleEntityEditSuccess}
+        />
+      )}
+
+      {/* Idiom Edit Modal */}
+      {idiomEditModal && (
+        <IdiomEditModal
+          isOpen={idiomEditModal.isOpen}
+          onClose={() => setIdiomEditModal(null)}
+          timelineId={timeline.timeline_id}
+          segmentId={idiomEditModal.segmentId}
+          segmentText={idiomEditModal.segmentText}
+          idiom={idiomEditModal.idiom}
+          onSuccess={handleIdiomEditSuccess}
         />
       )}
     </main>

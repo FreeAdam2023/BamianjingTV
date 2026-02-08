@@ -161,6 +161,7 @@ class EditableSegment(BaseModel):
     zh: str  # Chinese translation
     speaker: Optional[str] = None
     state: SegmentState = SegmentState.UNDECIDED
+    bookmarked: bool = False
     trim_start: float = 0.0  # Trim from segment start (seconds)
     trim_end: float = 0.0  # Trim from segment end (seconds)
 
@@ -184,6 +185,7 @@ class SegmentUpdate(BaseModel):
     """Request model for updating a segment."""
 
     state: Optional[SegmentState] = None
+    bookmarked: Optional[bool] = None
     trim_start: Optional[float] = None
     trim_end: Optional[float] = None
     en: Optional[str] = None
@@ -210,7 +212,7 @@ class Timeline(BaseModel):
     is_reviewed: bool = False
     export_profile: ExportProfile = ExportProfile.FULL
     use_traditional_chinese: bool = True  # Traditional vs Simplified
-    subtitle_area_ratio: float = 0.5  # Ratio of screen height for subtitle area (0.3-0.7)
+    subtitle_area_ratio: float = 0.3  # Ratio of screen height for subtitle area (0.3-0.7)
     subtitle_style_mode: SubtitleStyleMode = SubtitleStyleMode.HALF_SCREEN  # Subtitle rendering style
     subtitle_language_mode: SubtitleLanguageMode = SubtitleLanguageMode.BOTH  # Which languages to show
 
@@ -320,6 +322,8 @@ class Timeline(BaseModel):
 
         if update.state is not None:
             seg.state = update.state
+        if update.bookmarked is not None:
+            seg.bookmarked = update.bookmarked
         if update.trim_start is not None:
             seg.trim_start = update.trim_start
         if update.trim_end is not None:
@@ -391,11 +395,15 @@ class Timeline(BaseModel):
                 return card
         return None
 
-    def is_card_pinned(self, card_type: PinnedCardType, card_id: str) -> Optional[PinnedCard]:
-        """Check if a card is already pinned. Returns the pinned card if found."""
+    def is_card_pinned(self, card_type: PinnedCardType, card_id: str, segment_id: Optional[int] = None) -> Optional[PinnedCard]:
+        """Check if a card is already pinned. Returns the pinned card if found.
+
+        Deduplication is per-segment: the same card can be pinned on different segments.
+        """
         for card in self.pinned_cards:
             if card.card_type == card_type and card.card_id == card_id:
-                return card
+                if segment_id is None or card.segment_id == segment_id:
+                    return card
         return None
 
     def add_pinned_card(self, pinned_card: PinnedCard) -> PinnedCard:
@@ -413,25 +421,44 @@ class Timeline(BaseModel):
                 return True
         return False
 
-    def calculate_card_timing(self, timestamp: float) -> tuple[float, float]:
+    def calculate_card_timing(self, timestamp: float, segment_id: int) -> tuple[float, float]:
         """Calculate display start/end times for a new pinned card.
 
-        Logic:
-        - Default display duration is card_display_duration seconds
-        - Start from the pinned timestamp
-        - If overlapping with previous card, delay start to after previous ends
+        Each card is anchored to its segment. Multiple cards on the same
+        segment share the window evenly. Cards on different segments are
+        allowed to overlap in time — the display layer (frontend preview
+        or export renderer) picks which one to show (newest wins).
+
+        Window = segment.start → segment.end + card_display_duration,
+        so the last card still has enough time to be read.
+        Minimum per-card duration is 3 seconds.
         """
         duration = self.card_display_duration
-        display_start = timestamp
-        display_end = timestamp + duration
 
-        # Check for overlap with existing cards and adjust
-        for existing in sorted(self.pinned_cards, key=lambda c: c.display_start):
-            # If new card overlaps with existing
-            if display_start < existing.display_end and display_end > existing.display_start:
-                # Push new card to start after existing ends
-                display_start = existing.display_end
-                display_end = display_start + duration
+        # Find the owning segment's boundaries
+        segment = next((s for s in self.segments if s.id == segment_id), None)
+        seg_start = segment.start if segment else timestamp
+        seg_end = segment.end if segment else (timestamp + duration)
+
+        # Cards already pinned on this same segment
+        same_seg_cards = sorted(
+            [c for c in self.pinned_cards if c.segment_id == segment_id],
+            key=lambda c: c.display_start,
+        )
+        n_cards = len(same_seg_cards) + 1  # including the new one
+
+        # Total window: segment duration + one card_display_duration spillover
+        max_window = (seg_end - seg_start) + duration
+        per_card = max(3.0, max_window / n_cards)
+
+        # Re-slot existing same-segment cards to share evenly
+        for i, card in enumerate(same_seg_cards):
+            card.display_start = seg_start + i * per_card
+            card.display_end = card.display_start + per_card
+
+        # New card gets the last slot
+        display_start = seg_start + len(same_seg_cards) * per_card
+        display_end = display_start + per_card
 
         return display_start, display_end
 
