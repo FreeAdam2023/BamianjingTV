@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from fastapi.responses import FileResponse
 
@@ -762,11 +762,12 @@ async def get_pinned_cards(timeline_id: str):
 
 
 @router.post("/{timeline_id}/pinned-cards", response_model=PinnedCard)
-async def pin_card(timeline_id: str, create: PinnedCardCreate):
+async def pin_card(timeline_id: str, create: PinnedCardCreate, background_tasks: BackgroundTasks):
     """Pin a card to a timeline.
 
     The card will be displayed in the right side panel during video export.
     Display timing is automatically calculated to avoid overlaps.
+    Card images are pre-downloaded in the background for faster export.
     """
     manager = _get_manager()
 
@@ -781,6 +782,13 @@ async def pin_card(timeline_id: str, create: PinnedCardCreate):
 
     if not pinned:
         raise HTTPException(status_code=500, detail="Failed to pin card")
+
+    # Pre-cache card images in the background so they're ready for export
+    if pinned.card_data:
+        from app.workers.card_renderer import precache_card_images
+        background_tasks.add_task(
+            precache_card_images, pinned.card_data, pinned.card_type.value
+        )
 
     return pinned
 

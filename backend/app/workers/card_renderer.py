@@ -24,6 +24,11 @@ except ImportError:
 IMAGE_CACHE_DIR = Path("data/cards/images")
 
 
+_IMAGE_HEADERS = {
+    "User-Agent": "SceneMind/1.0 (educational video tool; +https://github.com/scenemind)",
+}
+
+
 def _download_image(url: str) -> Optional[Image.Image]:
     """Download an image from URL with caching.
 
@@ -49,7 +54,11 @@ def _download_image(url: str) -> Optional[Image.Image]:
     # Download image
     try:
         import httpx
-        with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+        with httpx.Client(
+            timeout=10.0,
+            follow_redirects=True,
+            headers=_IMAGE_HEADERS,
+        ) as client:
             response = client.get(url)
             response.raise_for_status()
             img = Image.open(io.BytesIO(response.content)).convert("RGBA")
@@ -62,6 +71,34 @@ def _download_image(url: str) -> Optional[Image.Image]:
     except Exception as e:
         logger.warning(f"Failed to download image {url}: {e}")
         return None
+
+
+def precache_card_images(card_data: Optional[dict], card_type: str) -> int:
+    """Pre-download and cache images from card data.
+
+    Called when a card is pinned so images are already local during export.
+    Returns the number of images successfully cached.
+    """
+    if not card_data:
+        return 0
+
+    urls: list[str] = []
+
+    if card_type == "entity":
+        if card_data.get("image_url"):
+            urls.append(card_data["image_url"])
+    elif card_type == "word":
+        urls.extend(card_data.get("images", [])[:3])
+    elif card_type == "insight":
+        # insight cards may have frame_data (base64) but no URL
+        pass
+    # idiom cards have no images
+
+    cached = 0
+    for url in urls:
+        if _download_image(url) is not None:
+            cached += 1
+    return cached
 
 
 class CardRenderer:
@@ -126,43 +163,72 @@ class CardRenderer:
         # Load fonts (with fallbacks)
         self._load_fonts()
 
+    @staticmethod
+    def _find_font(candidates: list[str], size: int):
+        """Try loading a font from a list of candidate paths."""
+        for path in candidates:
+            try:
+                return ImageFont.truetype(path, size)
+            except OSError:
+                continue
+        return None
+
     def _load_fonts(self) -> None:
-        """Load fonts with fallbacks."""
-        try:
-            # Primary fonts
-            self.font_title = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 28)
-            self.font_body = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 18)
-            self.font_small = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 14)
-            self.font_ipa = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 16)
+        """Load fonts with cross-platform fallbacks."""
+        # English font candidates (macOS → Linux → generic)
+        en_fonts = [
+            "/System/Library/Fonts/Helvetica.ttc",
+            "/System/Library/Fonts/HelveticaNeue.ttc",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        ]
+        # Chinese font candidates (macOS → Linux → generic)
+        zh_fonts = [
+            "/System/Library/Fonts/PingFang.ttc",
+            "/System/Library/Fonts/STHeiti Medium.ttc",
+            "/System/Library/Fonts/Hiragino Sans GB.ttc",
+            "/System/Library/Fonts/Supplemental/Songti.ttc",
+            "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+        ]
 
-            # Chinese fonts
-            self.font_zh_title = ImageFont.truetype("/System/Library/Fonts/PingFang.ttc", 24)
-            self.font_zh_body = ImageFont.truetype("/System/Library/Fonts/PingFang.ttc", 18)
-            self.font_zh_small = ImageFont.truetype("/System/Library/Fonts/PingFang.ttc", 14)
+        default = ImageFont.load_default()
 
-            # Larger fonts for full panel cards
-            self.font_panel_title = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 24)
-            self.font_panel_body = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 16)
-            self.font_panel_small = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 13)
-            self.font_panel_zh_title = ImageFont.truetype("/System/Library/Fonts/PingFang.ttc", 22)
-            self.font_panel_zh_body = ImageFont.truetype("/System/Library/Fonts/PingFang.ttc", 16)
-            self.font_panel_zh_small = ImageFont.truetype("/System/Library/Fonts/PingFang.ttc", 13)
-        except OSError:
-            logger.warning("Custom fonts not found, using default font")
-            default = ImageFont.load_default()
-            self.font_title = default
-            self.font_body = default
-            self.font_small = default
-            self.font_ipa = default
-            self.font_zh_title = default
-            self.font_zh_body = default
-            self.font_zh_small = default
-            self.font_panel_title = default
-            self.font_panel_body = default
-            self.font_panel_small = default
-            self.font_panel_zh_title = default
-            self.font_panel_zh_body = default
-            self.font_panel_zh_small = default
+        def _load(candidates, size):
+            return self._find_font(candidates, size) or default
+
+        # Primary fonts
+        self.font_title = _load(en_fonts, 28)
+        self.font_body = _load(en_fonts, 18)
+        self.font_small = _load(en_fonts, 14)
+        self.font_ipa = _load(en_fonts, 16)
+
+        # Chinese fonts (fall back to English font if no CJK font found)
+        zh_fallback = zh_fonts + en_fonts
+        self.font_zh_title = _load(zh_fallback, 24)
+        self.font_zh_body = _load(zh_fallback, 18)
+        self.font_zh_small = _load(zh_fallback, 14)
+
+        # Larger fonts for full panel cards
+        self.font_panel_title = _load(en_fonts, 24)
+        self.font_panel_body = _load(en_fonts, 16)
+        self.font_panel_small = _load(en_fonts, 13)
+        self.font_panel_zh_title = _load(zh_fallback, 22)
+        self.font_panel_zh_body = _load(zh_fallback, 16)
+        self.font_panel_zh_small = _load(zh_fallback, 13)
+
+        # Log what was found
+        en_found = self.font_title != default
+        zh_found = self.font_zh_title != default
+        if en_found and zh_found:
+            logger.info("Fonts loaded: EN=%s, ZH=%s",
+                        getattr(self.font_title, 'path', '?'),
+                        getattr(self.font_zh_title, 'path', '?'))
+        elif en_found:
+            logger.warning("Chinese fonts not found — CJK text may render poorly")
+        else:
+            logger.warning("No system fonts found, using Pillow default bitmap font")
 
     def _draw_rounded_rect(
         self,
