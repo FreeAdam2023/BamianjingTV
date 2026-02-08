@@ -419,28 +419,26 @@ export default function SegmentList({
             </div>
           )}
 
-          {/* State toggle button - hide when editing */}
+          {/* State toggle - hide when editing */}
           {editingId !== segment.id && (
             <div onClick={(e) => e.stopPropagation()}>
-              <button
-                className={`
-                  w-full py-1 px-3 text-xs rounded transition
-                  ${
-                    segment.state === "drop"
-                      ? "bg-red-500 text-white hover:bg-green-500"
-                      : "bg-green-500 text-white hover:bg-red-500"
-                  }
-                `}
-                onClick={() =>
-                  onStateChange(
-                    segment.id,
-                    segment.state === "drop" ? "keep" : "drop"
-                  )
-                }
-                title={segment.state === "drop" ? "K: 保留" : "D: 丢弃"}
-              >
-                {segment.state === "drop" ? "丢弃" : "保留"}
-              </button>
+              {segment.state === "drop" ? (
+                <button
+                  className="w-full py-1 px-3 text-xs rounded transition bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-green-500/20 hover:text-green-400 hover:border-green-500/30"
+                  onClick={() => onStateChange(segment.id, "keep")}
+                  title="K: 恢复"
+                >
+                  已丢弃 · 恢复
+                </button>
+              ) : (
+                <button
+                  className="w-full py-1 px-3 text-xs rounded transition text-gray-500 hover:bg-red-500/20 hover:text-red-400"
+                  onClick={() => onStateChange(segment.id, "drop")}
+                  title="D: 丢弃"
+                >
+                  丢弃
+                </button>
+              )}
             </div>
           )}
         </div>

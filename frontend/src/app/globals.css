@@ -183,17 +183,17 @@ video::-webkit-media-controls {
   }
 }
 
-/* Segment states */
+/* Segment states — keep & undecided are both "included" (default) */
 .segment-keep {
-  @apply border-l-4 border-green-500 bg-green-500/10;
+  @apply border-l-4 border-white/20;
 }
 
 .segment-drop {
-  @apply border-l-4 border-red-500 bg-red-500/10 opacity-50;
+  @apply border-l-4 border-red-500/50 bg-red-500/5 opacity-50;
 }
 
 .segment-undecided {
-  @apply border-l-4 border-gray-500 bg-gray-500/10;
+  @apply border-l-4 border-white/20;
 }
 
 .segment-active {

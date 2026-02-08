@@ -265,17 +265,17 @@ class ExportWorker:
             t_fade_out_start = end - fade_in_duration
             t_end = end
 
-            # Card position: right panel area, centered
-            # Cards are rendered at full panel size (right_width x video_area_height)
-            card_x = left_width
-            card_y = 0
+            # Card position: centered in right panel area
+            # Compact cards are smaller than the panel — center them
+            center_x = f"{left_width}+({right_width}-overlay_w)/2"
+            center_y = f"({video_area_height}-overlay_h)/2"
 
-            # X position expression: slide in from right (24px)
+            # X position expression: slide in from right (24px offset from center)
             x_expr = (
-                f"if(lt(t,{t_start}),{card_x + slide_distance},"
+                f"if(lt(t,{t_start}),{left_width}+{right_width},"
                 f"if(lt(t,{t_fade_in_end}),"
-                f"{card_x}+{slide_distance}*(1-(t-{t_start})/{fade_in_duration}),"
-                f"{card_x}))"
+                f"{center_x}+{slide_distance}*(1-(t-{t_start})/{fade_in_duration}),"
+                f"{center_x}))"
             )
 
             enable_expr = f"between(t,{t_start},{t_end})"
@@ -283,7 +283,7 @@ class ExportWorker:
             out_label = f"card{i}"
             filters.append(
                 f"[{prev_label}][{input_idx}:v]overlay="
-                f"x='{x_expr}':y={card_y}:"
+                f"x='{x_expr}':y='{center_y}':"
                 f"enable='{enable_expr}':"
                 f"format=auto"
                 f"[{out_label}]"
@@ -761,12 +761,10 @@ class ExportWorker:
             video_area_height = int(OUTPUT_HEIGHT * (1 - subtitle_ratio))
             panel_width = OUTPUT_WIDTH - int(OUTPUT_WIDTH * VIDEO_AREA_RATIO)
 
-            # Render full-detail panel cards
-            rendered_cards = await self.render_pinned_cards_full_panel(
+            # Render compact pinned cards (same style as frontend PinnedCardOverlay)
+            rendered_cards = await self.render_pinned_cards(
                 pinned_cards=pinned_cards,
                 output_dir=cards_dir,
-                panel_width=panel_width,
-                panel_height=video_area_height,
                 time_offset=time_offset,
             )
 
@@ -1061,13 +1059,11 @@ class ExportWorker:
                 ]
                 retimed_pinned = self._retime_pinned_cards(pinned_cards, keep_segments)
 
-                # Render full-detail panel cards with retimed timing
+                # Render compact pinned cards with retimed timing
                 cards_dir = output_path.parent / "cards"
-                rendered_cards = await self.render_pinned_cards_full_panel(
+                rendered_cards = await self.render_pinned_cards(
                     pinned_cards=retimed_pinned,
                     output_dir=cards_dir,
-                    panel_width=panel_width,
-                    panel_height=video_area_height,
                 )
 
                 # Generate ASS with output canvas height (1080)
