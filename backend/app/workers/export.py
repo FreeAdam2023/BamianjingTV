@@ -1495,6 +1495,9 @@ class ExportWorker:
             f"FFmpeg composition → {output_path}"
         )
 
+        # Use -progress pipe:1 for clean \n-delimited progress on stdout
+        cmd.extend(["-progress", "pipe:1"])
+
         # Run FFmpeg with progress parsing
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -1510,50 +1513,82 @@ class ExportWorker:
         render_start_time = time.monotonic()
         try:
             async def read_stderr():
+                """Read FFmpeg stderr (uses \\r for progress, \\n for errors)."""
                 assert proc.stderr is not None
-                async for raw in proc.stderr:
-                    line = raw.decode("utf-8", errors="replace").strip()
+                buf = b""
+                while True:
+                    chunk = await proc.stderr.read(8192)
+                    if not chunk:
+                        break
+                    buf += chunk
+                    # Split on both \r and \n to capture all output
+                    while True:
+                        r_idx = buf.find(b'\r')
+                        n_idx = buf.find(b'\n')
+                        if r_idx == -1 and n_idx == -1:
+                            break
+                        if r_idx == -1:
+                            idx = n_idx
+                        elif n_idx == -1:
+                            idx = r_idx
+                        else:
+                            idx = min(r_idx, n_idx)
+                        raw_line = buf[:idx]
+                        buf = buf[idx + 1:]
+                        line = raw_line.decode("utf-8", errors="replace").strip()
+                        if line:
+                            stderr_lines.append(line)
+                if buf:
+                    line = buf.decode("utf-8", errors="replace").strip()
                     if line:
                         stderr_lines.append(line)
-                        # Parse FFmpeg progress: "time=00:01:23.45"
-                        if "time=" in line and video_duration > 0:
-                            try:
-                                time_str = line.split("time=")[1].split()[0]
-                                parts = time_str.split(":")
-                                current_time = (
-                                    float(parts[0]) * 3600 +
-                                    float(parts[1]) * 60 +
-                                    float(parts[2])
-                                )
-                                pct = min(current_time / video_duration, 1.0)
-                                if progress_callback:
-                                    # Map FFmpeg progress to 25-90%
-                                    export_pct = 25 + pct * 65
-                                    elapsed = time.monotonic() - render_start_time
-                                    eta_str = ""
-                                    if pct > 0.05 and elapsed > 3:
-                                        remaining = elapsed / pct * (1 - pct)
-                                        if remaining > 60:
-                                            eta_str = f"{int(remaining // 60)}m{int(remaining % 60):02d}s"
-                                        else:
-                                            eta_str = f"{int(remaining)}s"
-                                    cb_msg = f"编码中 {int(pct * 100)}%"
-                                    if eta_str:
-                                        cb_msg += f" · 预计剩余 {eta_str}"
-                                    progress_callback(export_pct, cb_msg)
-                            except (IndexError, ValueError):
-                                pass
+
+            async def read_stdout_progress():
+                """Parse -progress pipe:1 output (key=value with \\n)."""
+                assert proc.stdout is not None
+                async for raw_line in proc.stdout:
+                    line = raw_line.decode("utf-8", errors="replace").strip()
+                    if not line:
+                        continue
+                    # Parse out_time=HH:MM:SS.ffffff
+                    if line.startswith("out_time=") and video_duration > 0:
+                        try:
+                            time_str = line.split("=", 1)[1]
+                            if time_str == "N/A":
+                                continue
+                            parts = time_str.split(":")
+                            current_time = (
+                                float(parts[0]) * 3600 +
+                                float(parts[1]) * 60 +
+                                float(parts[2])
+                            )
+                            pct = min(current_time / video_duration, 1.0)
+                            if progress_callback:
+                                # Map FFmpeg progress to 25-90%
+                                export_pct = 25 + pct * 65
+                                elapsed = time.monotonic() - render_start_time
+                                eta_str = ""
+                                if pct > 0.05 and elapsed > 3:
+                                    remaining = elapsed / pct * (1 - pct)
+                                    if remaining > 60:
+                                        eta_str = f"{int(remaining // 60)}m{int(remaining % 60):02d}s"
+                                    else:
+                                        eta_str = f"{int(remaining)}s"
+                                cb_msg = f"编码中 {int(pct * 100)}%"
+                                if eta_str:
+                                    cb_msg += f" · 预计剩余 {eta_str}"
+                                progress_callback(export_pct, cb_msg)
+                        except (IndexError, ValueError):
+                            pass
 
             stderr_task = asyncio.create_task(read_stderr())
-
-            # Read stdout (FFmpeg typically writes nothing to stdout)
-            assert proc.stdout is not None
-            await proc.stdout.read()
+            stdout_task = asyncio.create_task(read_stdout_progress())
 
             # Timeout: 10 min base + 6s per minute of video
             timeout_seconds = max(600, int(video_duration * 6))
             await asyncio.wait_for(proc.wait(), timeout=timeout_seconds)
             await stderr_task
+            await stdout_task
 
         except asyncio.TimeoutError:
             proc.kill()
