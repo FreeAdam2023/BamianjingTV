@@ -37,9 +37,6 @@ interface VideoPlayerProps {
   hasExportFull?: boolean;
   hasExportEssence?: boolean;
   onPreviewExport?: (type: "full" | "essence") => void;
-  // Subtitle area ratio (synced with backend)
-  subtitleAreaRatio?: number;
-  onSubtitleAreaRatioChange?: (ratio: number) => void;
   // Subtitle language mode (synced with backend)
   subtitleLanguageMode?: "both" | "en" | "zh" | "none";
   onSubtitleLanguageModeChange?: (mode: "both" | "en" | "zh" | "none") => void;
@@ -85,8 +82,6 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   hasExportFull = false,
   hasExportEssence = false,
   onPreviewExport,
-  subtitleAreaRatio,
-  onSubtitleAreaRatioChange,
   subtitleLanguageMode,
   onSubtitleLanguageModeChange,
   cardState,
@@ -119,9 +114,6 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     setIsMuted,
     toggleMute,
     subtitleHeightRatio,
-    setSubtitleHeightRatio,
-    isDragging,
-    setIsDragging,
     watermarkUrl,
     handleWatermarkUpload,
     removeWatermark,
@@ -129,13 +121,6 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     updateSubtitleStyle,
     resetSubtitleStyle,
   } = useVideoState();
-
-  // Sync subtitle ratio with prop (from backend)
-  useEffect(() => {
-    if (subtitleAreaRatio !== undefined) {
-      setSubtitleHeightRatio(subtitleAreaRatio);
-    }
-  }, [subtitleAreaRatio, setSubtitleHeightRatio]);
 
   // Sync subtitle language mode with prop (from backend)
   useEffect(() => {
@@ -301,40 +286,6 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     trimEnd,
   ]);
 
-  // Handle drag to resize subtitle area
-  useEffect(() => {
-    if (!isDragging) return;
-
-    let latestRatio = subtitleHeightRatio;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const totalHeight = rect.height;
-      const mouseY = e.clientY - rect.top;
-      const controlsHeight = 60;
-      const availableHeight = totalHeight - controlsHeight;
-      const videoHeight = mouseY;
-      const newSubtitleRatio = Math.max(0.2, Math.min(0.7, 1 - (videoHeight / availableHeight)));
-      latestRatio = newSubtitleRatio;
-      setSubtitleHeightRatio(newSubtitleRatio);
-    };
-
-    const handleMouseUp = () => {
-      setIsDragging(false);
-      // Save to backend when drag ends
-      onSubtitleAreaRatioChange?.(latestRatio);
-    };
-
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isDragging, subtitleHeightRatio, setSubtitleHeightRatio, setIsDragging, onSubtitleAreaRatioChange]);
-
   // Playback controls
   const play = useCallback(() => videoRef.current?.play(), []);
   const pause = useCallback(() => videoRef.current?.pause(), []);
@@ -479,17 +430,35 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
           minHeight: "200px",
         }}
       >
-        {/* Video area */}
-        <div className="w-[65%] relative">
+        {/* Video area with blurred background fill */}
+        <div className="w-[65%] relative overflow-hidden">
+          {/* Blurred background: covers area, zoomed in */}
+          <video
+            src={videoUrl}
+            key={`${videoUrl}-bg`}
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            style={{
+              objectFit: "cover",
+              filter: "blur(25px) brightness(0.6)",
+            }}
+            muted
+            playsInline
+            ref={(el) => {
+              // Sync background video time with main video
+              if (el && videoRef.current) {
+                el.currentTime = videoRef.current.currentTime;
+              }
+            }}
+          />
+          {/* Sharp foreground: fits area, centered */}
           <video
             ref={videoRef}
             src={videoUrl}
             key={videoUrl}
-            className="w-full h-full cursor-pointer"
+            className="relative w-full h-full cursor-pointer"
             style={{
-              backgroundColor: containerBgColor,
+              backgroundColor: "transparent",
               objectFit: "contain",
-              objectPosition: "left center",
             }}
             preload="auto"
             onClick={toggle}
@@ -511,7 +480,6 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
             <SubtitleOverlay
               segment={currentSegment || null}
               style={subtitleStyle}
-              subtitleHeightRatio={subtitleHeightRatio}
               onStyleChange={handleStyleChange}
               onStyleReset={resetSubtitleStyle}
               overlayMode={true}
@@ -589,22 +557,6 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         </div>
       </div>
 
-      {/* Drag handle to resize (only in split mode) */}
-      {!isOverlayMode && (
-        <div
-          className="h-1.5 bg-gray-600 hover:bg-blue-500 cursor-ns-resize flex-shrink-0 relative group"
-          onMouseDown={() => setIsDragging(true)}
-        >
-          <div className="absolute inset-x-0 -top-2 -bottom-2" />
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-1 bg-gray-400 rounded group-hover:bg-blue-400" />
-          {isDragging && (
-            <div className="absolute left-1/2 -translate-x-1/2 -top-8 px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded shadow-lg whitespace-nowrap z-10">
-              字幕: {Math.round(subtitleHeightRatio * 100)}%
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Split mode: subtitles below video (full width) */}
       {!isOverlayMode && (
         <div
@@ -614,7 +566,6 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
           <SubtitleOverlay
             segment={currentSegment || null}
             style={subtitleStyle}
-            subtitleHeightRatio={subtitleHeightRatio}
             onStyleChange={handleStyleChange}
             onStyleReset={resetSubtitleStyle}
             overlayMode={false}
