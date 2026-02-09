@@ -4,7 +4,7 @@
  */
 
 import React from "react";
-import { Composition } from "remotion";
+import { Composition, registerRoot } from "remotion";
 import { SubtitleComposition } from "./compositions/SubtitleComposition";
 import { LearningVideoComposition } from "./compositions/LearningVideoComposition";
 import type { SubtitleCompositionProps } from "./compositions/SubtitleComposition";
@@ -85,3 +85,5 @@ export const RemotionRoot: React.FC = () => {
     </>
   );
 };
+
+registerRoot(RemotionRoot);
