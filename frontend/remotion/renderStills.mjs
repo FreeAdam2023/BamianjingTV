@@ -158,10 +158,13 @@ async function main() {
   let bundleLocation;
   try {
     const { enableTailwind } = await import("@remotion/tailwind");
+    const tailwindConfigPath = path.join(__dirname, "../tailwind.config.ts");
     bundleLocation = await bundle({
       entryPoint: path.join(__dirname, "RenderEntry.tsx"),
       webpackOverride: (currentConfig) => {
-        const withTailwind = enableTailwind(currentConfig);
+        const withTailwind = enableTailwind(currentConfig, {
+          configLocation: tailwindConfigPath,
+        });
         return {
           ...withTailwind,
           resolve: {
