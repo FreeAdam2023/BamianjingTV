@@ -23,6 +23,7 @@ import { createRequire } from "module";
 import path from "path";
 import fs from "fs";
 import http from "http";
+import os from "os";
 import { fileURLToPath } from "url";
 
 const require = createRequire(import.meta.url);
@@ -37,7 +38,7 @@ function parseArgs() {
     output: null,
     codec: "h264",
     crf: 18,
-    concurrency: 2,
+    concurrency: Math.max(Math.floor(os.cpus().length / 2), 2),
     composition: "SubtitleComposition",
   };
 

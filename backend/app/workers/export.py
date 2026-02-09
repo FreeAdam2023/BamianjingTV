@@ -1,5 +1,6 @@
 """Export worker for video rendering with bilingual subtitles."""
 
+import asyncio
 import hashlib
 import json
 import math
@@ -913,7 +914,7 @@ class ExportWorker:
                 )
             logger.info("pnpm install completed")
 
-        # Run Remotion render
+        # Run Remotion render (async subprocess with streaming progress)
         cmd = [
             "node", str(render_script),
             "--input", str(props_file),
@@ -927,28 +928,61 @@ class ExportWorker:
             f"{duration_in_frames} frames @ {fps}fps"
         )
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
+        # Timeout: ~0.5s per frame at moderate concurrency, minimum 10 min
+        timeout_seconds = max(600, int(duration_in_frames * 0.5))
+        logger.info(f"Remotion timeout set to {timeout_seconds}s ({timeout_seconds // 60} min)")
+
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
             cwd=str(frontend_dir),
-            timeout=600,  # 10 minute timeout
         )
 
-        if result.returncode != 0:
-            # Log stdout for any progress messages
-            if result.stdout:
-                logger.debug(f"Remotion stdout: {result.stdout[-500:]}")
-            raise RuntimeError(f"Remotion render failed: {result.stderr[-1000:]}")
+        # Stream stdout line-by-line for real-time progress
+        last_progress = 0
+        stderr_lines: list[str] = []
+        try:
+            async def read_stderr():
+                assert proc.stderr is not None
+                async for raw in proc.stderr:
+                    line = raw.decode("utf-8", errors="replace").strip()
+                    if line:
+                        stderr_lines.append(line)
 
-        # Parse completion from stdout
-        for line in result.stdout.strip().split("\n"):
-            try:
-                msg = json.loads(line)
-                if msg.get("type") == "complete":
-                    logger.info(f"Remotion render complete: {msg.get('outputPath')}")
-            except (json.JSONDecodeError, TypeError):
-                pass
+            stderr_task = asyncio.create_task(read_stderr())
+
+            assert proc.stdout is not None
+            async for raw_line in proc.stdout:
+                line = raw_line.decode("utf-8", errors="replace").strip()
+                if not line:
+                    continue
+                try:
+                    msg = json.loads(line)
+                    if msg.get("type") == "progress":
+                        progress = msg.get("progress", 0)
+                        if progress > last_progress:
+                            last_progress = progress
+                            logger.info(f"Remotion render progress: {progress}% — {msg.get('status', '')}")
+                    elif msg.get("type") == "complete":
+                        logger.info(f"Remotion render complete: {msg.get('outputPath')}")
+                except (json.JSONDecodeError, TypeError):
+                    logger.debug(f"Remotion stdout: {line[:200]}")
+
+            await asyncio.wait_for(proc.wait(), timeout=timeout_seconds)
+            await stderr_task
+
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            raise RuntimeError(
+                f"Remotion render timed out after {timeout_seconds}s "
+                f"({duration_in_frames} frames). Last progress: {last_progress}%"
+            )
+
+        if proc.returncode != 0:
+            stderr_text = "\n".join(stderr_lines[-20:])
+            raise RuntimeError(f"Remotion render failed (exit {proc.returncode}): {stderr_text[-1000:]}")
 
         logger.info(f"Remotion WYSIWYG video exported: {output_path}")
         return output_path
