@@ -708,6 +708,8 @@ class ExportWorker:
 
         Remotion's browser can load file:// URLs during server-side render.
         Images must already be pre-cached via batch_precache_images().
+        URLs without a local cache (e.g. expired Pixabay links) are removed
+        so the card renders gracefully without the image.
         """
         from app.workers.card_renderer import IMAGE_CACHE_DIR
 
@@ -718,6 +720,9 @@ class ExportWorker:
             local_path = IMAGE_CACHE_DIR / f"{url_hash}.png"
             if local_path.exists():
                 data["image_url"] = local_path.resolve().as_uri()
+            else:
+                logger.warning(f"Image not cached, removing expired URL: {url[:80]}...")
+                data["image_url"] = None
         elif card_type == "word" and data.get("images"):
             new_images = []
             for url in data["images"]:
@@ -726,7 +731,7 @@ class ExportWorker:
                 if local_path.exists():
                     new_images.append(local_path.resolve().as_uri())
                 else:
-                    new_images.append(url)
+                    logger.warning(f"Image not cached, skipping expired URL: {url[:80]}...")
             data["images"] = new_images
         return data
 
