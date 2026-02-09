@@ -4,8 +4,8 @@
  * Layout (1920x1080):
  * +---- Left 65% (1248px) ------+--- Right 35% (672px) --+
  * |  <OffthreadVideo>            |  Actual React card      |
- * |  source video, centered      |  components from        |
- * |  bg: #1a2744                 |  CardSidePanel.tsx      |
+ * |  blurred bg fill + sharp     |  components from        |
+ * |  video centered, any ratio   |  CardSidePanel.tsx      |
  * |  Height: 756px               |  Height: 756px          |
  * +------------------------------+-------------------------+
  * | Subtitle Area (1920px full width, bg: #1a2744)         |
@@ -26,7 +26,7 @@ import {
 } from "remotion";
 import { SidePanelWordCard, SidePanelEntityCard, SidePanelIdiomCard } from "../../src/components/Cards/CardSidePanel";
 import type { WordCard, EntityCard, IdiomCard } from "../../src/lib/types";
-import type { LearningVideoProps, PinnedCardInput, SubtitleInput } from "../types";
+import type { LearningVideoProps, PinnedCardInput, SubtitleInput, SubtitleStillProps } from "../types";
 import { secondsToFrames } from "../types";
 import "../style.css";
 
@@ -145,6 +145,111 @@ export const CardStillComposition: React.FC<{ card: PinnedCardInput }> = ({ card
   );
 };
 
+// ---- SubtitleStillComposition: static subtitle for renderStill (WYSIWYG match) ----
+
+// Replicates SubtitleOverlay.tsx split-mode styling exactly:
+// - SUBTITLE_HEIGHT_RATIO = 0.3, fontScale = 0.3 / 0.5 = 0.6
+// - Adaptive text-length scaling (sqrt-based)
+// - leading-relaxed (line-height: 1.625)
+// - fontWeight: 500
+// - textShadow for readability
+// - Solid bgColor container, flexbox centering
+
+const SUB_MIN_EN_FONT_SIZE = 18;
+const SUB_MIN_ZH_FONT_SIZE = 20;
+const SUB_EN_CHARS_PER_LINE = 60;
+const SUB_ZH_CHARS_PER_LINE = 30;
+const SUB_MAX_LINES = 4;
+const SUB_FONT_SCALE = 0.3 / 0.5; // 0.6 — matches split-mode fontScale
+
+function computeAdaptiveFontSize(
+  baseSize: number,
+  minSize: number,
+  textLength: number,
+  charsPerLine: number,
+): number {
+  let size = Math.max(minSize, Math.min(48, baseSize * SUB_FONT_SCALE));
+  const maxChars = charsPerLine * SUB_MAX_LINES;
+
+  if (textLength > maxChars) {
+    const scale = Math.sqrt(maxChars / textLength);
+    size = Math.max(minSize, size * scale);
+  } else if (textLength > charsPerLine * 2) {
+    const scale = Math.sqrt((charsPerLine * 2) / textLength);
+    size = Math.max(minSize, size * Math.max(0.8, scale));
+  }
+
+  return Math.round(size);
+}
+
+export const SubtitleStillComposition: React.FC<SubtitleStillProps> = ({
+  en,
+  zh,
+  style,
+  bgColor,
+  width,
+  height,
+  languageMode,
+}) => {
+  const enFontSize = computeAdaptiveFontSize(
+    style.enFontSize, SUB_MIN_EN_FONT_SIZE, (en || "").length, SUB_EN_CHARS_PER_LINE,
+  );
+  const zhFontSize = computeAdaptiveFontSize(
+    style.zhFontSize, SUB_MIN_ZH_FONT_SIZE, (zh || "").length, SUB_ZH_CHARS_PER_LINE,
+  );
+
+  const textShadow = "2px 2px 4px rgba(0,0,0,0.8), -1px -1px 2px rgba(0,0,0,0.5)";
+
+  return (
+    <AbsoluteFill
+      style={{
+        width,
+        height,
+        backgroundColor: bgColor,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "16px 32px",
+      }}
+    >
+      {/* English text */}
+      {(languageMode === "both" || languageMode === "en") && en && (
+        <div
+          style={{
+            textAlign: "center",
+            lineHeight: 1.625,
+            fontSize: enFontSize,
+            fontFamily: "system-ui, -apple-system, sans-serif",
+            fontWeight: 500,
+            color: style.enColor,
+            textShadow,
+            marginBottom: languageMode === "both" ? 16 : 0,
+          }}
+        >
+          {en}
+        </div>
+      )}
+      {/* Chinese text */}
+      {(languageMode === "both" || languageMode === "zh") && zh && (
+        <div
+          style={{
+            textAlign: "center",
+            lineHeight: 1.625,
+            fontSize: zhFontSize,
+            fontFamily: "system-ui, -apple-system, sans-serif",
+            fontWeight: 500,
+            color: style.zhColor,
+            textShadow,
+          }}
+        >
+          {zh}
+        </div>
+      )}
+    </AbsoluteFill>
+  );
+};
+
 // ---- Main Composition ----
 
 export const LearningVideoComposition: React.FC<LearningVideoProps> = ({
@@ -174,22 +279,40 @@ export const LearningVideoComposition: React.FC<LearningVideoProps> = ({
           position: "relative",
         }}
       >
-        {/* Left: Video area */}
+        {/* Left: Video area with blurred background fill */}
         <div
           style={{
             width: leftWidth,
             height: videoAreaHeight,
             position: "relative",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
             overflow: "hidden",
           }}
         >
+          {/* Blurred background: covers panel, zoomed in */}
           {videoSrc && (
             <OffthreadVideo
               src={videoSrc}
               style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                minWidth: "100%",
+                minHeight: "100%",
+                objectFit: "cover",
+                filter: "blur(25px) brightness(0.6)",
+              }}
+            />
+          )}
+          {/* Sharp foreground: fits panel, centered */}
+          {videoSrc && (
+            <OffthreadVideo
+              src={videoSrc}
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
                 maxWidth: "100%",
                 maxHeight: "100%",
                 objectFit: "contain",

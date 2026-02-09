@@ -1,20 +1,27 @@
 #!/usr/bin/env node
 
 /**
- * Remotion Batch Card Still Renderer
+ * Remotion Batch Still Renderer (Cards + Subtitles)
  *
- * Renders all pinned cards as individual PNG images using Remotion renderStill.
+ * Renders pinned cards and/or subtitle stills as PNG images using Remotion renderStill.
  * Bundles once, renders N stills — much faster than full-video renderMedia.
  *
- * Usage: node renderStills.mjs --input <cards.json> --output-dir <dir/> [--width 672] [--height 756]
+ * Usage:
+ *   node renderStills.mjs --input <cards.json> --output-dir <dir/> [--width 672] [--height 756]
+ *   node renderStills.mjs --subtitles <subtitles.json> --output-dir <dir/>
+ *   node renderStills.mjs --input <cards.json> --subtitles <subtitles.json> --output-dir <dir/>
  *
- * Input JSON format:
- * [
- *   { "id": "card_001", "card_type": "word", "card_data": { ... } },
- *   { "id": "card_002", "card_type": "entity", "card_data": { ... } }
- * ]
+ * Cards input JSON: [ { "id": "card_001", "card_type": "word", "card_data": { ... } }, ... ]
  *
- * Output: <dir>/card_001.png, <dir>/card_002.png, ...
+ * Subtitles input JSON:
+ * {
+ *   "style": { "enColor": "#ffffff", "zhColor": "#facc15", "enFontSize": 40, "zhFontSize": 40 },
+ *   "bgColor": "#1a2744",
+ *   "languageMode": "both",
+ *   "subtitles": [ { "id": "sub_abc", "en": "...", "zh": "..." }, ... ]
+ * }
+ *
+ * Output: <dir>/card_001.png, <dir>/sub_abc.png, ...
  */
 
 import { bundle } from "@remotion/bundler";
@@ -33,6 +40,7 @@ function parseArgs() {
   const args = process.argv.slice(2);
   const options = {
     input: null,
+    subtitles: null,
     outputDir: null,
     width: 672,
     height: 756,
@@ -43,6 +51,10 @@ function parseArgs() {
       case "--input":
       case "-i":
         options.input = args[++i];
+        break;
+      case "--subtitles":
+      case "-s":
+        options.subtitles = args[++i];
         break;
       case "--output-dir":
       case "-o":
@@ -118,26 +130,52 @@ function rewriteLocalPaths(obj, port) {
 async function main() {
   const options = parseArgs();
 
-  if (!options.input || !options.outputDir) {
+  if (!options.outputDir) {
     logError(
       "Missing required arguments",
-      "Usage: node renderStills.mjs --input <cards.json> --output-dir <dir/>"
+      "Usage: node renderStills.mjs [--input <cards.json>] [--subtitles <subtitles.json>] --output-dir <dir/>"
     );
     process.exit(1);
   }
 
-  // Read input cards
-  let cards;
-  try {
-    const inputContent = fs.readFileSync(options.input, "utf-8");
-    cards = JSON.parse(inputContent);
-  } catch (err) {
-    logError("Failed to read input file", err);
+  if (!options.input && !options.subtitles) {
+    logError(
+      "Missing required arguments",
+      "At least one of --input or --subtitles must be provided"
+    );
     process.exit(1);
   }
 
-  if (!Array.isArray(cards) || cards.length === 0) {
-    logProgress({ status: "no_cards", current: 0, total: 0 });
+  // Read input cards (optional)
+  let cards = [];
+  if (options.input) {
+    try {
+      const inputContent = fs.readFileSync(options.input, "utf-8");
+      cards = JSON.parse(inputContent);
+      if (!Array.isArray(cards)) cards = [];
+    } catch (err) {
+      logError("Failed to read cards input file", err);
+      process.exit(1);
+    }
+  }
+
+  // Read subtitles input (optional)
+  let subtitleData = null;
+  let subtitles = [];
+  if (options.subtitles) {
+    try {
+      const subtitleContent = fs.readFileSync(options.subtitles, "utf-8");
+      subtitleData = JSON.parse(subtitleContent);
+      subtitles = subtitleData.subtitles || [];
+    } catch (err) {
+      logError("Failed to read subtitles input file", err);
+      process.exit(1);
+    }
+  }
+
+  const totalItems = cards.length + subtitles.length;
+  if (totalItems === 0) {
+    logProgress({ status: "no_items", current: 0, total: 0 });
     logComplete({ rendered: 0 });
     process.exit(0);
   }
@@ -150,11 +188,13 @@ async function main() {
   logProgress({ status: "file_server", port: filePort });
 
   // Rewrite file:// URLs in card data
-  cards = rewriteLocalPaths(cards, filePort);
+  if (cards.length > 0) {
+    cards = rewriteLocalPaths(cards, filePort);
+  }
 
-  logProgress({ status: "bundling", current: 0, total: cards.length });
+  logProgress({ status: "bundling", current: 0, total: totalItems });
 
-  // Bundle the composition (once)
+  // Bundle the composition (once — shared for cards and subtitles)
   let bundleLocation;
   try {
     const { enableTailwind } = await import("@remotion/tailwind");
@@ -177,99 +217,185 @@ async function main() {
         };
       },
     });
-    logProgress({ status: "bundled", current: 0, total: cards.length });
+    logProgress({ status: "bundled", current: 0, total: totalItems });
   } catch (err) {
     logError("Failed to bundle composition", err);
     fileServer.close();
     process.exit(1);
   }
 
-  // Select the CardStill composition (once)
-  const defaultCardProp = {
-    id: "default",
-    card_type: "word",
-    card_data: {},
-    display_start: 0,
-    display_end: 1,
-  };
+  let totalRendered = 0;
+  let globalCurrent = 0;
+  const allErrors = [];
 
-  let composition;
-  try {
-    composition = await selectComposition({
-      serveUrl: bundleLocation,
-      id: "CardStill",
-      inputProps: { card: defaultCardProp },
-    });
-
-    // Override dimensions
-    composition = {
-      ...composition,
-      width: options.width,
-      height: options.height,
+  // ── Phase 1: Render card stills ──
+  if (cards.length > 0) {
+    const defaultCardProp = {
+      id: "default",
+      card_type: "word",
+      card_data: {},
+      display_start: 0,
+      display_end: 1,
     };
 
-    logProgress({
-      status: "composition_selected",
-      current: 0,
-      total: cards.length,
-    });
-  } catch (err) {
-    logError("Failed to select CardStill composition", err);
-    fileServer.close();
-    process.exit(1);
-  }
-
-  // Render each card as a still PNG
-  let rendered = 0;
-  const errors = [];
-
-  for (let i = 0; i < cards.length; i++) {
-    const card = cards[i];
-    const outputPath = path.join(options.outputDir, `${card.id}.png`);
-
+    let cardComposition;
     try {
-      await renderStill({
-        composition,
+      cardComposition = await selectComposition({
         serveUrl: bundleLocation,
-        output: outputPath,
-        inputProps: {
-          card: {
-            id: card.id,
-            card_type: card.card_type,
-            card_data: card.card_data,
-            display_start: 0,
-            display_end: 1,
-          },
-        },
-        imageFormat: "png",
+        id: "CardStill",
+        inputProps: { card: defaultCardProp },
       });
-      rendered++;
+
+      // Override dimensions
+      cardComposition = {
+        ...cardComposition,
+        width: options.width,
+        height: options.height,
+      };
+
+      logProgress({
+        status: "composition_selected",
+        phase: "cards",
+        current: 0,
+        total: totalItems,
+      });
     } catch (err) {
-      logError(`Failed to render card ${card.id}`, err);
-      errors.push({ id: card.id, error: err?.message || String(err) });
+      logError("Failed to select CardStill composition", err);
+      fileServer.close();
+      process.exit(1);
     }
 
-    logProgress({
-      status: "rendering",
-      current: i + 1,
-      total: cards.length,
-      cardId: card.id,
-    });
+    for (let i = 0; i < cards.length; i++) {
+      const card = cards[i];
+      const outputPath = path.join(options.outputDir, `${card.id}.png`);
+
+      try {
+        await renderStill({
+          composition: cardComposition,
+          serveUrl: bundleLocation,
+          output: outputPath,
+          inputProps: {
+            card: {
+              id: card.id,
+              card_type: card.card_type,
+              card_data: card.card_data,
+              display_start: 0,
+              display_end: 1,
+            },
+          },
+          imageFormat: "png",
+        });
+        totalRendered++;
+      } catch (err) {
+        logError(`Failed to render card ${card.id}`, err);
+        allErrors.push({ id: card.id, phase: "cards", error: err?.message || String(err) });
+      }
+
+      globalCurrent++;
+      logProgress({
+        status: "rendering",
+        phase: "cards",
+        current: globalCurrent,
+        total: totalItems,
+        cardId: card.id,
+      });
+    }
+  }
+
+  // ── Phase 2: Render subtitle stills ──
+  if (subtitles.length > 0 && subtitleData) {
+    const subtitleWidth = 1920;
+    const subtitleHeight = 324;
+
+    const defaultSubProps = {
+      en: "",
+      zh: "",
+      style: subtitleData.style || { enColor: "#ffffff", zhColor: "#facc15", enFontSize: 40, zhFontSize: 40 },
+      bgColor: subtitleData.bgColor || "#1a2744",
+      width: subtitleWidth,
+      height: subtitleHeight,
+      languageMode: subtitleData.languageMode || "both",
+    };
+
+    let subComposition;
+    try {
+      subComposition = await selectComposition({
+        serveUrl: bundleLocation,
+        id: "SubtitleStill",
+        inputProps: defaultSubProps,
+      });
+
+      // Override dimensions to match subtitle area
+      subComposition = {
+        ...subComposition,
+        width: subtitleWidth,
+        height: subtitleHeight,
+      };
+
+      logProgress({
+        status: "composition_selected",
+        phase: "subtitles",
+        current: globalCurrent,
+        total: totalItems,
+      });
+    } catch (err) {
+      logError("Failed to select SubtitleStill composition", err);
+      fileServer.close();
+      process.exit(1);
+    }
+
+    for (let i = 0; i < subtitles.length; i++) {
+      const sub = subtitles[i];
+      const outputPath = path.join(options.outputDir, `${sub.id}.png`);
+
+      try {
+        await renderStill({
+          composition: subComposition,
+          serveUrl: bundleLocation,
+          output: outputPath,
+          inputProps: {
+            en: sub.en || "",
+            zh: sub.zh || "",
+            style: subtitleData.style,
+            bgColor: subtitleData.bgColor || "#1a2744",
+            width: subtitleWidth,
+            height: subtitleHeight,
+            languageMode: subtitleData.languageMode || "both",
+          },
+          imageFormat: "png",
+        });
+        totalRendered++;
+      } catch (err) {
+        logError(`Failed to render subtitle ${sub.id}`, err);
+        allErrors.push({ id: sub.id, phase: "subtitles", error: err?.message || String(err) });
+      }
+
+      globalCurrent++;
+      logProgress({
+        status: "rendering",
+        phase: "subtitles",
+        current: globalCurrent,
+        total: totalItems,
+        subtitleId: sub.id,
+      });
+    }
   }
 
   logComplete({
-    rendered,
-    total: cards.length,
-    errors: errors.length > 0 ? errors : undefined,
+    rendered: totalRendered,
+    total: totalItems,
+    cards: cards.length,
+    subtitles: subtitles.length,
+    errors: allErrors.length > 0 ? allErrors : undefined,
   });
 
   fileServer.close();
 
-  // Exit with error if no cards were rendered
-  if (rendered === 0 && cards.length > 0) {
+  // Exit with error if nothing was rendered
+  if (totalRendered === 0 && totalItems > 0) {
     logError(
-      "All card renders failed",
-      `0/${cards.length} cards rendered successfully`
+      "All renders failed",
+      `0/${totalItems} items rendered successfully`
     );
     process.exit(1);
   }

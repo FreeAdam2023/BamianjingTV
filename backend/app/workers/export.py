@@ -31,6 +31,7 @@ OUTPUT_WIDTH = 1920
 OUTPUT_HEIGHT = 1080
 VIDEO_AREA_RATIO = 0.65  # Left 65% for video
 CARD_PANEL_RATIO = 0.35  # Right 35% for card panel
+SUBTITLE_AREA_RATIO = 0.3  # Bottom 30% for subtitles
 PANEL_BG_COLOR = "0x1a2744"
 
 
@@ -251,37 +252,32 @@ class ExportWorker:
     def _build_wysiwyg_filter(
         self,
         cards: List[Tuple[Path, float, float]],
+        subtitle_stills: List[Tuple[Path, float, float]],
         video_duration: float,
-        subtitle_ratio: float,
-        ass_path: Path,
     ) -> Tuple[str, List[str], str]:
         """Build FFmpeg filter_complex for WYSIWYG 65/35 side-by-side layout.
 
         Layout:
         +---- Left 1248px (65%) ----+--- Right 672px (35%) ---+
-        |  Video (scaled, centered,  |  Full Card Detail Panel  |
-        |  padded with #1a2744)      |  bg: #1a2744             |
+        |  Video (blurred bg fill +  |  Full Card Detail Panel  |
+        |  sharp center, any ratio)  |  bg: #1a2744             |
         |  Height: 756px             |  Height: 756px           |
         +----------------------------+--------------------------+
         | Subtitle Area (1920px full width, bg: #1a2744)        |
-        | Height: 324px                                         |
+        | Height: 324px  (PNG stills from Remotion)             |
         +-------------------------------------------------------+
 
         Args:
             cards: List of (image_path, start_time, end_time) tuples
+            subtitle_stills: List of (image_path, start_time, end_time) for subtitle PNGs
             video_duration: Total video duration for canvas
-            subtitle_ratio: Subtitle area ratio (e.g. 0.3)
-            ass_path: Path to ASS subtitle file
 
         Returns:
             Tuple of (filter_complex string, input arguments, final output label)
         """
         left_width = int(OUTPUT_WIDTH * VIDEO_AREA_RATIO)  # 1248
         right_width = OUTPUT_WIDTH - left_width  # 672
-        video_area_height = int(OUTPUT_HEIGHT * (1 - subtitle_ratio))  # 756
-
-        # Escape ASS path for ffmpeg filter
-        ass_path_escaped = str(ass_path).replace("\\", "/").replace(":", "\\:")
+        video_area_height = int(OUTPUT_HEIGHT * (1 - SUBTITLE_AREA_RATIO))  # 756
 
         input_args = []
         filters = []
@@ -292,25 +288,40 @@ class ExportWorker:
             f":d={video_duration}:r=30[canvas]"
         )
 
-        # Step 2: Scale source video to fit left panel area
-        # Left panel is left_width x video_area_height
+        # Step 2a: Split video into background + foreground
         filters.append(
-            f"[0:v]scale={left_width}:{video_area_height}"
-            f":force_original_aspect_ratio=decrease[scaled_v]"
+            f"[0:v]split=2[v_bg][v_fg]"
         )
 
-        # Step 3: Overlay scaled video centered in left panel area
-        # Center: x = (left_width - overlay_w) / 2, y = (video_area_height - overlay_h) / 2
+        # Step 2b: Background — scale to COVER panel (zoom in), crop to exact size, blur heavily
         filters.append(
-            f"[canvas][scaled_v]overlay="
-            f"x='({left_width}-overlay_w)/2':y='({video_area_height}-overlay_h)/2'"
-            f"[with_video]"
+            f"[v_bg]scale={left_width}:{video_area_height}"
+            f":force_original_aspect_ratio=increase,"
+            f"crop={left_width}:{video_area_height},"
+            f"boxblur=25:5[bg_blur]"
+        )
+
+        # Step 2c: Foreground — scale to FIT panel (maintain aspect ratio)
+        filters.append(
+            f"[v_fg]scale={left_width}:{video_area_height}"
+            f":force_original_aspect_ratio=decrease[fg_sharp]"
+        )
+
+        # Step 2d: Combine — sharp video centered on blurred background
+        filters.append(
+            f"[bg_blur][fg_sharp]overlay=(W-w)/2:(H-h)/2[video_panel]"
+        )
+
+        # Step 3: Place video panel on canvas (fills left area exactly)
+        filters.append(
+            f"[canvas][video_panel]overlay=0:0[with_video]"
         )
 
         # Step 4: Overlay card PNGs in right panel area with animation
+        # Track input index: 0 = source video, 1+ = card/subtitle PNGs
+        input_idx = 1
         prev_label = "with_video"
         for i, (card_path, start, end) in enumerate(cards):
-            input_idx = i + 1  # 0 is the source video
             input_args.extend(["-i", str(card_path)])
 
             # Animation parameters
@@ -344,6 +355,7 @@ class ExportWorker:
                 f"[{out_label}]"
             )
             prev_label = out_label
+            input_idx += 1
 
         # Step 5: Draw subtle divider lines between areas
         # Vertical divider: between video (left) and card panel (right)
@@ -362,18 +374,34 @@ class ExportWorker:
             f"[with_dividers]"
         )
 
-        # Step 6: Burn subtitles (spans full 1920px width)
-        final_label = "final_out"
-        filters.append(
-            f"[with_dividers]ass={ass_path_escaped}[{final_label}]"
-        )
+        # Step 6: Overlay subtitle PNG stills in the bottom subtitle area
+        # Each subtitle still is 1920x324, positioned at (0, video_area_height+1)
+        prev_label = "with_dividers"
+        subtitle_y = video_area_height + 1  # Below horizontal divider
+
+        for i, (sub_path, start, end) in enumerate(subtitle_stills):
+            input_args.extend(["-i", str(sub_path)])
+            enable_expr = f"between(t,{start},{end})"
+
+            out_label = f"sub{i}"
+            filters.append(
+                f"[{prev_label}][{input_idx}:v]overlay="
+                f"x=0:y={subtitle_y}:"
+                f"enable='{enable_expr}':"
+                f"format=auto"
+                f"[{out_label}]"
+            )
+            prev_label = out_label
+            input_idx += 1
+
+        final_label = prev_label
 
         filter_complex = ";".join(filters)
 
         logger.info(
             f"WYSIWYG filter: {left_width}x{video_area_height} video + "
             f"{right_width}x{video_area_height} card panel, "
-            f"{len(cards)} cards, subtitles at bottom"
+            f"{len(cards)} cards, {len(subtitle_stills)} subtitle stills"
         )
 
         return filter_complex, input_args, final_label
@@ -855,31 +883,129 @@ class ExportWorker:
 
         return frontend_dir
 
-    async def _render_card_stills(
+    def _build_subtitle_stills_input(
+        self,
+        segments: List[EditableSegment],
+        time_offset: float,
+        subtitle_style,
+        subtitle_language_mode: SubtitleLanguageMode,
+        use_traditional: bool,
+        retimed_segments: Optional[List[Tuple[float, float, str, str]]] = None,
+    ) -> Tuple[List[dict], dict]:
+        """Build subtitle stills input JSON and timing map.
+
+        Deduplicates subtitles by hashing (en, zh, languageMode) text —
+        identical text pairs share one PNG with different timing entries.
+
+        Args:
+            segments: Editable segments (used if retimed_segments is None)
+            time_offset: Time offset for segment timing
+            subtitle_style: Optional subtitle style options
+            subtitle_language_mode: Which subtitles to include
+            use_traditional: Convert to Traditional Chinese
+            retimed_segments: Pre-retimed (start, end, en, zh) tuples for essence
+
+        Returns:
+            Tuple of (subtitles_json list for Remotion, timing_map {id: [(start,end),...]})
+        """
+        # Convert to Traditional if needed
+        converter = None
+        if use_traditional:
+            try:
+                import opencc
+                converter = opencc.OpenCC("s2t")
+            except ImportError:
+                pass
+
+        language_mode = subtitle_language_mode.value
+        if language_mode == "none":
+            return [], {}
+
+        # Build list of (en, zh, start, end) tuples
+        raw_entries = []
+        if retimed_segments is not None:
+            for start, end, en, zh in retimed_segments:
+                if converter:
+                    zh = converter.convert(zh)
+                raw_entries.append((en, zh, start, end))
+        else:
+            for seg in segments:
+                if seg.state == SegmentState.DROP:
+                    continue
+                en = seg.en
+                zh = seg.zh
+                if converter:
+                    zh = converter.convert(zh)
+                start = seg.effective_start - time_offset
+                end = seg.effective_end - time_offset
+                raw_entries.append((en, zh, start, end))
+
+        # Dedup by text content: same (en, zh) text shares one PNG
+        seen: dict[str, str] = {}  # hash -> sub_id
+        subtitles_json = []
+        timing_map: dict[str, list] = {}  # sub_id -> [(start, end), ...]
+
+        for en, zh, start, end in raw_entries:
+            # Filter by language mode
+            display_en = en if language_mode in ("both", "en") else ""
+            display_zh = zh if language_mode in ("both", "zh") else ""
+            if not display_en and not display_zh:
+                continue
+
+            text_key = hashlib.md5(f"{display_en}|{display_zh}|{language_mode}".encode()).hexdigest()[:12]
+            sub_id = f"sub_{text_key}"
+
+            if text_key not in seen:
+                seen[text_key] = sub_id
+                subtitles_json.append({
+                    "id": sub_id,
+                    "en": display_en,
+                    "zh": display_zh,
+                })
+                timing_map[sub_id] = []
+
+            timing_map[sub_id].append((start, end))
+
+        return subtitles_json, timing_map
+
+    async def _render_stills(
         self,
         pinned_cards: List[PinnedCard],
+        segments: List[EditableSegment],
         output_dir: Path,
         time_offset: float = 0.0,
+        subtitle_style=None,
+        subtitle_language_mode: SubtitleLanguageMode = SubtitleLanguageMode.BOTH,
+        use_traditional: bool = True,
+        retimed_segments: Optional[List[Tuple[float, float, str, str]]] = None,
         progress_callback: Optional[Callable[[float, str], None]] = None,
         timeline_id: Optional[str] = None,
-    ) -> List[Tuple[Path, float, float]]:
-        """Render pinned cards as PNG stills using Remotion renderStill.
+    ) -> Tuple[List[Tuple[Path, float, float]], List[Tuple[Path, float, float]]]:
+        """Render card + subtitle stills in a single Remotion invocation.
 
-        Uses the CardStill composition to render pixel-perfect React card
-        components, then returns paths + timing for FFmpeg overlay.
+        Bundles once, renders all card and subtitle PNGs.
 
         Args:
             pinned_cards: Pinned cards with card_data
-            output_dir: Directory to save card PNGs
-            time_offset: Time offset for card timing
+            segments: Editable segments for subtitle text
+            output_dir: Directory to save PNGs
+            time_offset: Time offset for timing
+            subtitle_style: Subtitle style options
+            subtitle_language_mode: Which subtitles to include
+            use_traditional: Convert Chinese to Traditional
+            retimed_segments: Pre-retimed tuples for essence mode
             progress_callback: Optional progress callback (0-20% range)
+            timeline_id: For cancellation tracking
 
         Returns:
-            List of (image_path, display_start, display_end) tuples
+            Tuple of (rendered_cards, rendered_subtitle_stills)
         """
         from app.workers.card_renderer import batch_precache_images
 
-        # Pre-cache all card images
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # ── Build cards JSON ──
         card_dicts = [
             {"card_type": c.card_type.value if hasattr(c.card_type, 'value') else c.card_type,
              "card_data": c.card_data}
@@ -887,9 +1013,8 @@ class ExportWorker:
         ]
         batch_precache_images(card_dicts)
 
-        # Build cards JSON with local image paths and timing
         cards_json = []
-        card_timing = {}  # id -> (display_start, display_end)
+        card_timing = {}
         for card in pinned_cards:
             if not card.card_data:
                 continue
@@ -908,17 +1033,60 @@ class ExportWorker:
             })
             card_timing[card.id] = (display_start, display_end)
 
-        if not cards_json:
-            logger.info("No cards to render as stills")
-            return []
+        # ── Build subtitles JSON ──
+        subtitles_json, subtitle_timing_map = self._build_subtitle_stills_input(
+            segments=segments,
+            time_offset=time_offset,
+            subtitle_style=subtitle_style,
+            subtitle_language_mode=subtitle_language_mode,
+            use_traditional=use_traditional,
+            retimed_segments=retimed_segments,
+        )
 
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
+        has_cards = len(cards_json) > 0
+        has_subtitles = len(subtitles_json) > 0
 
-        # Write cards JSON for renderStills.mjs
-        cards_file = output_dir / "cards_input.json"
-        with open(cards_file, "w", encoding="utf-8") as f:
-            json.dump(cards_json, f, ensure_ascii=False)
+        if not has_cards and not has_subtitles:
+            logger.info("No cards or subtitles to render as stills")
+            return [], []
+
+        # Write input files
+        cards_file = None
+        if has_cards:
+            cards_file = output_dir / "cards_input.json"
+            with open(cards_file, "w", encoding="utf-8") as f:
+                json.dump(cards_json, f, ensure_ascii=False)
+
+        subtitles_file = None
+        if has_subtitles:
+            # Build subtitle style config
+            style_config = {
+                "enColor": "#ffffff",
+                "zhColor": "#facc15",
+                "enFontSize": 40,
+                "zhFontSize": 40,
+            }
+            bg_color = "#1a2744"
+            if subtitle_style:
+                style_config["enColor"] = getattr(subtitle_style, 'en_color', "#ffffff") or "#ffffff"
+                style_config["zhColor"] = getattr(subtitle_style, 'zh_color', "#facc15") or "#facc15"
+                style_config["enFontSize"] = getattr(subtitle_style, 'en_font_size', 40) or 40
+                style_config["zhFontSize"] = getattr(subtitle_style, 'zh_font_size', 40) or 40
+                bg_color = getattr(subtitle_style, 'background_color', "#1a2744") or "#1a2744"
+
+            language_mode = subtitle_language_mode.value
+            if language_mode == "none":
+                language_mode = "both"  # fallback
+
+            subtitles_data = {
+                "style": style_config,
+                "bgColor": bg_color,
+                "languageMode": language_mode,
+                "subtitles": subtitles_json,
+            }
+            subtitles_file = output_dir / "subtitles_input.json"
+            with open(subtitles_file, "w", encoding="utf-8") as f:
+                json.dump(subtitles_data, f, ensure_ascii=False)
 
         # Find the renderStills script
         frontend_dir = self._ensure_frontend_ready()
@@ -931,19 +1099,24 @@ class ExportWorker:
 
         # Card panel dimensions (matches WYSIWYG 35% right panel)
         panel_width = OUTPUT_WIDTH - int(OUTPUT_WIDTH * VIDEO_AREA_RATIO)  # 672
-        panel_height = int(OUTPUT_HEIGHT * (1 - 0.3))  # 756
+        panel_height = int(OUTPUT_HEIGHT * (1 - SUBTITLE_AREA_RATIO))  # 756
 
-        cmd = [
-            "node", str(render_script),
-            "--input", str(cards_file),
+        cmd = ["node", str(render_script)]
+        if cards_file:
+            cmd.extend(["--input", str(cards_file)])
+        if subtitles_file:
+            cmd.extend(["--subtitles", str(subtitles_file)])
+        cmd.extend([
             "--output-dir", str(output_dir),
             "--width", str(panel_width),
             "--height", str(panel_height),
-        ]
+        ])
 
+        total_items = len(cards_json) + len(subtitles_json)
         logger.info(
-            f"Rendering {len(cards_json)} card stills via Remotion "
-            f"({panel_width}x{panel_height})"
+            f"Rendering stills via Remotion: "
+            f"{len(cards_json)} cards ({panel_width}x{panel_height}), "
+            f"{len(subtitles_json)} subtitle stills (1920x324)"
         )
 
         proc = await asyncio.create_subprocess_exec(
@@ -980,20 +1153,21 @@ class ExportWorker:
                         current = msg.get("current", 0)
                         total = msg.get("total", 1)
                         status = msg.get("status", "")
+                        phase = msg.get("phase", "")
                         if total > 0 and status == "rendering":
                             pct = current / total
-                            logger.info(f"Card stills: {current}/{total}")
+                            phase_label = "卡片" if phase == "cards" else "字幕"
+                            logger.info(f"Stills: {current}/{total} ({phase})")
                             if progress_callback:
-                                # Map to 0-20% range
-                                progress_callback(pct * 20, f"渲染卡片 {current}/{total}")
+                                progress_callback(pct * 20, f"渲染{phase_label} {current}/{total}")
                     elif msg.get("type") == "complete":
                         rendered = msg.get("rendered", 0)
-                        logger.info(f"Card stills complete: {rendered}/{len(cards_json)}")
+                        logger.info(f"Stills complete: {rendered}/{total_items}")
                 except (json.JSONDecodeError, TypeError):
                     logger.debug(f"renderStills stdout: {line[:200]}")
 
-            # Timeout: 60s base + 5s per card (bundling + rendering)
-            timeout_seconds = 60 + len(cards_json) * 5
+            # Timeout: 60s base + 5s per item (bundling + rendering)
+            timeout_seconds = 60 + total_items * 5
             await asyncio.wait_for(proc.wait(), timeout=timeout_seconds)
             await stderr_task
 
@@ -1002,7 +1176,7 @@ class ExportWorker:
             await proc.wait()
             raise RuntimeError(
                 f"Remotion renderStills timed out after {timeout_seconds}s "
-                f"for {len(cards_json)} cards"
+                f"for {total_items} items"
             )
         finally:
             if timeline_id:
@@ -1013,7 +1187,6 @@ class ExportWorker:
             raise ExportCancelledError(f"Export cancelled for timeline {timeline_id}")
 
         if proc.returncode != 0:
-            # Check if this was a cancellation (process killed externally)
             if timeline_id and self._check_cancelled(timeline_id):
                 raise ExportCancelledError(f"Export cancelled for timeline {timeline_id}")
             stderr_text = "\n".join(stderr_lines[-20:])
@@ -1022,7 +1195,7 @@ class ExportWorker:
                 f"{stderr_text[-1000:]}"
             )
 
-        # Collect rendered PNGs with timing
+        # ── Collect rendered card PNGs ──
         rendered_cards = []
         missing_cards = []
         for card_entry in cards_json:
@@ -1041,15 +1214,32 @@ class ExportWorker:
                 f"{missing_cards[:5]}"
             )
 
-        if not rendered_cards and cards_json:
-            stderr_text = "\n".join(stderr_lines[-10:])
-            raise RuntimeError(
-                f"All {len(cards_json)} card stills failed to render. "
-                f"Stderr: {stderr_text[-500:]}"
+        # ── Collect rendered subtitle PNGs ──
+        rendered_subtitles: List[Tuple[Path, float, float]] = []
+        missing_subs = []
+        for sub_entry in subtitles_json:
+            sub_id = sub_entry["id"]
+            sub_path = output_dir / f"{sub_id}.png"
+            if sub_path.exists() and sub_id in subtitle_timing_map:
+                # One PNG may map to multiple time intervals (deduplication)
+                for start, end in subtitle_timing_map[sub_id]:
+                    rendered_subtitles.append((sub_path, start, end))
+            else:
+                missing_subs.append(sub_id)
+                logger.warning(f"Subtitle still not found: {sub_path}")
+
+        if missing_subs:
+            logger.warning(
+                f"{len(missing_subs)}/{len(subtitles_json)} subtitle stills missing: "
+                f"{missing_subs[:5]}"
             )
 
-        logger.info(f"Rendered {len(rendered_cards)} card stills via Remotion")
-        return rendered_cards
+        logger.info(
+            f"Rendered {len(rendered_cards)} card stills, "
+            f"{len(rendered_subtitles)} subtitle overlay entries "
+            f"({len(subtitles_json)} unique PNGs) via Remotion"
+        )
+        return rendered_cards, rendered_subtitles
 
     async def _render_with_remotion(
         self,
@@ -1063,18 +1253,17 @@ class ExportWorker:
         retimed_segments: Optional[List[Tuple[float, float, str, str]]] = None,
         use_traditional: bool = True,
         subtitle_language_mode: SubtitleLanguageMode = SubtitleLanguageMode.BOTH,
-        subtitle_area_ratio: float = 0.3,
         progress_callback: Optional[Callable[[float, str], None]] = None,
         timeline_id: Optional[str] = None,
     ) -> Path:
         """Hybrid Remotion renderStill + FFmpeg export pipeline.
 
-        Renders pixel-perfect React card components as PNG stills using
+        Renders pixel-perfect React card + subtitle stills as PNGs using
         Remotion renderStill (seconds), then composes the final video with
-        FFmpeg using the existing _build_wysiwyg_filter (minutes with GPU).
+        FFmpeg overlay filters (minutes with GPU).
 
-        This replaces the previous full-video Remotion renderMedia approach
-        which was too slow for long videos (hours vs minutes).
+        Subtitle stills replace ASS subtitle rendering for WYSIWYG fidelity:
+        both preview and export use the same HTML/CSS rendering engine.
 
         Args:
             segments: Editable segments (used if retimed_segments is None)
@@ -1087,7 +1276,6 @@ class ExportWorker:
             retimed_segments: Pre-retimed (start, end, en, zh) tuples for essence
             use_traditional: Convert to Traditional Chinese
             subtitle_language_mode: Which subtitles to include
-            subtitle_area_ratio: Ratio for subtitle area height
             progress_callback: Optional progress callback
 
         Returns:
@@ -1095,16 +1283,21 @@ class ExportWorker:
         """
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        cards_dir = output_path.parent / "cards_stills"
+        stills_dir = output_path.parent / "stills"
 
-        # ── Phase A: Render card stills via Remotion (~30s) ──
+        # ── Phase A: Render card + subtitle stills via Remotion ──
         if progress_callback:
-            progress_callback(0, "渲染卡片图片…")
+            progress_callback(0, "渲染字幕和卡片图片…")
 
-        rendered_cards = await self._render_card_stills(
+        rendered_cards, rendered_subtitles = await self._render_stills(
             pinned_cards=pinned_cards,
-            output_dir=cards_dir,
+            segments=segments,
+            output_dir=stills_dir,
             time_offset=time_offset,
+            subtitle_style=subtitle_style,
+            subtitle_language_mode=subtitle_language_mode,
+            use_traditional=use_traditional,
+            retimed_segments=retimed_segments,
             progress_callback=progress_callback,
             timeline_id=timeline_id,
         )
@@ -1113,55 +1306,18 @@ class ExportWorker:
         if timeline_id and self._check_cancelled(timeline_id):
             raise ExportCancelledError(f"Export cancelled for timeline {timeline_id}")
 
-        # ── Phase B: Generate ASS subtitles ──
-        if progress_callback:
-            progress_callback(20, "生成字幕…")
-
-        ass_path = output_path.parent / "subtitles_wysiwyg.ass"
-
-        if retimed_segments is not None:
-            # Essence mode: use retimed segments
-            await self._generate_essence_ass(
-                retimed_segments=retimed_segments,
-                output_path=ass_path,
-                use_traditional=use_traditional,
-                video_height=OUTPUT_HEIGHT,
-                subtitle_area_ratio=subtitle_area_ratio,
-                subtitle_style=subtitle_style,
-                subtitle_style_mode=SubtitleStyleMode.HALF_SCREEN,
-                subtitle_language_mode=subtitle_language_mode,
-            )
-        else:
-            # Full video mode
-            await self.generate_ass_with_layout(
-                segments=segments,
-                output_path=ass_path,
-                use_traditional=use_traditional,
-                time_offset=time_offset,
-                video_height=OUTPUT_HEIGHT,
-                subtitle_area_ratio=subtitle_area_ratio,
-                subtitle_style=subtitle_style,
-                subtitle_style_mode=SubtitleStyleMode.HALF_SCREEN,
-                subtitle_language_mode=subtitle_language_mode,
-            )
-
-        # ── Cancellation check: between Phase B and C ──
-        if timeline_id and self._check_cancelled(timeline_id):
-            raise ExportCancelledError(f"Export cancelled for timeline {timeline_id}")
-
-        # ── Phase C: FFmpeg composition with WYSIWYG filter ──
+        # ── Phase B: FFmpeg composition with card + subtitle PNG overlays ──
         if progress_callback:
             progress_callback(25, "合成视频…")
 
-        filter_complex, card_input_args, final_label = self._build_wysiwyg_filter(
+        filter_complex, overlay_input_args, final_label = self._build_wysiwyg_filter(
             cards=rendered_cards,
+            subtitle_stills=rendered_subtitles,
             video_duration=video_duration,
-            subtitle_ratio=subtitle_area_ratio,
-            ass_path=ass_path,
         )
 
         cmd = ["ffmpeg", "-i", str(video_path)]
-        cmd.extend(card_input_args)
+        cmd.extend(overlay_input_args)
         cmd.extend(["-filter_complex", filter_complex])
         cmd.extend(["-map", f"[{final_label}]", "-map", "0:a?"])
 
@@ -1173,6 +1329,7 @@ class ExportWorker:
 
         logger.info(
             f"Hybrid WYSIWYG export: {len(rendered_cards)} card stills, "
+            f"{len(rendered_subtitles)} subtitle overlays, "
             f"FFmpeg composition → {output_path}"
         )
 
@@ -1279,7 +1436,7 @@ class ExportWorker:
         """Export full video with subtitles and pinned cards.
 
         Modes:
-        - HALF_SCREEN (Learning): Video scaled to top, subtitles in bottom area
+        - HALF_SCREEN (Learning): Blurred background fill + sharp video centered, subtitles in bottom area
         - FLOATING (Watching): Transparent subtitles overlaid on full video
         - NONE (Dubbing): No subtitles
 
@@ -1304,7 +1461,6 @@ class ExportWorker:
 
         # Get video dimensions
         orig_width, orig_height = self._get_video_dimensions(video_path)
-        subtitle_ratio = getattr(timeline, 'subtitle_area_ratio', 0.3)
 
         # Get subtitle style mode (default to HALF_SCREEN for backwards compatibility)
         subtitle_style_mode = getattr(timeline, 'subtitle_style_mode', SubtitleStyleMode.HALF_SCREEN)
@@ -1371,7 +1527,6 @@ class ExportWorker:
                 time_offset=time_offset,
                 use_traditional=timeline.use_traditional_chinese,
                 subtitle_language_mode=subtitle_language_mode,
-                subtitle_area_ratio=subtitle_ratio,
                 progress_callback=progress_callback,
                 timeline_id=timeline_id,
             )
@@ -1390,7 +1545,6 @@ class ExportWorker:
                 use_traditional=timeline.use_traditional_chinese,
                 time_offset=time_offset,
                 video_height=orig_height,
-                subtitle_area_ratio=subtitle_ratio,
                 subtitle_style=subtitle_style,
                 subtitle_style_mode=subtitle_style_mode,
                 subtitle_language_mode=subtitle_language_mode,
@@ -1604,7 +1758,6 @@ class ExportWorker:
 
             # Get concatenated video dimensions for ASS header
             concat_width, concat_height = self._get_video_dimensions(concat_output)
-            subtitle_ratio = getattr(timeline, 'subtitle_area_ratio', 0.3)
 
             # Generate re-timed ASS subtitles for essence based on mode
             retimed_segments = self._retime_segments(keep_segments)
@@ -1631,7 +1784,6 @@ class ExportWorker:
                     retimed_segments=retimed_segments,
                     use_traditional=timeline.use_traditional_chinese,
                     subtitle_language_mode=subtitle_language_mode,
-                    subtitle_area_ratio=subtitle_ratio,
                     progress_callback=progress_callback,
                     timeline_id=timeline_id,
                 )
@@ -1648,7 +1800,6 @@ class ExportWorker:
                     ass_path,
                     timeline.use_traditional_chinese,
                     video_height=concat_height,
-                    subtitle_area_ratio=subtitle_ratio,
                     subtitle_style=subtitle_style,
                     subtitle_style_mode=subtitle_style_mode,
                     subtitle_language_mode=subtitle_language_mode,

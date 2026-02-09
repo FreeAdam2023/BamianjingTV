@@ -78,6 +78,32 @@ export interface LearningVideoProps {
   };
 }
 
+// ============ SubtitleStill Composition Types ============
+
+export interface SubtitleStillInput {
+  id: string; // segment id or dedup hash
+  en: string;
+  zh: string;
+  start: number; // seconds (for FFmpeg timing)
+  end: number; // seconds
+  languageMode: "both" | "en" | "zh";
+}
+
+export interface SubtitleStillProps {
+  en: string;
+  zh: string;
+  style: {
+    enColor: string;
+    zhColor: string;
+    enFontSize: number;
+    zhFontSize: number;
+  };
+  bgColor: string;
+  width: number;
+  height: number;
+  languageMode: "both" | "en" | "zh";
+}
+
 // Helper to convert seconds to frames
 export function secondsToFrames(seconds: number, fps: number): number {
   return Math.round(seconds * fps);

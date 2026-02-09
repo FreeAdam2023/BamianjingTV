@@ -6,10 +6,10 @@
 import React from "react";
 import { Composition, registerRoot } from "remotion";
 import { SubtitleComposition } from "./compositions/SubtitleComposition";
-import { LearningVideoComposition, CardStillComposition } from "./compositions/LearningVideoComposition";
+import { LearningVideoComposition, CardStillComposition, SubtitleStillComposition } from "./compositions/LearningVideoComposition";
 import type { SubtitleCompositionProps } from "./compositions/SubtitleComposition";
 import type { RemotionConfig } from "../src/lib/creative-types";
-import type { SubtitleSegment, LearningVideoProps, PinnedCardInput } from "./types";
+import type { SubtitleSegment, LearningVideoProps, PinnedCardInput, SubtitleStillProps } from "./types";
 
 // Default props for the composition (will be overridden by inputProps)
 const defaultConfig: RemotionConfig = {
@@ -98,6 +98,23 @@ export const RemotionRoot: React.FC = () => {
             display_end: 1,
           } satisfies PinnedCardInput,
         }}
+      />
+      <Composition
+        id="SubtitleStill"
+        component={SubtitleStillComposition as unknown as React.ComponentType<Record<string, unknown>>}
+        width={1920}
+        height={324}
+        fps={30}
+        durationInFrames={1}
+        defaultProps={{
+          en: "",
+          zh: "",
+          style: { enColor: "#ffffff", zhColor: "#facc15", enFontSize: 40, zhFontSize: 40 },
+          bgColor: "#1a2744",
+          width: 1920,
+          height: 324,
+          languageMode: "both",
+        } satisfies SubtitleStillProps}
       />
     </>
   );
