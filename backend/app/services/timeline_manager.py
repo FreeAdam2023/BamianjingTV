@@ -423,8 +423,8 @@ class TimelineManager:
         if status == ExportStatus.EXPORTING and timeline.export_started_at is None:
             timeline.export_started_at = datetime.utcnow()
 
-        # Clear start time when completed or failed
-        if status in (ExportStatus.COMPLETED, ExportStatus.FAILED):
+        # Clear start time when completed, failed, or cancelled back to idle
+        if status in (ExportStatus.COMPLETED, ExportStatus.FAILED, ExportStatus.IDLE):
             timeline.export_started_at = None
 
         self._save_timeline(timeline)

@@ -87,6 +87,7 @@ class ExportStatus(str, Enum):
     IDLE = "idle"  # No export running
     EXPORTING = "exporting"  # Rendering video with subtitles
     UPLOADING = "uploading"  # Uploading to YouTube
+    CANCELLING = "cancelling"  # Cancel requested, cleaning up
     COMPLETED = "completed"  # Export finished successfully
     FAILED = "failed"  # Export failed
 

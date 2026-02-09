@@ -34,6 +34,11 @@ CARD_PANEL_RATIO = 0.35  # Right 35% for card panel
 PANEL_BG_COLOR = "0x1a2744"
 
 
+class ExportCancelledError(Exception):
+    """Raised when an export is cancelled by the user."""
+    pass
+
+
 # ASS subtitle template with bilingual style (both at bottom, English above Chinese)
 # Alignment: 2 = bottom center
 # In ASS bottom alignment, SMALLER MarginV = closer to bottom edge = lower on screen
@@ -71,6 +76,7 @@ class ExportWorker:
     def __init__(self):
         self.use_nvenc = settings.ffmpeg_nvenc
         self._card_renderer = None
+        self._active_processes: dict[str, asyncio.subprocess.Process] = {}
 
     def _get_card_renderer(self):
         """Lazy load card renderer."""
@@ -81,6 +87,52 @@ class ExportWorker:
             except Exception as e:
                 logger.warning(f"Card renderer not available: {e}")
         return self._card_renderer
+
+    async def cancel_export(self, timeline_id: str) -> bool:
+        """Cancel a running export by killing the active subprocess.
+
+        Args:
+            timeline_id: Timeline ID whose export to cancel
+
+        Returns:
+            True if a process was found and killed, False otherwise
+        """
+        proc = self._active_processes.get(timeline_id)
+        if proc is None or proc.returncode is not None:
+            return False
+
+        logger.info(f"Cancelling export for timeline {timeline_id}, killing pid {proc.pid}")
+        proc.terminate()
+
+        # Give the process 3 seconds to exit gracefully, then force kill
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=3.0)
+        except asyncio.TimeoutError:
+            logger.warning(f"Process {proc.pid} did not terminate, sending SIGKILL")
+            proc.kill()
+            await proc.wait()
+
+        self._active_processes.pop(timeline_id, None)
+        return True
+
+    def _check_cancelled(self, timeline_id: str) -> bool:
+        """Check if the export for a timeline has been cancelled.
+
+        Reads the timeline's export_status from the manager.
+
+        Args:
+            timeline_id: Timeline ID to check
+
+        Returns:
+            True if status is CANCELLING
+        """
+        from app.api.timelines import _get_manager
+        from app.models.timeline import ExportStatus as ES
+        manager = _get_manager()
+        timeline = manager.get_timeline(timeline_id)
+        if timeline and timeline.export_status == ES.CANCELLING:
+            return True
+        return False
 
     async def render_pinned_cards(
         self,
@@ -737,170 +789,13 @@ class ExportWorker:
             data["images"] = new_images
         return data
 
-    async def _render_with_remotion(
-        self,
-        segments: List[EditableSegment],
-        pinned_cards: List[PinnedCard],
-        video_path: Path,
-        output_path: Path,
-        video_duration: float,
-        subtitle_style=None,
-        time_offset: float = 0.0,
-        retimed_segments: Optional[List[Tuple[float, float, str, str]]] = None,
-        use_traditional: bool = True,
-        subtitle_language_mode: SubtitleLanguageMode = SubtitleLanguageMode.BOTH,
-        subtitle_area_ratio: float = 0.3,
-        progress_callback: Optional[Callable[[float, str], None]] = None,
-    ) -> Path:
-        """Render video using Remotion LearningVideo composition.
-
-        This produces pixel-perfect WYSIWYG output by rendering the actual
-        React card components from CardSidePanel.tsx in a headless browser.
-
-        Args:
-            segments: Editable segments (used if retimed_segments is None)
-            pinned_cards: Pinned cards with card_data
-            video_path: Path to source video
-            output_path: Path for output video
-            video_duration: Duration in seconds
-            subtitle_style: Optional subtitle style options
-            time_offset: Time offset for segment timing
-            retimed_segments: Pre-retimed (start, end, en, zh) tuples for essence
-            use_traditional: Convert to Traditional Chinese
-            subtitle_language_mode: Which subtitles to include
-            subtitle_area_ratio: Ratio for subtitle area height
+    def _ensure_frontend_ready(self) -> Path:
+        """Ensure frontend directory and node_modules are ready.
 
         Returns:
-            Path to rendered video
+            Resolved path to frontend directory
         """
-        fps = 30
-        duration_in_frames = math.ceil(video_duration * fps)
-
-        # Pre-cache all card images
-        from app.workers.card_renderer import batch_precache_images
-        card_dicts = [
-            {"card_type": c.card_type.value if hasattr(c.card_type, 'value') else c.card_type,
-             "card_data": c.card_data}
-            for c in pinned_cards if c.card_data
-        ]
-        batch_precache_images(card_dicts)
-
-        # Convert Simplified to Traditional if needed
-        converter = None
-        if use_traditional:
-            try:
-                import opencc
-                converter = opencc.OpenCC("s2t")
-            except ImportError:
-                logger.warning("opencc not installed, using Simplified Chinese")
-
-        # Build pinned card props with local image paths
-        pinned_card_props = []
-        for card in pinned_cards:
-            if not card.card_data:
-                continue
-            card_type = card.card_type.value if hasattr(card.card_type, 'value') else card.card_type
-            card_data = self._replace_image_urls_with_local(card.card_data, card_type)
-
-            display_start = max(0, card.display_start - time_offset)
-            display_end = max(0, card.display_end - time_offset)
-            if display_end <= display_start:
-                continue
-
-            pinned_card_props.append({
-                "id": card.id,
-                "card_type": card_type,
-                "card_data": card_data,
-                "display_start": display_start,
-                "display_end": display_end,
-            })
-
-        # Build subtitle props
-        subtitle_props = []
-        if subtitle_language_mode != SubtitleLanguageMode.NONE:
-            if retimed_segments is not None:
-                # Essence mode: use pre-retimed segments
-                for i, (start, end, en, zh) in enumerate(retimed_segments):
-                    sub_en = en if subtitle_language_mode in (SubtitleLanguageMode.BOTH, SubtitleLanguageMode.EN) else ""
-                    sub_zh = zh if subtitle_language_mode in (SubtitleLanguageMode.BOTH, SubtitleLanguageMode.ZH) else ""
-                    if converter and sub_zh:
-                        sub_zh = converter.convert(sub_zh)
-                    if sub_en or sub_zh:
-                        subtitle_props.append({
-                            "id": i,
-                            "start": start,
-                            "end": end,
-                            "en": sub_en,
-                            "zh": sub_zh,
-                        })
-            else:
-                # Full video mode: use segments with offset
-                for seg in segments:
-                    if seg.state == SegmentState.DROP:
-                        continue
-                    sub_en = seg.en if subtitle_language_mode in (SubtitleLanguageMode.BOTH, SubtitleLanguageMode.EN) else ""
-                    sub_zh = seg.zh if subtitle_language_mode in (SubtitleLanguageMode.BOTH, SubtitleLanguageMode.ZH) else ""
-                    if converter and sub_zh:
-                        sub_zh = converter.convert(sub_zh)
-                    if sub_en or sub_zh:
-                        subtitle_props.append({
-                            "id": seg.id,
-                            "start": seg.effective_start - time_offset,
-                            "end": seg.effective_end - time_offset,
-                            "en": sub_en,
-                            "zh": sub_zh,
-                        })
-
-        # Build subtitle style
-        en_font_size = 40
-        zh_font_size = 40
-        en_color = "#ffffff"
-        zh_color = "#facc15"
-        bg_color = "#1a2744"
-        if subtitle_style:
-            en_font_size = getattr(subtitle_style, 'en_font_size', 40) or 40
-            zh_font_size = getattr(subtitle_style, 'zh_font_size', 40) or 40
-            en_color = getattr(subtitle_style, 'en_color', "#ffffff") or "#ffffff"
-            zh_color = getattr(subtitle_style, 'zh_color', "#facc15") or "#facc15"
-            bg_color = getattr(subtitle_style, 'background_color', "#1a2744") or "#1a2744"
-
-        # Build Remotion input props
-        input_props = {
-            "videoSrc": str(video_path.resolve()),
-            "durationInFrames": duration_in_frames,
-            "fps": fps,
-            "width": OUTPUT_WIDTH,
-            "height": OUTPUT_HEIGHT,
-            "pinnedCards": pinned_card_props,
-            "subtitles": subtitle_props,
-            "layout": {
-                "videoRatio": VIDEO_AREA_RATIO,
-                "subtitleRatio": subtitle_area_ratio,
-                "bgColor": bg_color,
-            },
-            "subtitleStyle": {
-                "enColor": en_color,
-                "zhColor": zh_color,
-                "enFontSize": en_font_size,
-                "zhFontSize": zh_font_size,
-            },
-        }
-
-        # Write props to temp JSON file
-        props_file = output_path.parent / "remotion_props.json"
-        with open(props_file, "w", encoding="utf-8") as f:
-            json.dump(input_props, f, ensure_ascii=False)
-
-        # Find the render script via settings.frontend_dir
         frontend_dir = settings.frontend_dir.resolve()
-        render_script = frontend_dir / "remotion" / "render.mjs"
-        if not render_script.exists():
-            raise RuntimeError(
-                f"Remotion render script not found: {render_script}. "
-                f"Set FRONTEND_DIR env var to the frontend directory path."
-            )
-
-        # Ensure node_modules exist (auto-install on first run in Docker)
         node_modules = frontend_dir / "node_modules"
         if not node_modules.exists():
             logger.info("node_modules not found, running pnpm install...")
@@ -915,24 +810,98 @@ class ExportWorker:
                     f"pnpm install failed: {install_result.stderr[-500:]}"
                 )
             logger.info("pnpm install completed")
+        return frontend_dir
 
-        # Run Remotion render (async subprocess with streaming progress)
+    async def _render_card_stills(
+        self,
+        pinned_cards: List[PinnedCard],
+        output_dir: Path,
+        time_offset: float = 0.0,
+        progress_callback: Optional[Callable[[float, str], None]] = None,
+        timeline_id: Optional[str] = None,
+    ) -> List[Tuple[Path, float, float]]:
+        """Render pinned cards as PNG stills using Remotion renderStill.
+
+        Uses the CardStill composition to render pixel-perfect React card
+        components, then returns paths + timing for FFmpeg overlay.
+
+        Args:
+            pinned_cards: Pinned cards with card_data
+            output_dir: Directory to save card PNGs
+            time_offset: Time offset for card timing
+            progress_callback: Optional progress callback (0-20% range)
+
+        Returns:
+            List of (image_path, display_start, display_end) tuples
+        """
+        from app.workers.card_renderer import batch_precache_images
+
+        # Pre-cache all card images
+        card_dicts = [
+            {"card_type": c.card_type.value if hasattr(c.card_type, 'value') else c.card_type,
+             "card_data": c.card_data}
+            for c in pinned_cards if c.card_data
+        ]
+        batch_precache_images(card_dicts)
+
+        # Build cards JSON with local image paths and timing
+        cards_json = []
+        card_timing = {}  # id -> (display_start, display_end)
+        for card in pinned_cards:
+            if not card.card_data:
+                continue
+            card_type = card.card_type.value if hasattr(card.card_type, 'value') else card.card_type
+            card_data = self._replace_image_urls_with_local(card.card_data, card_type)
+
+            display_start = max(0, card.display_start - time_offset)
+            display_end = max(0, card.display_end - time_offset)
+            if display_end <= display_start:
+                continue
+
+            cards_json.append({
+                "id": card.id,
+                "card_type": card_type,
+                "card_data": card_data,
+            })
+            card_timing[card.id] = (display_start, display_end)
+
+        if not cards_json:
+            logger.info("No cards to render as stills")
+            return []
+
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Write cards JSON for renderStills.mjs
+        cards_file = output_dir / "cards_input.json"
+        with open(cards_file, "w", encoding="utf-8") as f:
+            json.dump(cards_json, f, ensure_ascii=False)
+
+        # Find the renderStills script
+        frontend_dir = self._ensure_frontend_ready()
+        render_script = frontend_dir / "remotion" / "renderStills.mjs"
+        if not render_script.exists():
+            raise RuntimeError(
+                f"Remotion renderStills script not found: {render_script}. "
+                f"Set FRONTEND_DIR env var to the frontend directory path."
+            )
+
+        # Card panel dimensions (matches WYSIWYG 35% right panel)
+        panel_width = OUTPUT_WIDTH - int(OUTPUT_WIDTH * VIDEO_AREA_RATIO)  # 672
+        panel_height = int(OUTPUT_HEIGHT * (1 - 0.3))  # 756
+
         cmd = [
             "node", str(render_script),
-            "--input", str(props_file),
-            "--output", str(output_path),
-            "--composition", "LearningVideo",
+            "--input", str(cards_file),
+            "--output-dir", str(output_dir),
+            "--width", str(panel_width),
+            "--height", str(panel_height),
         ]
 
         logger.info(
-            f"Remotion render: {len(pinned_card_props)} cards, "
-            f"{len(subtitle_props)} subtitles, "
-            f"{duration_in_frames} frames @ {fps}fps"
+            f"Rendering {len(cards_json)} card stills via Remotion "
+            f"({panel_width}x{panel_height})"
         )
-
-        # Timeout: ~0.5s per frame at moderate concurrency, minimum 10 min
-        timeout_seconds = max(600, int(duration_in_frames * 0.5))
-        logger.info(f"Remotion timeout set to {timeout_seconds}s ({timeout_seconds // 60} min)")
 
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -941,9 +910,11 @@ class ExportWorker:
             cwd=str(frontend_dir),
         )
 
-        # Stream stdout line-by-line for real-time progress + ETA
-        last_progress = 0
-        render_start_time = time.monotonic()
+        # Track subprocess for cancellation
+        if timeline_id:
+            self._active_processes[timeline_id] = proc
+
+        # Stream progress
         stderr_lines: list[str] = []
         try:
             async def read_stderr():
@@ -963,38 +934,23 @@ class ExportWorker:
                 try:
                     msg = json.loads(line)
                     if msg.get("type") == "progress":
-                        progress = msg.get("progress", 0)
-                        if progress > last_progress:
-                            last_progress = progress
-                            # Calculate ETA
-                            elapsed = time.monotonic() - render_start_time
-                            eta_str = ""
-                            if progress > 5 and elapsed > 3:
-                                remaining = elapsed / (progress / 100) * (1 - progress / 100)
-                                if remaining > 3600:
-                                    eta_str = f"{remaining / 3600:.1f}h"
-                                elif remaining > 60:
-                                    eta_str = f"{int(remaining // 60)}m{int(remaining % 60):02d}s"
-                                else:
-                                    eta_str = f"{int(remaining)}s"
-                            status_msg = msg.get('status', '')
-                            log_msg = f"Remotion render: {progress}%"
-                            if eta_str:
-                                log_msg += f" · ETA {eta_str}"
-                            logger.info(log_msg)
-                            # Report to caller for UI update
-                            if progress_callback and progress > 10:
-                                # Map Remotion 10-100% to export 10-65%
-                                export_progress = 10 + (progress - 10) * 55 / 90
-                                cb_msg = f"渲染中"
-                                if eta_str:
-                                    cb_msg += f" · 预计剩余 {eta_str}"
-                                progress_callback(export_progress, cb_msg)
+                        current = msg.get("current", 0)
+                        total = msg.get("total", 1)
+                        status = msg.get("status", "")
+                        if total > 0 and status == "rendering":
+                            pct = current / total
+                            logger.info(f"Card stills: {current}/{total}")
+                            if progress_callback:
+                                # Map to 0-20% range
+                                progress_callback(pct * 20, f"渲染卡片 {current}/{total}")
                     elif msg.get("type") == "complete":
-                        logger.info(f"Remotion render complete: {msg.get('outputPath')}")
+                        rendered = msg.get("rendered", 0)
+                        logger.info(f"Card stills complete: {rendered}/{len(cards_json)}")
                 except (json.JSONDecodeError, TypeError):
-                    logger.debug(f"Remotion stdout: {line[:200]}")
+                    logger.debug(f"renderStills stdout: {line[:200]}")
 
+            # Timeout: 60s base + 5s per card (bundling + rendering)
+            timeout_seconds = 60 + len(cards_json) * 5
             await asyncio.wait_for(proc.wait(), timeout=timeout_seconds)
             await stderr_task
 
@@ -1002,15 +958,255 @@ class ExportWorker:
             proc.kill()
             await proc.wait()
             raise RuntimeError(
-                f"Remotion render timed out after {timeout_seconds}s "
-                f"({duration_in_frames} frames). Last progress: {last_progress}%"
+                f"Remotion renderStills timed out after {timeout_seconds}s "
+                f"for {len(cards_json)} cards"
             )
+        finally:
+            if timeline_id:
+                self._active_processes.pop(timeline_id, None)
+
+        # Check if cancelled
+        if timeline_id and self._check_cancelled(timeline_id):
+            raise ExportCancelledError(f"Export cancelled for timeline {timeline_id}")
 
         if proc.returncode != 0:
+            # Check if this was a cancellation (process killed externally)
+            if timeline_id and self._check_cancelled(timeline_id):
+                raise ExportCancelledError(f"Export cancelled for timeline {timeline_id}")
             stderr_text = "\n".join(stderr_lines[-20:])
-            raise RuntimeError(f"Remotion render failed (exit {proc.returncode}): {stderr_text[-1000:]}")
+            raise RuntimeError(
+                f"Remotion renderStills failed (exit {proc.returncode}): "
+                f"{stderr_text[-1000:]}"
+            )
 
-        logger.info(f"Remotion WYSIWYG video exported: {output_path}")
+        # Collect rendered PNGs with timing
+        rendered_cards = []
+        for card_entry in cards_json:
+            card_id = card_entry["id"]
+            card_path = output_dir / f"{card_id}.png"
+            if card_path.exists() and card_id in card_timing:
+                display_start, display_end = card_timing[card_id]
+                rendered_cards.append((card_path, display_start, display_end))
+            else:
+                logger.warning(f"Card still not found: {card_path}")
+
+        logger.info(f"Rendered {len(rendered_cards)} card stills via Remotion")
+        return rendered_cards
+
+    async def _render_with_remotion(
+        self,
+        segments: List[EditableSegment],
+        pinned_cards: List[PinnedCard],
+        video_path: Path,
+        output_path: Path,
+        video_duration: float,
+        subtitle_style=None,
+        time_offset: float = 0.0,
+        retimed_segments: Optional[List[Tuple[float, float, str, str]]] = None,
+        use_traditional: bool = True,
+        subtitle_language_mode: SubtitleLanguageMode = SubtitleLanguageMode.BOTH,
+        subtitle_area_ratio: float = 0.3,
+        progress_callback: Optional[Callable[[float, str], None]] = None,
+        timeline_id: Optional[str] = None,
+    ) -> Path:
+        """Hybrid Remotion renderStill + FFmpeg export pipeline.
+
+        Renders pixel-perfect React card components as PNG stills using
+        Remotion renderStill (seconds), then composes the final video with
+        FFmpeg using the existing _build_wysiwyg_filter (minutes with GPU).
+
+        This replaces the previous full-video Remotion renderMedia approach
+        which was too slow for long videos (hours vs minutes).
+
+        Args:
+            segments: Editable segments (used if retimed_segments is None)
+            pinned_cards: Pinned cards with card_data
+            video_path: Path to source video
+            output_path: Path for output video
+            video_duration: Duration in seconds
+            subtitle_style: Optional subtitle style options
+            time_offset: Time offset for segment timing
+            retimed_segments: Pre-retimed (start, end, en, zh) tuples for essence
+            use_traditional: Convert to Traditional Chinese
+            subtitle_language_mode: Which subtitles to include
+            subtitle_area_ratio: Ratio for subtitle area height
+            progress_callback: Optional progress callback
+
+        Returns:
+            Path to rendered video
+        """
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        cards_dir = output_path.parent / "cards_stills"
+
+        # ── Phase A: Render card stills via Remotion (~30s) ──
+        if progress_callback:
+            progress_callback(0, "渲染卡片图片…")
+
+        rendered_cards = await self._render_card_stills(
+            pinned_cards=pinned_cards,
+            output_dir=cards_dir,
+            time_offset=time_offset,
+            progress_callback=progress_callback,
+            timeline_id=timeline_id,
+        )
+
+        # ── Cancellation check: between Phase A and B ──
+        if timeline_id and self._check_cancelled(timeline_id):
+            raise ExportCancelledError(f"Export cancelled for timeline {timeline_id}")
+
+        # ── Phase B: Generate ASS subtitles ──
+        if progress_callback:
+            progress_callback(20, "生成字幕…")
+
+        ass_path = output_path.parent / "subtitles_wysiwyg.ass"
+
+        if retimed_segments is not None:
+            # Essence mode: use retimed segments
+            await self._generate_essence_ass(
+                retimed_segments=retimed_segments,
+                output_path=ass_path,
+                use_traditional=use_traditional,
+                video_height=OUTPUT_HEIGHT,
+                subtitle_area_ratio=subtitle_area_ratio,
+                subtitle_style=subtitle_style,
+                subtitle_style_mode=SubtitleStyleMode.HALF_SCREEN,
+                subtitle_language_mode=subtitle_language_mode,
+            )
+        else:
+            # Full video mode
+            await self.generate_ass_with_layout(
+                segments=segments,
+                output_path=ass_path,
+                use_traditional=use_traditional,
+                time_offset=time_offset,
+                video_height=OUTPUT_HEIGHT,
+                subtitle_area_ratio=subtitle_area_ratio,
+                subtitle_style=subtitle_style,
+                subtitle_style_mode=SubtitleStyleMode.HALF_SCREEN,
+                subtitle_language_mode=subtitle_language_mode,
+            )
+
+        # ── Cancellation check: between Phase B and C ──
+        if timeline_id and self._check_cancelled(timeline_id):
+            raise ExportCancelledError(f"Export cancelled for timeline {timeline_id}")
+
+        # ── Phase C: FFmpeg composition with WYSIWYG filter ──
+        if progress_callback:
+            progress_callback(25, "合成视频…")
+
+        filter_complex, card_input_args, final_label = self._build_wysiwyg_filter(
+            cards=rendered_cards,
+            video_duration=video_duration,
+            subtitle_ratio=subtitle_area_ratio,
+            ass_path=ass_path,
+        )
+
+        cmd = ["ffmpeg", "-i", str(video_path)]
+        cmd.extend(card_input_args)
+        cmd.extend(["-filter_complex", filter_complex])
+        cmd.extend(["-map", f"[{final_label}]", "-map", "0:a?"])
+
+        if self.use_nvenc:
+            cmd.extend(["-c:v", "h264_nvenc", "-preset", "p4"])
+        else:
+            cmd.extend(["-c:v", "libx264", "-preset", "medium", "-crf", "23"])
+        cmd.extend(["-c:a", "aac", "-b:a", "192k", "-y", str(output_path)])
+
+        logger.info(
+            f"Hybrid WYSIWYG export: {len(rendered_cards)} card stills, "
+            f"FFmpeg composition → {output_path}"
+        )
+
+        # Run FFmpeg with progress parsing
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        # Track subprocess for cancellation
+        if timeline_id:
+            self._active_processes[timeline_id] = proc
+
+        stderr_lines: list[str] = []
+        render_start_time = time.monotonic()
+        try:
+            async def read_stderr():
+                assert proc.stderr is not None
+                async for raw in proc.stderr:
+                    line = raw.decode("utf-8", errors="replace").strip()
+                    if line:
+                        stderr_lines.append(line)
+                        # Parse FFmpeg progress: "time=00:01:23.45"
+                        if "time=" in line and video_duration > 0:
+                            try:
+                                time_str = line.split("time=")[1].split()[0]
+                                parts = time_str.split(":")
+                                current_time = (
+                                    float(parts[0]) * 3600 +
+                                    float(parts[1]) * 60 +
+                                    float(parts[2])
+                                )
+                                pct = min(current_time / video_duration, 1.0)
+                                if progress_callback:
+                                    # Map FFmpeg progress to 25-90%
+                                    export_pct = 25 + pct * 65
+                                    elapsed = time.monotonic() - render_start_time
+                                    eta_str = ""
+                                    if pct > 0.05 and elapsed > 3:
+                                        remaining = elapsed / pct * (1 - pct)
+                                        if remaining > 60:
+                                            eta_str = f"{int(remaining // 60)}m{int(remaining % 60):02d}s"
+                                        else:
+                                            eta_str = f"{int(remaining)}s"
+                                    cb_msg = f"编码中 {int(pct * 100)}%"
+                                    if eta_str:
+                                        cb_msg += f" · 预计剩余 {eta_str}"
+                                    progress_callback(export_pct, cb_msg)
+                            except (IndexError, ValueError):
+                                pass
+
+            stderr_task = asyncio.create_task(read_stderr())
+
+            # Read stdout (FFmpeg typically writes nothing to stdout)
+            assert proc.stdout is not None
+            await proc.stdout.read()
+
+            # Timeout: 10 min base + 6s per minute of video
+            timeout_seconds = max(600, int(video_duration * 6))
+            await asyncio.wait_for(proc.wait(), timeout=timeout_seconds)
+            await stderr_task
+
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            raise RuntimeError(
+                f"FFmpeg composition timed out after {timeout_seconds}s "
+                f"for {video_duration:.0f}s video"
+            )
+        finally:
+            if timeline_id:
+                self._active_processes.pop(timeline_id, None)
+
+        # Check if cancelled
+        if timeline_id and self._check_cancelled(timeline_id):
+            raise ExportCancelledError(f"Export cancelled for timeline {timeline_id}")
+
+        if proc.returncode != 0:
+            # Check if this was a cancellation (process killed externally)
+            if timeline_id and self._check_cancelled(timeline_id):
+                raise ExportCancelledError(f"Export cancelled for timeline {timeline_id}")
+            stderr_text = "\n".join(stderr_lines[-20:])
+            raise RuntimeError(
+                f"FFmpeg WYSIWYG composition failed (exit {proc.returncode}): "
+                f"{stderr_text[-1000:]}"
+            )
+
+        if progress_callback:
+            progress_callback(95, "完成")
+
+        logger.info(f"Hybrid WYSIWYG video exported: {output_path}")
         return output_path
 
     async def export_full_video(
@@ -1020,6 +1216,7 @@ class ExportWorker:
         output_path: Path,
         subtitle_style=None,
         progress_callback: Optional[Callable[[float, str], None]] = None,
+        timeline_id: Optional[str] = None,
     ) -> Path:
         """Export full video with subtitles and pinned cards.
 
@@ -1118,6 +1315,7 @@ class ExportWorker:
                 subtitle_language_mode=subtitle_language_mode,
                 subtitle_area_ratio=subtitle_ratio,
                 progress_callback=progress_callback,
+                timeline_id=timeline_id,
             )
         else:
             # FLOATING / NONE modes: existing behavior (full-width video)
@@ -1271,6 +1469,7 @@ class ExportWorker:
         output_path: Path,
         subtitle_style=None,
         progress_callback: Optional[Callable[[float, str], None]] = None,
+        timeline_id: Optional[str] = None,
     ) -> Path:
         """Export essence video (only KEEP segments) with subtitles.
 
@@ -1376,6 +1575,7 @@ class ExportWorker:
                     subtitle_language_mode=subtitle_language_mode,
                     subtitle_area_ratio=subtitle_ratio,
                     progress_callback=progress_callback,
+                    timeline_id=timeline_id,
                 )
 
                 logger.info(
@@ -1433,6 +1633,7 @@ class ExportWorker:
         output_dir: Path,
         subtitle_style=None,
         progress_callback: Optional[Callable[[float, str], None]] = None,
+        timeline_id: Optional[str] = None,
     ) -> Tuple[Optional[Path], Optional[Path]]:
         """Export video(s) based on timeline export profile.
 
@@ -1441,6 +1642,7 @@ class ExportWorker:
             video_path: Source video path
             output_dir: Directory for output files
             subtitle_style: Optional subtitle style options
+            timeline_id: Timeline ID for cancellation tracking
 
         Returns:
             Tuple of (full_video_path, essence_video_path)
@@ -1455,11 +1657,11 @@ class ExportWorker:
 
         if profile in (ExportProfile.FULL, ExportProfile.BOTH):
             full_path = output_dir / "full_subtitled.mp4"
-            await self.export_full_video(timeline, video_path, full_path, subtitle_style, progress_callback)
+            await self.export_full_video(timeline, video_path, full_path, subtitle_style, progress_callback, timeline_id=timeline_id)
 
         if profile in (ExportProfile.ESSENCE, ExportProfile.BOTH):
             essence_path = output_dir / "essence.mp4"
-            await self.export_essence(timeline, video_path, essence_path, subtitle_style, progress_callback)
+            await self.export_essence(timeline, video_path, essence_path, subtitle_style, progress_callback, timeline_id=timeline_id)
 
         return full_path, essence_path
 

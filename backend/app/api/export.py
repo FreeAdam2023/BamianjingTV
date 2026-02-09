@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from app.models.timeline import ExportStatus, SubtitleStyleMode, TimelineExportRequest
 from app.models.job import JobStatus
+from app.workers.export import ExportCancelledError
 from app.api.timelines import (
     _get_manager,
     _get_export_worker,
@@ -131,6 +132,43 @@ async def trigger_export(
     )
 
 
+@router.post("/{timeline_id}/export/cancel", response_model=ExportResponse)
+async def cancel_export(timeline_id: str):
+    """Cancel a running export for a timeline.
+
+    Only works when export_status is EXPORTING or UPLOADING.
+    Kills the active subprocess and resets status to IDLE.
+    """
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    if timeline.export_status not in (ExportStatus.EXPORTING, ExportStatus.UPLOADING):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot cancel export: status is {timeline.export_status.value}",
+        )
+
+    # Set status to CANCELLING so background task detects it
+    manager.update_export_status(
+        timeline_id,
+        status=ExportStatus.CANCELLING,
+        progress=timeline.export_progress,
+        message="正在取消...",
+    )
+
+    # Kill the active subprocess
+    export_worker = _get_export_worker()
+    await export_worker.cancel_export(timeline_id)
+
+    return ExportResponse(
+        timeline_id=timeline_id,
+        status="cancelling",
+        message="Export cancellation requested",
+    )
+
+
 async def _run_export(
     timeline_id: str,
     video_path: Path,
@@ -193,6 +231,7 @@ async def _run_export(
             output_dir=output_dir,
             subtitle_style=subtitle_style,
             progress_callback=on_render_progress,
+            timeline_id=timeline_id,
         )
 
         # Update timeline with output paths
@@ -293,6 +332,23 @@ async def _run_export(
             if job:
                 job.end_step("export")
                 await job_manager.update_status(job, JobStatus.COMPLETED, progress=1.0)
+
+    except ExportCancelledError:
+        logger.info(f"Export cancelled for timeline {timeline_id}")
+        # Clean up partial output files
+        for partial_file in output_dir.glob("*.mp4"):
+            try:
+                partial_file.unlink()
+                logger.info(f"Cleaned up partial output: {partial_file}")
+            except OSError:
+                pass
+        # Reset status back to IDLE
+        manager.update_export_status(
+            timeline_id,
+            status=ExportStatus.IDLE,
+            progress=0.0,
+            message="导出已取消",
+        )
 
     except Exception as e:
         logger.exception(f"Export failed for timeline {timeline_id}: {e}")
