@@ -13,12 +13,14 @@ services:
       - ./data:/app/data
       - ./credentials:/app/credentials:ro
       - model-cache:/app/.cache/models
+      - ./frontend:/app/frontend  # Remotion render scripts for WYSIWYG export
     environment:
       - HF_TOKEN=${HF_TOKEN}
       # LLM API for translation (supports OpenAI, Grok, Azure, or any OpenAI-compatible API)
       - LLM_API_KEY=${LLM_API_KEY}
       - LLM_BASE_URL=${LLM_BASE_URL:-https://api.x.ai/v1}
       - LLM_MODEL=${LLM_MODEL:-grok-4-fast-non-reasoning}
+      - FRONTEND_DIR=/app/frontend
       # Azure-specific (only if using Azure OpenAI)
       - AZURE_API_VERSION=${AZURE_API_VERSION:-2024-12-01-preview}
       - AZURE_DEPLOYMENT=${AZURE_DEPLOYMENT:-}

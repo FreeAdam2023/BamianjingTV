@@ -20,6 +20,12 @@ RUN apt-get update && apt-get install -y \
     && ln -sf /usr/bin/python3.11 /usr/bin/python3 \
     && ln -sf /usr/bin/python3.11 /usr/bin/python
 
+# Install Node.js 20 LTS (required by Remotion for WYSIWYG export)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g pnpm@9 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install deno (required by yt-dlp for YouTube extraction)
 RUN curl -fsSL https://deno.land/install.sh | sh \
     && ln -s /root/.deno/bin/deno /usr/local/bin/deno

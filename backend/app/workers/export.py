@@ -888,11 +888,30 @@ class ExportWorker:
         with open(props_file, "w", encoding="utf-8") as f:
             json.dump(input_props, f, ensure_ascii=False)
 
-        # Find the render script
-        frontend_dir = Path(__file__).resolve().parent.parent.parent.parent / "frontend"
+        # Find the render script via settings.frontend_dir
+        frontend_dir = settings.frontend_dir.resolve()
         render_script = frontend_dir / "remotion" / "render.mjs"
         if not render_script.exists():
-            raise RuntimeError(f"Remotion render script not found: {render_script}")
+            raise RuntimeError(
+                f"Remotion render script not found: {render_script}. "
+                f"Set FRONTEND_DIR env var to the frontend directory path."
+            )
+
+        # Ensure node_modules exist (auto-install on first run in Docker)
+        node_modules = frontend_dir / "node_modules"
+        if not node_modules.exists():
+            logger.info("node_modules not found, running pnpm install...")
+            install_result = subprocess.run(
+                ["pnpm", "install", "--frozen-lockfile"],
+                capture_output=True, text=True,
+                cwd=str(frontend_dir),
+                timeout=300,
+            )
+            if install_result.returncode != 0:
+                raise RuntimeError(
+                    f"pnpm install failed: {install_result.stderr[-500:]}"
+                )
+            logger.info("pnpm install completed")
 
         # Run Remotion render
         cmd = [
