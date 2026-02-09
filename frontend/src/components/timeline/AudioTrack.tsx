@@ -121,7 +121,7 @@ export default function AudioTrack({
     const startTime = Math.floor(scrollX / zoom / gridInterval) * gridInterval;
 
     for (let time = startTime; time <= duration; time += gridInterval) {
-      const x = timeToPixels(time) - scrollX;
+      const x = timeToPixels(time);
       if (x < 0 || x > canvasWidth) continue;
       ctx.beginPath();
       ctx.moveTo(x, 0);
@@ -152,7 +152,7 @@ export default function AudioTrack({
       let firstPoint = true;
       for (let i = startSample; i < Math.min(endSample, peaks.length); i++) {
         const time = i / sampleRate;
-        const x = timeToPixels(time) - scrollX;
+        const x = timeToPixels(time);
 
         if (x < -1 || x > canvasWidth + 1) continue;
 
@@ -173,7 +173,7 @@ export default function AudioTrack({
       firstPoint = true;
       for (let i = startSample; i < Math.min(endSample, peaks.length); i++) {
         const time = i / sampleRate;
-        const x = timeToPixels(time) - scrollX;
+        const x = timeToPixels(time);
 
         if (x < -1 || x > canvasWidth + 1) continue;
 
@@ -211,10 +211,10 @@ export default function AudioTrack({
 
       const rect = e.currentTarget.getBoundingClientRect();
       const x = e.clientX - rect.left;
-      const time = (x + scrollX) / zoom;
+      const time = x / zoom;
       setPlayheadTime(Math.max(0, Math.min(duration, time)));
     },
-    [scrollX, zoom, duration, setPlayheadTime, waveformData, onGenerateWaveform]
+    [zoom, duration, setPlayheadTime, waveformData, onGenerateWaveform]
   );
 
   return (

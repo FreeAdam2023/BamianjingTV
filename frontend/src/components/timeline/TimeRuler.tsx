@@ -80,7 +80,7 @@ export default function TimeRuler({ width }: TimeRulerProps) {
     ctx.textAlign = "center";
 
     for (let time = firstMajorTick; time <= endTime + interval; time += interval) {
-      const x = timeToPixels(time) - scrollX;
+      const x = timeToPixels(time);
 
       if (x < -50 || x > width + 50) continue;
 
@@ -102,7 +102,7 @@ export default function TimeRuler({ width }: TimeRulerProps) {
       // Skip major tick positions
       if (Math.abs(time % interval) < 0.001) continue;
 
-      const x = timeToPixels(time) - scrollX;
+      const x = timeToPixels(time);
       if (x < 0 || x > width) continue;
 
       ctx.beginPath();
@@ -123,7 +123,7 @@ export default function TimeRuler({ width }: TimeRulerProps) {
   const handleClick = (e: React.MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const time = (x + scrollX) / zoom;
+    const time = x / zoom;
     setPlayheadTime(Math.max(0, Math.min(duration, time)));
   };
 

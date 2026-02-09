@@ -1316,9 +1316,15 @@ class ExportWorker:
             video_duration=video_duration,
         )
 
+        # Write filter_complex to a script file to avoid OS argument length
+        # limit (MAX_ARG_STRLEN=128KB). With 1000+ subtitle overlays the
+        # filter string can easily exceed that.
+        filter_script_path = output_path.parent / "filter_complex.txt"
+        filter_script_path.write_text(filter_complex)
+
         cmd = ["ffmpeg", "-i", str(video_path)]
         cmd.extend(overlay_input_args)
-        cmd.extend(["-filter_complex", filter_complex])
+        cmd.extend(["-filter_complex_script", str(filter_script_path)])
         cmd.extend(["-map", f"[{final_label}]", "-map", "0:a?"])
 
         if self.use_nvenc:

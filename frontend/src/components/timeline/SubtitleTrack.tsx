@@ -110,7 +110,7 @@ export default function SubtitleTrack({
     const startTime = Math.floor(scrollX / zoom / gridInterval) * gridInterval;
 
     for (let time = startTime; time <= duration; time += gridInterval) {
-      const x = timeToPixels(time) - scrollX;
+      const x = timeToPixels(time);
       if (x < 0 || x > canvasWidth) continue;
       ctx.beginPath();
       ctx.moveTo(x, 0);
@@ -124,7 +124,7 @@ export default function SubtitleTrack({
       const segStart = segment.start + effectiveTrim.trimStart;
       const segEnd = segment.end - effectiveTrim.trimEnd;
 
-      const x = timeToPixels(segStart) - scrollX;
+      const x = timeToPixels(segStart);
       const segWidth = timeToPixels(segEnd - segStart);
       const isSelected = segment.id === selectedSegmentId;
 
@@ -134,7 +134,7 @@ export default function SubtitleTrack({
 
         // Left trimmed area
         if (effectiveTrim.trimStart > 0) {
-          const trimStartX = timeToPixels(segment.start) - scrollX;
+          const trimStartX = timeToPixels(segment.start);
           const trimWidth = timeToPixels(effectiveTrim.trimStart);
           ctx.fillRect(trimStartX, 4, trimWidth, trackHeight - 8);
 
@@ -151,7 +151,7 @@ export default function SubtitleTrack({
 
         // Right trimmed area
         if (effectiveTrim.trimEnd > 0) {
-          const trimEndX = timeToPixels(segEnd) - scrollX;
+          const trimEndX = timeToPixels(segEnd);
           const trimWidth = timeToPixels(effectiveTrim.trimEnd);
           ctx.fillRect(trimEndX, 4, trimWidth, trackHeight - 8);
 
@@ -294,7 +294,7 @@ export default function SubtitleTrack({
 
       const rect = containerRef.current.getBoundingClientRect();
       const x = e.clientX - rect.left - 96; // Account for label width
-      const clickTime = (x + scrollX) / zoom;
+      const clickTime = x / zoom;
 
       // Find clicked segment (considering trim)
       const clickedSegment = segments.find((seg) => {
@@ -314,7 +314,7 @@ export default function SubtitleTrack({
         setSelectedSegmentId(null);
       }
     },
-    [scrollX, zoom, segments, setSelectedSegmentId, setPlayheadTime, onSegmentClick, getEffectiveTrim]
+    [zoom, segments, setSelectedSegmentId, setPlayheadTime, onSegmentClick, getEffectiveTrim]
   );
 
   // Handle double-click to toggle state
@@ -324,7 +324,7 @@ export default function SubtitleTrack({
 
       const rect = containerRef.current.getBoundingClientRect();
       const x = e.clientX - rect.left - 96; // Account for label width
-      const clickTime = (x + scrollX) / zoom;
+      const clickTime = x / zoom;
 
       const clickedSegment = segments.find((seg) => {
         const trim = getEffectiveTrim(seg);
@@ -345,7 +345,7 @@ export default function SubtitleTrack({
         onStateChange(clickedSegment.id, nextState);
       }
     },
-    [scrollX, zoom, segments, onStateChange, getEffectiveTrim]
+    [zoom, segments, onStateChange, getEffectiveTrim]
   );
 
   // Calculate trim handle positions for selected segment
@@ -357,10 +357,10 @@ export default function SubtitleTrack({
     const segEnd = selectedSegment.end - effectiveTrim.trimEnd;
 
     return {
-      left: timeToPixels(segStart) - scrollX,
-      right: timeToPixels(segEnd) - scrollX,
+      left: timeToPixels(segStart),
+      right: timeToPixels(segEnd),
     };
-  }, [selectedSegment, getEffectiveTrim, timeToPixels, scrollX]);
+  }, [selectedSegment, getEffectiveTrim, timeToPixels]);
 
   return (
     <div ref={containerRef} className="relative" style={{ height: trackHeight }}>
