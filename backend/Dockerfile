@@ -21,9 +21,16 @@ RUN apt-get update && apt-get install -y \
     && ln -sf /usr/bin/python3.11 /usr/bin/python
 
 # Install Node.js 20 LTS (required by Remotion for WYSIWYG export)
-# Also install Chromium dependencies needed by Remotion's headless Chrome
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+# Use direct apt repo setup instead of setup_20.x script which can fail
+# when unrelated repos (e.g. CUDA) have transient mirror sync issues.
+# Also install Chromium dependencies needed by Remotion's headless Chrome.
+RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+        | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" \
+        > /etc/apt/sources.list.d/nodesource.list \
+    && apt-get update \
     && apt-get install -y nodejs \
+    && node --version && npm --version \
     && npm install -g pnpm@9 \
     && apt-get install -y --no-install-recommends \
     libnss3 \
