@@ -17,7 +17,7 @@ import { useMultiTrackWaveform, TrackType } from "@/hooks/useMultiTrackWaveform"
 import { useCardPopup } from "@/hooks/useCardPopup";
 import { useCreativeConfig } from "@/hooks/useCreativeConfig";
 import { useCreativeKeyboard } from "@/hooks/useCreativeKeyboard";
-import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress, setSubtitleAreaRatio, splitSegment, getSegmentAnnotations, setSubtitleLanguageMode, unpinCard, analyzeTimelineEntities } from "@/lib/api";
+import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress, splitSegment, getSegmentAnnotations, setSubtitleLanguageMode, unpinCard, analyzeTimelineEntities } from "@/lib/api";
 import type { ExportStatusResponse, SubtitleStyleOptions, SegmentAnnotations, PinnedCard } from "@/lib/types";
 import type { CreativeStyle } from "@/lib/creative-types";
 import { useToast, useConfirm } from "@/components/ui";
@@ -483,17 +483,6 @@ export default function ReviewPage() {
     }
   }, [timeline, toast]);
 
-  // Handle subtitle area ratio change (save to backend)
-  const handleSubtitleAreaRatioChange = useCallback(async (ratio: number) => {
-    if (!timeline) return;
-    try {
-      await setSubtitleAreaRatio(timeline.timeline_id, ratio);
-      console.log("[ReviewPage] Subtitle ratio saved:", ratio);
-    } catch (err) {
-      console.error("[ReviewPage] Failed to save subtitle ratio:", err);
-    }
-  }, [timeline]);
-
   // Handle subtitle language mode change (save to backend)
   const handleSubtitleLanguageModeChange = useCallback(async (mode: "both" | "en" | "zh" | "none") => {
     if (!timeline) return;
@@ -725,8 +714,6 @@ export default function ReviewPage() {
               hasExportFull={!!timeline.output_full_path}
               hasExportEssence={!!timeline.output_essence_path}
               onPreviewExport={setExportPreviewType}
-              subtitleAreaRatio={timeline.subtitle_area_ratio}
-              onSubtitleAreaRatioChange={handleSubtitleAreaRatioChange}
               subtitleLanguageMode={timeline.subtitle_language_mode}
               onSubtitleLanguageModeChange={handleSubtitleLanguageModeChange}
               cardState={cardState}
