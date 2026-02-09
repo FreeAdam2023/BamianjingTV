@@ -1,5 +1,8 @@
 """Export worker for video rendering with bilingual subtitles."""
 
+import hashlib
+import json
+import math
 import subprocess
 import tempfile
 from pathlib import Path
@@ -700,6 +703,232 @@ class ExportWorker:
         logger.info(f"Generated ASS subtitle (style_mode={subtitle_style_mode.value}, language_mode={subtitle_language_mode.value}): {output_path}")
         return output_path
 
+    def _replace_image_urls_with_local(self, card_data: dict, card_type: str) -> dict:
+        """Replace remote image URLs in card_data with local cached file:// paths.
+
+        Remotion's browser can load file:// URLs during server-side render.
+        Images must already be pre-cached via batch_precache_images().
+        """
+        from app.workers.card_renderer import IMAGE_CACHE_DIR
+
+        data = dict(card_data)  # shallow copy
+        if card_type == "entity" and data.get("image_url"):
+            url = data["image_url"]
+            url_hash = hashlib.md5(url.encode()).hexdigest()
+            local_path = IMAGE_CACHE_DIR / f"{url_hash}.png"
+            if local_path.exists():
+                data["image_url"] = local_path.resolve().as_uri()
+        elif card_type == "word" and data.get("images"):
+            new_images = []
+            for url in data["images"]:
+                url_hash = hashlib.md5(url.encode()).hexdigest()
+                local_path = IMAGE_CACHE_DIR / f"{url_hash}.png"
+                if local_path.exists():
+                    new_images.append(local_path.resolve().as_uri())
+                else:
+                    new_images.append(url)
+            data["images"] = new_images
+        return data
+
+    async def _render_with_remotion(
+        self,
+        segments: List[EditableSegment],
+        pinned_cards: List[PinnedCard],
+        video_path: Path,
+        output_path: Path,
+        video_duration: float,
+        subtitle_style=None,
+        time_offset: float = 0.0,
+        retimed_segments: Optional[List[Tuple[float, float, str, str]]] = None,
+        use_traditional: bool = True,
+        subtitle_language_mode: SubtitleLanguageMode = SubtitleLanguageMode.BOTH,
+        subtitle_area_ratio: float = 0.3,
+    ) -> Path:
+        """Render video using Remotion LearningVideo composition.
+
+        This produces pixel-perfect WYSIWYG output by rendering the actual
+        React card components from CardSidePanel.tsx in a headless browser.
+
+        Args:
+            segments: Editable segments (used if retimed_segments is None)
+            pinned_cards: Pinned cards with card_data
+            video_path: Path to source video
+            output_path: Path for output video
+            video_duration: Duration in seconds
+            subtitle_style: Optional subtitle style options
+            time_offset: Time offset for segment timing
+            retimed_segments: Pre-retimed (start, end, en, zh) tuples for essence
+            use_traditional: Convert to Traditional Chinese
+            subtitle_language_mode: Which subtitles to include
+            subtitle_area_ratio: Ratio for subtitle area height
+
+        Returns:
+            Path to rendered video
+        """
+        fps = 30
+        duration_in_frames = math.ceil(video_duration * fps)
+
+        # Pre-cache all card images
+        from app.workers.card_renderer import batch_precache_images
+        card_dicts = [
+            {"card_type": c.card_type.value if hasattr(c.card_type, 'value') else c.card_type,
+             "card_data": c.card_data}
+            for c in pinned_cards if c.card_data
+        ]
+        batch_precache_images(card_dicts)
+
+        # Convert Simplified to Traditional if needed
+        converter = None
+        if use_traditional:
+            try:
+                import opencc
+                converter = opencc.OpenCC("s2t")
+            except ImportError:
+                logger.warning("opencc not installed, using Simplified Chinese")
+
+        # Build pinned card props with local image paths
+        pinned_card_props = []
+        for card in pinned_cards:
+            if not card.card_data:
+                continue
+            card_type = card.card_type.value if hasattr(card.card_type, 'value') else card.card_type
+            card_data = self._replace_image_urls_with_local(card.card_data, card_type)
+
+            display_start = max(0, card.display_start - time_offset)
+            display_end = max(0, card.display_end - time_offset)
+            if display_end <= display_start:
+                continue
+
+            pinned_card_props.append({
+                "id": card.id,
+                "card_type": card_type,
+                "card_data": card_data,
+                "display_start": display_start,
+                "display_end": display_end,
+            })
+
+        # Build subtitle props
+        subtitle_props = []
+        if subtitle_language_mode != SubtitleLanguageMode.NONE:
+            if retimed_segments is not None:
+                # Essence mode: use pre-retimed segments
+                for i, (start, end, en, zh) in enumerate(retimed_segments):
+                    sub_en = en if subtitle_language_mode in (SubtitleLanguageMode.BOTH, SubtitleLanguageMode.EN) else ""
+                    sub_zh = zh if subtitle_language_mode in (SubtitleLanguageMode.BOTH, SubtitleLanguageMode.ZH) else ""
+                    if converter and sub_zh:
+                        sub_zh = converter.convert(sub_zh)
+                    if sub_en or sub_zh:
+                        subtitle_props.append({
+                            "id": i,
+                            "start": start,
+                            "end": end,
+                            "en": sub_en,
+                            "zh": sub_zh,
+                        })
+            else:
+                # Full video mode: use segments with offset
+                for seg in segments:
+                    if seg.state == SegmentState.DROP:
+                        continue
+                    sub_en = seg.en if subtitle_language_mode in (SubtitleLanguageMode.BOTH, SubtitleLanguageMode.EN) else ""
+                    sub_zh = seg.zh if subtitle_language_mode in (SubtitleLanguageMode.BOTH, SubtitleLanguageMode.ZH) else ""
+                    if converter and sub_zh:
+                        sub_zh = converter.convert(sub_zh)
+                    if sub_en or sub_zh:
+                        subtitle_props.append({
+                            "id": seg.id,
+                            "start": seg.effective_start - time_offset,
+                            "end": seg.effective_end - time_offset,
+                            "en": sub_en,
+                            "zh": sub_zh,
+                        })
+
+        # Build subtitle style
+        en_font_size = 40
+        zh_font_size = 40
+        en_color = "#ffffff"
+        zh_color = "#facc15"
+        bg_color = "#1a2744"
+        if subtitle_style:
+            en_font_size = getattr(subtitle_style, 'en_font_size', 40) or 40
+            zh_font_size = getattr(subtitle_style, 'zh_font_size', 40) or 40
+            en_color = getattr(subtitle_style, 'en_color', "#ffffff") or "#ffffff"
+            zh_color = getattr(subtitle_style, 'zh_color', "#facc15") or "#facc15"
+            bg_color = getattr(subtitle_style, 'background_color', "#1a2744") or "#1a2744"
+
+        # Build Remotion input props
+        input_props = {
+            "videoSrc": str(video_path.resolve()),
+            "durationInFrames": duration_in_frames,
+            "fps": fps,
+            "width": OUTPUT_WIDTH,
+            "height": OUTPUT_HEIGHT,
+            "pinnedCards": pinned_card_props,
+            "subtitles": subtitle_props,
+            "layout": {
+                "videoRatio": VIDEO_AREA_RATIO,
+                "subtitleRatio": subtitle_area_ratio,
+                "bgColor": bg_color,
+            },
+            "subtitleStyle": {
+                "enColor": en_color,
+                "zhColor": zh_color,
+                "enFontSize": en_font_size,
+                "zhFontSize": zh_font_size,
+            },
+        }
+
+        # Write props to temp JSON file
+        props_file = output_path.parent / "remotion_props.json"
+        with open(props_file, "w", encoding="utf-8") as f:
+            json.dump(input_props, f, ensure_ascii=False)
+
+        # Find the render script
+        frontend_dir = Path(__file__).resolve().parent.parent.parent.parent / "frontend"
+        render_script = frontend_dir / "remotion" / "render.mjs"
+        if not render_script.exists():
+            raise RuntimeError(f"Remotion render script not found: {render_script}")
+
+        # Run Remotion render
+        cmd = [
+            "node", str(render_script),
+            "--input", str(props_file),
+            "--output", str(output_path),
+            "--composition", "LearningVideo",
+        ]
+
+        logger.info(
+            f"Remotion render: {len(pinned_card_props)} cards, "
+            f"{len(subtitle_props)} subtitles, "
+            f"{duration_in_frames} frames @ {fps}fps"
+        )
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=str(frontend_dir),
+            timeout=600,  # 10 minute timeout
+        )
+
+        if result.returncode != 0:
+            # Log stdout for any progress messages
+            if result.stdout:
+                logger.debug(f"Remotion stdout: {result.stdout[-500:]}")
+            raise RuntimeError(f"Remotion render failed: {result.stderr[-1000:]}")
+
+        # Parse completion from stdout
+        for line in result.stdout.strip().split("\n"):
+            try:
+                msg = json.loads(line)
+                if msg.get("type") == "complete":
+                    logger.info(f"Remotion render complete: {msg.get('outputPath')}")
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        logger.info(f"Remotion WYSIWYG video exported: {output_path}")
+        return output_path
+
     async def export_full_video(
         self,
         timeline: Timeline,
@@ -771,75 +1000,39 @@ class ExportWorker:
         ]
         cards_dir = output_path.parent / "cards"
 
-        # WYSIWYG mode: HALF_SCREEN uses 65/35 side-by-side composite layout
+        # WYSIWYG mode: HALF_SCREEN uses Remotion for pixel-perfect React rendering
         if subtitle_style_mode == SubtitleStyleMode.HALF_SCREEN:
-            video_area_height = int(OUTPUT_HEIGHT * (1 - subtitle_ratio))
-            panel_width = OUTPUT_WIDTH - int(OUTPUT_WIDTH * VIDEO_AREA_RATIO)
-
-            # Pre-download all card images with throttling before rendering
-            from app.workers.card_renderer import batch_precache_images
-            card_dicts = [
-                {"card_type": c.card_type.value if hasattr(c.card_type, 'value') else c.card_type,
-                 "card_data": c.card_data}
-                for c in pinned_cards if c.card_data
-            ]
-            batch_precache_images(card_dicts)
-
-            # Render full-panel pinned cards (WYSIWYG — matches frontend SidePanel cards)
-            rendered_cards = await self.render_pinned_cards_full_panel(
-                pinned_cards=pinned_cards,
-                output_dir=cards_dir,
-                panel_width=panel_width,
-                panel_height=video_area_height,
-                time_offset=time_offset,
-            )
-
-            # Generate ASS with output canvas height (1080), not source video height
-            ass_path = output_path.parent / "subtitles_full.ass"
-            await self.generate_ass_with_layout(
-                segments=trimmed_segments,
-                output_path=ass_path,
-                use_traditional=timeline.use_traditional_chinese,
-                time_offset=time_offset,
-                video_height=OUTPUT_HEIGHT,
-                subtitle_area_ratio=subtitle_ratio,
-                subtitle_style=subtitle_style,
-                subtitle_style_mode=subtitle_style_mode,
-                subtitle_language_mode=subtitle_language_mode,
-            )
-
-            # Get video duration for canvas
+            # Get video duration
             video_duration = self._get_video_duration(video_path)
             if trim_end is not None:
                 video_duration = min(video_duration, trim_end - trim_start)
 
-            # Build WYSIWYG composite filter
-            filter_complex, card_inputs, final_label = self._build_wysiwyg_filter(
-                cards=rendered_cards,
-                video_duration=video_duration,
-                subtitle_ratio=subtitle_ratio,
-                ass_path=ass_path,
-            )
-
-            # Build ffmpeg command
-            cmd = ["ffmpeg"]
-            if trim_start > 0:
-                cmd.extend(["-ss", str(trim_start)])
-            cmd.extend(["-i", str(video_path)])
-            cmd.extend(card_inputs)
-            if trim_end is not None:
-                cmd.extend(["-t", str(trim_end - trim_start)])
-            cmd.extend(["-filter_complex", filter_complex])
-            cmd.extend(["-map", f"[{final_label}]", "-map", "0:a?"])
-
-            if self.use_nvenc:
-                cmd.extend(["-c:v", "h264_nvenc", "-preset", "p4"])
+            # Determine source video: trim if needed
+            if trim_start > 0 or trim_end is not None:
+                trimmed_video = output_path.parent / "trimmed_source.mp4"
+                trim_cmd = ["ffmpeg", "-ss", str(trim_start), "-i", str(video_path)]
+                if trim_end is not None:
+                    trim_cmd.extend(["-t", str(trim_end - trim_start)])
+                trim_cmd.extend(["-c", "copy", "-y", str(trimmed_video)])
+                trim_result = subprocess.run(trim_cmd, capture_output=True, text=True)
+                if trim_result.returncode != 0:
+                    raise RuntimeError(f"ffmpeg trim failed: {trim_result.stderr}")
+                source_video = trimmed_video
             else:
-                cmd.extend(["-c:v", "libx264", "-preset", "medium", "-crf", "23"])
-            cmd.extend(["-c:a", "aac", "-b:a", "192k", "-y", str(output_path)])
+                source_video = video_path
 
-            mode_name = "half_screen WYSIWYG (Learning)"
-            cards_info = f", {len(rendered_cards)} panel cards" if rendered_cards else ""
+            return await self._render_with_remotion(
+                segments=trimmed_segments,
+                pinned_cards=pinned_cards,
+                video_path=source_video,
+                output_path=output_path,
+                video_duration=video_duration,
+                subtitle_style=subtitle_style,
+                time_offset=time_offset,
+                use_traditional=timeline.use_traditional_chinese,
+                subtitle_language_mode=subtitle_language_mode,
+                subtitle_area_ratio=subtitle_ratio,
+            )
         else:
             # FLOATING / NONE modes: existing behavior (full-width video)
             rendered_cards = await self.render_pinned_cards(
@@ -1072,11 +1265,8 @@ class ExportWorker:
             # Generate re-timed ASS subtitles for essence based on mode
             retimed_segments = self._retime_segments(keep_segments)
 
-            # WYSIWYG mode: HALF_SCREEN uses 65/35 composite layout
+            # WYSIWYG mode: HALF_SCREEN uses Remotion for pixel-perfect rendering
             if subtitle_style_mode == SubtitleStyleMode.HALF_SCREEN:
-                video_area_height = int(OUTPUT_HEIGHT * (1 - subtitle_ratio))
-                panel_width = OUTPUT_WIDTH - int(OUTPUT_WIDTH * VIDEO_AREA_RATIO)
-
                 # Retime pinned cards to match concatenated segments
                 dropped_seg_ids = {seg.id for seg in timeline.segments if seg.state == SegmentState.DROP}
                 pinned_cards = [
@@ -1085,53 +1275,26 @@ class ExportWorker:
                 ]
                 retimed_pinned = self._retime_pinned_cards(pinned_cards, keep_segments)
 
-                # Pre-download all card images with throttling before rendering
-                from app.workers.card_renderer import batch_precache_images
-                card_dicts = [
-                    {"card_type": c.card_type.value if hasattr(c.card_type, 'value') else c.card_type,
-                     "card_data": c.card_data}
-                    for c in retimed_pinned if c.card_data
-                ]
-                batch_precache_images(card_dicts)
-
-                # Render full-panel pinned cards with retimed timing (WYSIWYG)
-                cards_dir = output_path.parent / "cards"
-                rendered_cards = await self.render_pinned_cards_full_panel(
-                    pinned_cards=retimed_pinned,
-                    output_dir=cards_dir,
-                    panel_width=panel_width,
-                    panel_height=video_area_height,
-                )
-
-                # Generate ASS with output canvas height (1080)
-                ass_path = output_path.parent / "subtitles_essence.ass"
-                await self._generate_essence_ass(
-                    retimed_segments,
-                    ass_path,
-                    timeline.use_traditional_chinese,
-                    video_height=OUTPUT_HEIGHT,
-                    subtitle_area_ratio=subtitle_ratio,
-                    subtitle_style=subtitle_style,
-                    subtitle_style_mode=subtitle_style_mode,
-                    subtitle_language_mode=subtitle_language_mode,
-                )
-
-                # Get concatenated video duration
                 concat_duration = self._get_video_duration(concat_output)
 
-                # Build WYSIWYG composite filter
-                filter_complex, card_inputs, final_label = self._build_wysiwyg_filter(
-                    cards=rendered_cards,
+                result_path = await self._render_with_remotion(
+                    segments=[],  # not used when retimed_segments is provided
+                    pinned_cards=retimed_pinned,
+                    video_path=concat_output,
+                    output_path=output_path,
                     video_duration=concat_duration,
-                    subtitle_ratio=subtitle_ratio,
-                    ass_path=ass_path,
+                    subtitle_style=subtitle_style,
+                    retimed_segments=retimed_segments,
+                    use_traditional=timeline.use_traditional_chinese,
+                    subtitle_language_mode=subtitle_language_mode,
+                    subtitle_area_ratio=subtitle_ratio,
                 )
 
-                cmd = ["ffmpeg", "-i", str(concat_output)]
-                cmd.extend(card_inputs)
-                cmd.extend(["-filter_complex", filter_complex])
-                cmd.extend(["-map", f"[{final_label}]", "-map", "0:a?"])
-                mode_name = "half_screen WYSIWYG"
+                logger.info(
+                    f"Essence video exported: {output_path} "
+                    f"({len(keep_segments)} segments, {timeline.keep_duration:.1f}s)"
+                )
+                return result_path
             else:
                 ass_path = output_path.parent / "subtitles_essence.ass"
                 await self._generate_essence_ass(

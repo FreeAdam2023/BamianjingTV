@@ -6,9 +6,10 @@
 import React from "react";
 import { Composition } from "remotion";
 import { SubtitleComposition } from "./compositions/SubtitleComposition";
+import { LearningVideoComposition } from "./compositions/LearningVideoComposition";
 import type { SubtitleCompositionProps } from "./compositions/SubtitleComposition";
 import type { RemotionConfig } from "../src/lib/creative-types";
-import type { SubtitleSegment } from "./types";
+import type { SubtitleSegment, LearningVideoProps } from "./types";
 
 // Default props for the composition (will be overridden by inputProps)
 const defaultConfig: RemotionConfig = {
@@ -46,6 +47,39 @@ export const RemotionRoot: React.FC = () => {
           segments: [] as SubtitleSegment[],
           config: defaultConfig,
           videoSrc: undefined,
+        }}
+      />
+      <Composition
+        id="LearningVideo"
+        component={LearningVideoComposition as unknown as React.ComponentType<Record<string, unknown>>}
+        width={1920}
+        height={1080}
+        fps={30}
+        durationInFrames={300}
+        defaultProps={{
+          videoSrc: "",
+          durationInFrames: 300,
+          fps: 30,
+          pinnedCards: [],
+          subtitles: [],
+          layout: {
+            videoRatio: 0.65,
+            subtitleRatio: 0.3,
+            bgColor: "#1a2744",
+          },
+          subtitleStyle: {
+            enColor: "#ffffff",
+            zhColor: "#facc15",
+            enFontSize: 40,
+            zhFontSize: 40,
+          },
+        } satisfies LearningVideoProps}
+        calculateMetadata={({ props }) => {
+          const p = props as unknown as LearningVideoProps;
+          return {
+            durationInFrames: p.durationInFrames,
+            fps: p.fps,
+          };
         }}
       />
     </>

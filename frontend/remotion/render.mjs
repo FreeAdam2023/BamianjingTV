@@ -37,6 +37,7 @@ function parseArgs() {
     codec: "h264",
     crf: 18,
     concurrency: 2,
+    composition: "SubtitleComposition",
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -57,6 +58,9 @@ function parseArgs() {
         break;
       case "--concurrency":
         options.concurrency = parseInt(args[++i], 10);
+        break;
+      case "--composition":
+        options.composition = args[++i];
         break;
     }
   }
@@ -110,10 +114,10 @@ async function main() {
   // Bundle the composition
   let bundleLocation;
   try {
+    const { enableTailwind } = await import("@remotion/tailwind");
     bundleLocation = await bundle({
       entryPoint: path.join(__dirname, "RenderEntry.tsx"),
-      // Enable caching for faster subsequent renders
-      webpackOverride: (config) => config,
+      webpackOverride: (config) => enableTailwind(config),
     });
     logProgress({ status: "bundled", progress: 5 });
   } catch (err) {
@@ -122,16 +126,13 @@ async function main() {
   }
 
   // Select the composition
+  const compositionId = options.composition;
   let composition;
   try {
     composition = await selectComposition({
       serveUrl: bundleLocation,
-      id: "SubtitleComposition",
-      inputProps: {
-        segments,
-        config,
-        videoSrc,
-      },
+      id: compositionId,
+      inputProps: inputConfig,
     });
 
     // Override duration and dimensions
@@ -143,7 +144,7 @@ async function main() {
       height: height || composition.height,
     };
 
-    logProgress({ status: "composition_selected", progress: 10 });
+    logProgress({ status: "composition_selected", progress: 10, compositionId });
   } catch (err) {
     logError("Failed to select composition", err);
     process.exit(1);
@@ -156,11 +157,7 @@ async function main() {
       serveUrl: bundleLocation,
       codec: options.codec,
       outputLocation: options.output,
-      inputProps: {
-        segments,
-        config,
-        videoSrc,
-      },
+      inputProps: inputConfig,
       crf: options.crf,
       concurrency: options.concurrency,
       onProgress: ({ progress }) => {

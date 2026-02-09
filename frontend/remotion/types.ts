@@ -41,6 +41,43 @@ export interface AnimationTiming {
   exitDuration: number; // frames
 }
 
+// ============ LearningVideo Composition Types ============
+
+export interface PinnedCardInput {
+  id: string;
+  card_type: "word" | "entity" | "idiom" | "insight";
+  card_data: Record<string, unknown>;
+  display_start: number; // seconds
+  display_end: number; // seconds
+}
+
+export interface SubtitleInput {
+  id: number;
+  start: number; // seconds
+  end: number; // seconds
+  en: string;
+  zh: string;
+}
+
+export interface LearningVideoProps {
+  videoSrc: string;
+  durationInFrames: number;
+  fps: number;
+  pinnedCards: PinnedCardInput[];
+  subtitles: SubtitleInput[];
+  layout: {
+    videoRatio: number; // 0.65
+    subtitleRatio: number; // 0.3
+    bgColor: string; // "#1a2744"
+  };
+  subtitleStyle: {
+    enColor: string;
+    zhColor: string;
+    enFontSize: number;
+    zhFontSize: number;
+  };
+}
+
 // Helper to convert seconds to frames
 export function secondsToFrames(seconds: number, fps: number): number {
   return Math.round(seconds * fps);
