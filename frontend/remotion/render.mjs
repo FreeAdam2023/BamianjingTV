@@ -90,7 +90,7 @@ function logComplete(data) {
 function startLocalFileServer() {
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
-      const filePath = decodeURIComponent(req.url.slice(1)); // strip leading /
+      const filePath = decodeURIComponent(req.url); // keep leading / for absolute paths
       if (!filePath || !fs.existsSync(filePath)) {
         res.writeHead(404);
         res.end("Not found");
