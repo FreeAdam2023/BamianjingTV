@@ -59,6 +59,14 @@ export default function ExportStatusIndicator({
     }
   }, [initialStatus, status, fetchStatus]);
 
+  // When forcePolling activates (new export started), reset stale status
+  useEffect(() => {
+    if (forcePolling) {
+      console.log("[ExportStatusIndicator] forcePolling activated, resetting status");
+      setStatus(null);
+    }
+  }, [forcePolling]);
+
   // Start polling when status is active or forcePolling is true
   useEffect(() => {
     // Start polling if we have an active export or force polling
