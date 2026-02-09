@@ -21,9 +21,28 @@ RUN apt-get update && apt-get install -y \
     && ln -sf /usr/bin/python3.11 /usr/bin/python
 
 # Install Node.js 20 LTS (required by Remotion for WYSIWYG export)
+# Also install Chromium dependencies needed by Remotion's headless Chrome
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && npm install -g pnpm@9 \
+    && apt-get install -y --no-install-recommends \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libasound2 \
+    libatspi2.0-0 \
+    libxshmfence1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install deno (required by yt-dlp for YouTube extraction)
