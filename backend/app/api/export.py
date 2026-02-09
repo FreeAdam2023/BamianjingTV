@@ -96,6 +96,12 @@ async def trigger_export(
         timeline.subtitle_style_mode = request.subtitle_style_mode
         manager.save_timeline(timeline)
 
+    # Apply test_seconds: temporarily override video_trim_end for quick test exports
+    if request.test_seconds is not None and request.test_seconds > 0:
+        trim_start = timeline.video_trim_start or 0.0
+        timeline.video_trim_end = trim_start + request.test_seconds
+        manager.save_timeline(timeline)
+
     # Get video path from job
     jobs_dir = _get_jobs_dir()
     if jobs_dir is None:

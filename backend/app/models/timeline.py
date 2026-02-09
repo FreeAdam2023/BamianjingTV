@@ -615,6 +615,9 @@ class TimelineExportRequest(BaseModel):
     # Subtitle style options
     subtitle_style: Optional[SubtitleStyleOptions] = None
 
+    # Quick test: limit export to first N seconds (overrides video_trim_end)
+    test_seconds: Optional[float] = None
+
     # YouTube upload options
     upload_to_youtube: bool = False
     youtube_title: Optional[str] = None  # Custom title, defaults to source_title

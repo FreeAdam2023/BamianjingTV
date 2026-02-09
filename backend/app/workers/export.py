@@ -1148,6 +1148,7 @@ class ExportWorker:
         card_timing = {}
         for card in pinned_cards:
             if not card.card_data:
+                logger.warning(f"Card {card.id} has no card_data, skipping")
                 continue
             card_type = card.card_type.value if hasattr(card.card_type, 'value') else card.card_type
             card_data = self._replace_image_urls_with_local(card.card_data, card_type)
@@ -1163,6 +1164,16 @@ class ExportWorker:
                 "card_data": card_data,
             })
             card_timing[card.id] = (display_start, display_end)
+
+        # Diagnostic: log first card's data structure for debugging
+        if cards_json:
+            sample = cards_json[0]
+            data_keys = list(sample["card_data"].keys()) if isinstance(sample["card_data"], dict) else "NOT_DICT"
+            logger.info(
+                f"Card sample: type={sample['card_type']}, "
+                f"data_keys={data_keys}, "
+                f"timing={card_timing.get(sample['id'])}"
+            )
 
         # ── Build subtitles JSON ──
         subtitles_json, subtitle_timing_map = self._build_subtitle_stills_input(
@@ -1340,15 +1351,26 @@ class ExportWorker:
         # ── Collect rendered card PNGs ──
         rendered_cards = []
         missing_cards = []
+        small_cards = []
         for card_entry in cards_json:
             card_id = card_entry["id"]
             card_path = output_dir / f"{card_id}.png"
             if card_path.exists() and card_id in card_timing:
                 display_start, display_end = card_timing[card_id]
                 rendered_cards.append((card_path, display_start, display_end))
+                # Detect suspiciously small PNGs (likely blank/empty renders)
+                file_size = card_path.stat().st_size
+                if file_size < 5000:  # <5KB is likely blank for 672x756 PNG
+                    small_cards.append((card_id, file_size))
             else:
                 missing_cards.append(card_id)
                 logger.warning(f"Card still not found: {card_path}")
+
+        if small_cards:
+            logger.warning(
+                f"{len(small_cards)} card PNGs suspiciously small (possibly blank): "
+                f"{small_cards[:5]}"
+            )
 
         if missing_cards:
             logger.warning(
