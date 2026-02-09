@@ -792,13 +792,52 @@ class ExportWorker:
     def _ensure_frontend_ready(self) -> Path:
         """Ensure frontend directory and node_modules are ready.
 
+        Detects platform mismatch (e.g. macOS node_modules mounted into Linux
+        Docker container) and reinstalls if needed.
+
         Returns:
             Resolved path to frontend directory
         """
+        import platform
+
         frontend_dir = settings.frontend_dir.resolve()
         node_modules = frontend_dir / "node_modules"
+        needs_install = False
+
         if not node_modules.exists():
-            logger.info("node_modules not found, running pnpm install...")
+            needs_install = True
+            logger.info("node_modules not found")
+        else:
+            # Detect platform mismatch: check for a platform-specific marker
+            # If running on Linux but node_modules was built on macOS (or vice versa),
+            # native modules won't work (e.g. Remotion's Chromium binary)
+            current_platform = platform.system().lower()
+            marker_file = node_modules / ".platform"
+            if marker_file.exists():
+                installed_platform = marker_file.read_text().strip()
+                if installed_platform != current_platform:
+                    logger.warning(
+                        f"Platform mismatch: node_modules built for {installed_platform}, "
+                        f"running on {current_platform}. Reinstalling..."
+                    )
+                    needs_install = True
+            else:
+                # No marker — could be host-mounted. Check if we're in Docker
+                # by checking /.dockerenv or /proc/1/cgroup
+                in_docker = (
+                    Path("/.dockerenv").exists()
+                    or (Path("/proc/1/cgroup").exists()
+                        and "docker" in Path("/proc/1/cgroup").read_text(errors="ignore"))
+                )
+                if in_docker:
+                    logger.info(
+                        "In Docker without platform marker — reinstalling node_modules "
+                        "to ensure native modules match Linux"
+                    )
+                    needs_install = True
+
+        if needs_install:
+            logger.info("Running pnpm install...")
             install_result = subprocess.run(
                 ["pnpm", "install", "--frozen-lockfile"],
                 capture_output=True, text=True,
@@ -809,7 +848,11 @@ class ExportWorker:
                 raise RuntimeError(
                     f"pnpm install failed: {install_result.stderr[-500:]}"
                 )
-            logger.info("pnpm install completed")
+            # Write platform marker
+            current_platform = platform.system().lower()
+            (node_modules / ".platform").write_text(current_platform)
+            logger.info(f"pnpm install completed (platform: {current_platform})")
+
         return frontend_dir
 
     async def _render_card_stills(
@@ -981,6 +1024,7 @@ class ExportWorker:
 
         # Collect rendered PNGs with timing
         rendered_cards = []
+        missing_cards = []
         for card_entry in cards_json:
             card_id = card_entry["id"]
             card_path = output_dir / f"{card_id}.png"
@@ -988,7 +1032,21 @@ class ExportWorker:
                 display_start, display_end = card_timing[card_id]
                 rendered_cards.append((card_path, display_start, display_end))
             else:
+                missing_cards.append(card_id)
                 logger.warning(f"Card still not found: {card_path}")
+
+        if missing_cards:
+            logger.warning(
+                f"{len(missing_cards)}/{len(cards_json)} card stills missing: "
+                f"{missing_cards[:5]}"
+            )
+
+        if not rendered_cards and cards_json:
+            stderr_text = "\n".join(stderr_lines[-10:])
+            raise RuntimeError(
+                f"All {len(cards_json)} card stills failed to render. "
+                f"Stderr: {stderr_text[-500:]}"
+            )
 
         logger.info(f"Rendered {len(rendered_cards)} card stills via Remotion")
         return rendered_cards

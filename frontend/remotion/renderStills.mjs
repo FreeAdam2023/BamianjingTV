@@ -261,6 +261,15 @@ async function main() {
   });
 
   fileServer.close();
+
+  // Exit with error if no cards were rendered
+  if (rendered === 0 && cards.length > 0) {
+    logError(
+      "All card renders failed",
+      `0/${cards.length} cards rendered successfully`
+    );
+    process.exit(1);
+  }
 }
 
 main().catch((err) => {
