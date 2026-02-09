@@ -1156,10 +1156,20 @@ class ExportWorker:
                         phase = msg.get("phase", "")
                         if total > 0 and status == "rendering":
                             pct = current / total
-                            phase_label = "卡片" if phase == "cards" else "字幕"
+                            # Show phase-specific counts instead of global total
+                            num_cards = len(cards_json)
+                            num_subs = len(subtitles_json)
+                            if phase == "cards":
+                                phase_label = "卡片"
+                                phase_current = current
+                                phase_total = num_cards
+                            else:
+                                phase_label = "字幕"
+                                phase_current = current - num_cards
+                                phase_total = num_subs
                             logger.info(f"Stills: {current}/{total} ({phase})")
                             if progress_callback:
-                                progress_callback(pct * 20, f"渲染{phase_label} {current}/{total}")
+                                progress_callback(pct * 20, f"渲染{phase_label} {phase_current}/{phase_total}")
                     elif msg.get("type") == "complete":
                         rendered = msg.get("rendered", 0)
                         logger.info(f"Stills complete: {rendered}/{total_items}")
