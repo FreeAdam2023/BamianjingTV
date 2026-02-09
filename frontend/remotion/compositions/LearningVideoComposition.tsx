@@ -122,6 +122,29 @@ function BilingualSubtitle({
   );
 }
 
+// ---- CardStillComposition: static card for renderStill (no animation) ----
+
+export const CardStillComposition: React.FC<{ card: PinnedCardInput }> = ({ card }) => {
+  const noop = () => {};
+  const cardData = card.card_data;
+
+  return (
+    <AbsoluteFill>
+      <div className="h-full bg-black/80">
+        {card.card_type === "word" && (
+          <SidePanelWordCard card={cardData as unknown as WordCard} onClose={noop} canPin={false} />
+        )}
+        {card.card_type === "entity" && (
+          <SidePanelEntityCard card={cardData as unknown as EntityCard} onClose={noop} canPin={false} />
+        )}
+        {card.card_type === "idiom" && (
+          <SidePanelIdiomCard card={cardData as unknown as IdiomCard} onClose={noop} canPin={false} />
+        )}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 // ---- Main Composition ----
 
 export const LearningVideoComposition: React.FC<LearningVideoProps> = ({

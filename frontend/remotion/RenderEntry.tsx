@@ -6,10 +6,10 @@
 import React from "react";
 import { Composition, registerRoot } from "remotion";
 import { SubtitleComposition } from "./compositions/SubtitleComposition";
-import { LearningVideoComposition } from "./compositions/LearningVideoComposition";
+import { LearningVideoComposition, CardStillComposition } from "./compositions/LearningVideoComposition";
 import type { SubtitleCompositionProps } from "./compositions/SubtitleComposition";
 import type { RemotionConfig } from "../src/lib/creative-types";
-import type { SubtitleSegment, LearningVideoProps } from "./types";
+import type { SubtitleSegment, LearningVideoProps, PinnedCardInput } from "./types";
 
 // Default props for the composition (will be overridden by inputProps)
 const defaultConfig: RemotionConfig = {
@@ -80,6 +80,23 @@ export const RemotionRoot: React.FC = () => {
             durationInFrames: p.durationInFrames,
             fps: p.fps,
           };
+        }}
+      />
+      <Composition
+        id="CardStill"
+        component={CardStillComposition as unknown as React.ComponentType<Record<string, unknown>>}
+        width={672}
+        height={756}
+        fps={30}
+        durationInFrames={1}
+        defaultProps={{
+          card: {
+            id: "default",
+            card_type: "word",
+            card_data: {},
+            display_start: 0,
+            display_end: 1,
+          } satisfies PinnedCardInput,
         }}
       />
     </>
