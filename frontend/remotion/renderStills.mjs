@@ -305,7 +305,7 @@ async function main() {
   // ── Phase 2: Render subtitle stills ──
   if (subtitles.length > 0 && subtitleData) {
     const subtitleWidth = 1920;
-    const subtitleHeight = 324;
+    const subtitleHeight = 356;
 
     const defaultSubProps = {
       en: "",

@@ -13,9 +13,8 @@ export function useVideoState() {
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
 
-  // Subtitle area height ratio (0.3 to 0.7, default 0.5 = 50%)
-  const [subtitleHeightRatio, setSubtitleHeightRatio] = useState(0.5);
-  const [isDragging, setIsDragging] = useState(false);
+  // Subtitle area height ratio (fixed 33%, not adjustable)
+  const subtitleHeightRatio = 0.33;
 
   // Watermark
   const [watermarkUrl, setWatermarkUrl] = useState<string | null>(null);
@@ -107,9 +106,6 @@ export function useVideoState() {
 
     // Subtitle area
     subtitleHeightRatio,
-    setSubtitleHeightRatio,
-    isDragging,
-    setIsDragging,
 
     // Watermark
     watermarkUrl,

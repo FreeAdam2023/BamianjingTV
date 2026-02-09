@@ -64,7 +64,7 @@ export const RemotionRoot: React.FC = () => {
           subtitles: [],
           layout: {
             videoRatio: 0.65,
-            subtitleRatio: 0.3,
+            subtitleRatio: 0.33,
             bgColor: "#1a2744",
           },
           subtitleStyle: {
@@ -103,7 +103,7 @@ export const RemotionRoot: React.FC = () => {
         id="SubtitleStill"
         component={SubtitleStillComposition as unknown as React.ComponentType<Record<string, unknown>>}
         width={1920}
-        height={324}
+        height={356}
         fps={30}
         durationInFrames={1}
         defaultProps={{
@@ -112,7 +112,7 @@ export const RemotionRoot: React.FC = () => {
           style: { enColor: "#ffffff", zhColor: "#facc15", enFontSize: 40, zhFontSize: 40 },
           bgColor: "#1a2744",
           width: 1920,
-          height: 324,
+          height: 356,
           languageMode: "both",
         } satisfies SubtitleStillProps}
       />

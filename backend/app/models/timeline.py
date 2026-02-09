@@ -213,7 +213,7 @@ class Timeline(BaseModel):
     is_reviewed: bool = False
     export_profile: ExportProfile = ExportProfile.FULL
     use_traditional_chinese: bool = True  # Traditional vs Simplified
-    subtitle_area_ratio: float = 0.3  # Ratio of screen height for subtitle area (0.3-0.7)
+    subtitle_area_ratio: float = 0.33  # Fixed ratio of screen height for subtitle area
     subtitle_style_mode: SubtitleStyleMode = SubtitleStyleMode.HALF_SCREEN  # Subtitle rendering style
     subtitle_language_mode: SubtitleLanguageMode = SubtitleLanguageMode.BOTH  # Which languages to show
 

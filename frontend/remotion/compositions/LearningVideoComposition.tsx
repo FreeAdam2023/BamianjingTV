@@ -148,7 +148,7 @@ export const CardStillComposition: React.FC<{ card: PinnedCardInput }> = ({ card
 // ---- SubtitleStillComposition: static subtitle for renderStill (WYSIWYG match) ----
 
 // Replicates SubtitleOverlay.tsx split-mode styling exactly:
-// - SUBTITLE_HEIGHT_RATIO = 0.3, fontScale = 0.3 / 0.5 = 0.6
+// - SUBTITLE_HEIGHT_RATIO = 0.33, fontScale = 0.33 / 0.5 = 0.66
 // - Adaptive text-length scaling (sqrt-based)
 // - leading-relaxed (line-height: 1.625)
 // - fontWeight: 500
@@ -160,7 +160,7 @@ const SUB_MIN_ZH_FONT_SIZE = 20;
 const SUB_EN_CHARS_PER_LINE = 60;
 const SUB_ZH_CHARS_PER_LINE = 30;
 const SUB_MAX_LINES = 4;
-const SUB_FONT_SCALE = 0.3 / 0.5; // 0.6 — matches split-mode fontScale
+const SUB_FONT_SCALE = 0.33 / 0.5; // 0.66 — matches split-mode fontScale
 
 function computeAdaptiveFontSize(
   baseSize: number,

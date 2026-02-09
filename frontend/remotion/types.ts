@@ -67,7 +67,7 @@ export interface LearningVideoProps {
   subtitles: SubtitleInput[];
   layout: {
     videoRatio: number; // 0.65
-    subtitleRatio: number; // 0.3
+    subtitleRatio: number; // 0.33
     bgColor: string; // "#1a2744"
   };
   subtitleStyle: {

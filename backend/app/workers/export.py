@@ -31,7 +31,7 @@ OUTPUT_WIDTH = 1920
 OUTPUT_HEIGHT = 1080
 VIDEO_AREA_RATIO = 0.65  # Left 65% for video
 CARD_PANEL_RATIO = 0.35  # Right 35% for card panel
-SUBTITLE_AREA_RATIO = 0.3  # Bottom 30% for subtitles
+SUBTITLE_AREA_RATIO = 0.33  # Bottom 33% for subtitles
 PANEL_BG_COLOR = "0x1a2744"
 
 

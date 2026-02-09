@@ -10,7 +10,6 @@ import SubtitleStylePanel from "./SubtitleStylePanel";
 interface SubtitleOverlayProps {
   segment: EditableSegment | null;
   style: SubtitleStyle;
-  subtitleHeightRatio: number;
   onStyleChange: (updates: Partial<SubtitleStyle>) => void;
   onStyleReset: () => void;
   overlayMode?: boolean;
@@ -25,10 +24,12 @@ const EN_CHARS_PER_LINE = 60;
 const ZH_CHARS_PER_LINE = 30;
 const MAX_LINES = 4; // Max lines we want to display
 
+// Fixed subtitle area ratio (33% of screen height, not adjustable)
+const SUBTITLE_HEIGHT_RATIO = 0.33;
+
 export default function SubtitleOverlay({
   segment,
   style,
-  subtitleHeightRatio,
   onStyleChange,
   onStyleReset,
   overlayMode = false,
@@ -37,8 +38,8 @@ export default function SubtitleOverlay({
 
   // Calculate adaptive font sizes based on text length
   const { englishFontSize, chineseFontSize } = useMemo(() => {
-    // Base font scale (from height ratio, only for split mode)
-    const fontScale = overlayMode ? 1 : subtitleHeightRatio / 0.5;
+    // Base font scale (fixed 30% ratio, only for split mode)
+    const fontScale = overlayMode ? 1 : SUBTITLE_HEIGHT_RATIO / 0.5;
     let enSize = Math.max(MIN_EN_FONT_SIZE, Math.min(48, style.enFontSize * fontScale));
     let zhSize = Math.max(MIN_ZH_FONT_SIZE, Math.min(56, style.zhFontSize * fontScale));
 
@@ -73,7 +74,7 @@ export default function SubtitleOverlay({
     }
 
     return { englishFontSize: Math.round(enSize), chineseFontSize: Math.round(zhSize) };
-  }, [segment, style.enFontSize, style.zhFontSize, subtitleHeightRatio, overlayMode]);
+  }, [segment, style.enFontSize, style.zhFontSize, overlayMode]);
 
   // Text shadow style for better visibility (stronger in overlay mode)
   const textShadowStyle = style.textShadow
