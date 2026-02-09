@@ -117,7 +117,19 @@ async function main() {
     const { enableTailwind } = await import("@remotion/tailwind");
     bundleLocation = await bundle({
       entryPoint: path.join(__dirname, "RenderEntry.tsx"),
-      webpackOverride: (config) => enableTailwind(config),
+      webpackOverride: (currentConfig) => {
+        const withTailwind = enableTailwind(currentConfig);
+        return {
+          ...withTailwind,
+          resolve: {
+            ...withTailwind.resolve,
+            alias: {
+              ...withTailwind.resolve?.alias,
+              "@": path.join(__dirname, "../src"),
+            },
+          },
+        };
+      },
     });
     logProgress({ status: "bundled", progress: 5 });
   } catch (err) {
