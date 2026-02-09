@@ -178,11 +178,21 @@ async def _run_export(
             message="Generating subtitles...",
         )
 
+        def on_render_progress(progress: float, message: str):
+            """Callback to stream Remotion render progress with ETA to the UI."""
+            manager.update_export_status(
+                timeline_id,
+                status=ExportStatus.EXPORTING,
+                progress=progress,
+                message=message,
+            )
+
         full_path, essence_path = await export_worker.export(
             timeline=timeline,
             video_path=video_path,
             output_dir=output_dir,
             subtitle_style=subtitle_style,
+            progress_callback=on_render_progress,
         )
 
         # Update timeline with output paths

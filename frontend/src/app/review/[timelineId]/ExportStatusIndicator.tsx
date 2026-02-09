@@ -193,7 +193,7 @@ export default function ExportStatusIndicator({
             <span className="text-sm font-bold text-blue-300">{Math.round(progress)}%</span>
           )}
           {message && (
-            <span className="text-xs text-gray-400 max-w-[200px] truncate" title={message}>
+            <span className={`text-xs ${isActive ? "text-blue-200/80 font-medium" : "text-gray-400"}`} title={message}>
               {message}
             </span>
           )}

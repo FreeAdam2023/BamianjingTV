@@ -6,8 +6,9 @@ import json
 import math
 import subprocess
 import tempfile
+import time
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 from loguru import logger
 
 from app.config import settings
@@ -749,6 +750,7 @@ class ExportWorker:
         use_traditional: bool = True,
         subtitle_language_mode: SubtitleLanguageMode = SubtitleLanguageMode.BOTH,
         subtitle_area_ratio: float = 0.3,
+        progress_callback: Optional[Callable[[float, str], None]] = None,
     ) -> Path:
         """Render video using Remotion LearningVideo composition.
 
@@ -939,8 +941,9 @@ class ExportWorker:
             cwd=str(frontend_dir),
         )
 
-        # Stream stdout line-by-line for real-time progress
+        # Stream stdout line-by-line for real-time progress + ETA
         last_progress = 0
+        render_start_time = time.monotonic()
         stderr_lines: list[str] = []
         try:
             async def read_stderr():
@@ -963,7 +966,30 @@ class ExportWorker:
                         progress = msg.get("progress", 0)
                         if progress > last_progress:
                             last_progress = progress
-                            logger.info(f"Remotion render progress: {progress}% — {msg.get('status', '')}")
+                            # Calculate ETA
+                            elapsed = time.monotonic() - render_start_time
+                            eta_str = ""
+                            if progress > 5 and elapsed > 3:
+                                remaining = elapsed / (progress / 100) * (1 - progress / 100)
+                                if remaining > 3600:
+                                    eta_str = f"{remaining / 3600:.1f}h"
+                                elif remaining > 60:
+                                    eta_str = f"{int(remaining // 60)}m{int(remaining % 60):02d}s"
+                                else:
+                                    eta_str = f"{int(remaining)}s"
+                            status_msg = msg.get('status', '')
+                            log_msg = f"Remotion render: {progress}%"
+                            if eta_str:
+                                log_msg += f" · ETA {eta_str}"
+                            logger.info(log_msg)
+                            # Report to caller for UI update
+                            if progress_callback and progress > 10:
+                                # Map Remotion 10-100% to export 10-65%
+                                export_progress = 10 + (progress - 10) * 55 / 90
+                                cb_msg = f"渲染中"
+                                if eta_str:
+                                    cb_msg += f" · 预计剩余 {eta_str}"
+                                progress_callback(export_progress, cb_msg)
                     elif msg.get("type") == "complete":
                         logger.info(f"Remotion render complete: {msg.get('outputPath')}")
                 except (json.JSONDecodeError, TypeError):
@@ -993,6 +1019,7 @@ class ExportWorker:
         video_path: Path,
         output_path: Path,
         subtitle_style=None,
+        progress_callback: Optional[Callable[[float, str], None]] = None,
     ) -> Path:
         """Export full video with subtitles and pinned cards.
 
@@ -1090,6 +1117,7 @@ class ExportWorker:
                 use_traditional=timeline.use_traditional_chinese,
                 subtitle_language_mode=subtitle_language_mode,
                 subtitle_area_ratio=subtitle_ratio,
+                progress_callback=progress_callback,
             )
         else:
             # FLOATING / NONE modes: existing behavior (full-width video)
@@ -1242,6 +1270,7 @@ class ExportWorker:
         video_path: Path,
         output_path: Path,
         subtitle_style=None,
+        progress_callback: Optional[Callable[[float, str], None]] = None,
     ) -> Path:
         """Export essence video (only KEEP segments) with subtitles.
 
@@ -1346,6 +1375,7 @@ class ExportWorker:
                     use_traditional=timeline.use_traditional_chinese,
                     subtitle_language_mode=subtitle_language_mode,
                     subtitle_area_ratio=subtitle_ratio,
+                    progress_callback=progress_callback,
                 )
 
                 logger.info(
@@ -1402,6 +1432,7 @@ class ExportWorker:
         video_path: Path,
         output_dir: Path,
         subtitle_style=None,
+        progress_callback: Optional[Callable[[float, str], None]] = None,
     ) -> Tuple[Optional[Path], Optional[Path]]:
         """Export video(s) based on timeline export profile.
 
@@ -1424,11 +1455,11 @@ class ExportWorker:
 
         if profile in (ExportProfile.FULL, ExportProfile.BOTH):
             full_path = output_dir / "full_subtitled.mp4"
-            await self.export_full_video(timeline, video_path, full_path, subtitle_style)
+            await self.export_full_video(timeline, video_path, full_path, subtitle_style, progress_callback)
 
         if profile in (ExportProfile.ESSENCE, ExportProfile.BOTH):
             essence_path = output_dir / "essence.mp4"
-            await self.export_essence(timeline, video_path, essence_path, subtitle_style)
+            await self.export_essence(timeline, video_path, essence_path, subtitle_style, progress_callback)
 
         return full_path, essence_path
 
