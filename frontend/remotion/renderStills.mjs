@@ -44,6 +44,7 @@ function parseArgs() {
     outputDir: null,
     width: 672,
     height: 756,
+    concurrency: 4,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -65,6 +66,9 @@ function parseArgs() {
         break;
       case "--height":
         options.height = parseInt(args[++i], 10);
+        break;
+      case "--concurrency":
+        options.concurrency = Math.max(1, parseInt(args[++i], 10) || 4);
         break;
     }
   }
@@ -265,40 +269,47 @@ async function main() {
       process.exit(1);
     }
 
-    for (let i = 0; i < cards.length; i++) {
-      const card = cards[i];
-      const outputPath = path.join(options.outputDir, `${card.id}.png`);
-
-      try {
-        await renderStill({
-          composition: cardComposition,
-          serveUrl: bundleLocation,
-          output: outputPath,
-          inputProps: {
-            card: {
-              id: card.id,
-              card_type: card.card_type,
-              card_data: card.card_data,
-              display_start: 0,
-              display_end: 1,
+    for (let bStart = 0; bStart < cards.length; bStart += options.concurrency) {
+      const batch = cards.slice(bStart, bStart + options.concurrency);
+      const results = await Promise.allSettled(
+        batch.map((card) => {
+          const outputPath = path.join(options.outputDir, `${card.id}.png`);
+          return renderStill({
+            composition: cardComposition,
+            serveUrl: bundleLocation,
+            output: outputPath,
+            inputProps: {
+              card: {
+                id: card.id,
+                card_type: card.card_type,
+                card_data: card.card_data,
+                display_start: 0,
+                display_end: 1,
+              },
             },
-          },
-          imageFormat: "png",
-        });
-        totalRendered++;
-      } catch (err) {
-        logError(`Failed to render card ${card.id}`, err);
-        allErrors.push({ id: card.id, phase: "cards", error: err?.message || String(err) });
-      }
+            imageFormat: "png",
+          });
+        })
+      );
 
-      globalCurrent++;
-      logProgress({
-        status: "rendering",
-        phase: "cards",
-        current: globalCurrent,
-        total: totalItems,
-        cardId: card.id,
-      });
+      for (let j = 0; j < results.length; j++) {
+        const card = batch[j];
+        if (results[j].status === "fulfilled") {
+          totalRendered++;
+        } else {
+          const err = results[j].reason;
+          logError(`Failed to render card ${card.id}`, err);
+          allErrors.push({ id: card.id, phase: "cards", error: err?.message || String(err) });
+        }
+        globalCurrent++;
+        logProgress({
+          status: "rendering",
+          phase: "cards",
+          current: globalCurrent,
+          total: totalItems,
+          cardId: card.id,
+        });
+      }
     }
   }
 
@@ -344,40 +355,47 @@ async function main() {
       process.exit(1);
     }
 
-    for (let i = 0; i < subtitles.length; i++) {
-      const sub = subtitles[i];
-      const outputPath = path.join(options.outputDir, `${sub.id}.png`);
+    for (let bStart = 0; bStart < subtitles.length; bStart += options.concurrency) {
+      const batch = subtitles.slice(bStart, bStart + options.concurrency);
+      const results = await Promise.allSettled(
+        batch.map((sub) => {
+          const outputPath = path.join(options.outputDir, `${sub.id}.png`);
+          return renderStill({
+            composition: subComposition,
+            serveUrl: bundleLocation,
+            output: outputPath,
+            inputProps: {
+              en: sub.en || "",
+              zh: sub.zh || "",
+              style: subtitleData.style,
+              bgColor: subtitleData.bgColor || "#1a2744",
+              width: subtitleWidth,
+              height: subtitleHeight,
+              languageMode: subtitleData.languageMode || "both",
+            },
+            imageFormat: "png",
+          });
+        })
+      );
 
-      try {
-        await renderStill({
-          composition: subComposition,
-          serveUrl: bundleLocation,
-          output: outputPath,
-          inputProps: {
-            en: sub.en || "",
-            zh: sub.zh || "",
-            style: subtitleData.style,
-            bgColor: subtitleData.bgColor || "#1a2744",
-            width: subtitleWidth,
-            height: subtitleHeight,
-            languageMode: subtitleData.languageMode || "both",
-          },
-          imageFormat: "png",
+      for (let j = 0; j < results.length; j++) {
+        const sub = batch[j];
+        if (results[j].status === "fulfilled") {
+          totalRendered++;
+        } else {
+          const err = results[j].reason;
+          logError(`Failed to render subtitle ${sub.id}`, err);
+          allErrors.push({ id: sub.id, phase: "subtitles", error: err?.message || String(err) });
+        }
+        globalCurrent++;
+        logProgress({
+          status: "rendering",
+          phase: "subtitles",
+          current: globalCurrent,
+          total: totalItems,
+          subtitleId: sub.id,
         });
-        totalRendered++;
-      } catch (err) {
-        logError(`Failed to render subtitle ${sub.id}`, err);
-        allErrors.push({ id: sub.id, phase: "subtitles", error: err?.message || String(err) });
       }
-
-      globalCurrent++;
-      logProgress({
-        status: "rendering",
-        phase: "subtitles",
-        current: globalCurrent,
-        total: totalItems,
-        subtitleId: sub.id,
-      });
     }
   }
 

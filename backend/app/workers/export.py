@@ -76,6 +76,7 @@ class ExportWorker:
 
     def __init__(self):
         self.use_nvenc = settings.ffmpeg_nvenc
+        self._render_concurrency = 6
         self._card_renderer = None
         self._active_processes: dict[str, asyncio.subprocess.Process] = {}
 
@@ -252,7 +253,7 @@ class ExportWorker:
     def _build_wysiwyg_filter(
         self,
         cards: List[Tuple[Path, float, float]],
-        subtitle_stills: List[Tuple[Path, float, float]],
+        subtitle_video_path: Optional[Path],
         video_duration: float,
     ) -> Tuple[str, List[str], str]:
         """Build FFmpeg filter_complex for WYSIWYG 65/35 side-by-side layout.
@@ -264,12 +265,12 @@ class ExportWorker:
         |  Height: 756px             |  Height: 756px           |
         +----------------------------+--------------------------+
         | Subtitle Area (1920px full width, bg: #1a2744)        |
-        | Height: 324px  (PNG stills from Remotion)             |
+        | Height: 324px  (subtitle video track overlay)         |
         +-------------------------------------------------------+
 
         Args:
             cards: List of (image_path, start_time, end_time) tuples
-            subtitle_stills: List of (image_path, start_time, end_time) for subtitle PNGs
+            subtitle_video_path: Path to pre-composed subtitle video track, or None
             video_duration: Total video duration for canvas
 
         Returns:
@@ -374,24 +375,20 @@ class ExportWorker:
             f"[with_dividers]"
         )
 
-        # Step 6: Overlay subtitle PNG stills in the bottom subtitle area
-        # Each subtitle still is 1920x324, positioned at (0, video_area_height+1)
+        # Step 6: Overlay subtitle video track in the bottom subtitle area
+        # Single pre-composed video replaces per-subtitle PNG overlays
         prev_label = "with_dividers"
         subtitle_y = video_area_height + 1  # Below horizontal divider
 
-        for i, (sub_path, start, end) in enumerate(subtitle_stills):
-            input_args.extend(["-i", str(sub_path)])
-            enable_expr = f"between(t,{start},{end})"
-
-            out_label = f"sub{i}"
+        if subtitle_video_path:
+            input_args.extend(["-i", str(subtitle_video_path)])
             filters.append(
                 f"[{prev_label}][{input_idx}:v]overlay="
                 f"x=0:y={subtitle_y}:"
-                f"enable='{enable_expr}':"
                 f"format=auto"
-                f"[{out_label}]"
+                f"[with_subs]"
             )
-            prev_label = out_label
+            prev_label = "with_subs"
             input_idx += 1
 
         final_label = prev_label
@@ -401,7 +398,7 @@ class ExportWorker:
         logger.info(
             f"WYSIWYG filter: {left_width}x{video_area_height} video + "
             f"{right_width}x{video_area_height} card panel, "
-            f"{len(cards)} cards, {len(subtitle_stills)} subtitle stills"
+            f"{len(cards)} cards, subtitle_video={'yes' if subtitle_video_path else 'no'}"
         )
 
         return filter_complex, input_args, final_label
@@ -968,6 +965,140 @@ class ExportWorker:
 
         return subtitles_json, timing_map
 
+    async def _create_subtitle_video(
+        self,
+        rendered_subtitles: List[Tuple[Path, float, float]],
+        video_duration: float,
+        output_dir: Path,
+        bg_color: str = "#1a2744",
+        progress_callback: Optional[Callable[[float, str], None]] = None,
+    ) -> Optional[Path]:
+        """Combine subtitle PNGs into a single video track via FFmpeg concat demuxer.
+
+        Creates a continuous video where subtitle PNGs appear at the correct times
+        with blank frames (matching background color) filling the gaps.
+
+        Args:
+            rendered_subtitles: List of (image_path, start_time, end_time) tuples, sorted by start
+            video_duration: Total video duration in seconds
+            output_dir: Directory for temp files and output
+            bg_color: Background color hex for blank frames (default: #1a2744)
+            progress_callback: Optional progress callback
+
+        Returns:
+            Path to subtitle_track.mp4, or None if no subtitles
+        """
+        if not rendered_subtitles:
+            return None
+
+        output_dir = Path(output_dir)
+        subtitle_video_path = output_dir / "subtitle_track.mp4"
+
+        # Sort by start time
+        sorted_subs = sorted(rendered_subtitles, key=lambda x: x[1])
+
+        # Get subtitle dimensions from the first PNG
+        first_png = sorted_subs[0][0]
+        probe_cmd = [
+            "ffprobe", "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=width,height",
+            "-of", "csv=s=x:p=0",
+            str(first_png),
+        ]
+        probe_result = subprocess.run(probe_cmd, capture_output=True, text=True)
+        try:
+            sub_w, sub_h = probe_result.stdout.strip().split("x")
+            sub_width, sub_height = int(sub_w), int(sub_h)
+        except Exception:
+            sub_width, sub_height = 1920, 324
+
+        # Create blank PNG with matching background color
+        blank_png = output_dir / "blank_subtitle.png"
+        # Convert hex color to FFmpeg format
+        hex_clean = bg_color.lstrip("#")
+        blank_cmd = [
+            "ffmpeg", "-f", "lavfi",
+            "-i", f"color=c=0x{hex_clean}:s={sub_width}x{sub_height}:d=0.04:r=25",
+            "-frames:v", "1",
+            "-y", str(blank_png),
+        ]
+        blank_result = subprocess.run(blank_cmd, capture_output=True, text=True)
+        if blank_result.returncode != 0:
+            logger.warning(f"Failed to create blank PNG: {blank_result.stderr}")
+            return None
+
+        # Build concat file with gap + subtitle entries
+        concat_file = output_dir / "subtitle_concat.txt"
+        entries = []
+        current_time = 0.0
+        min_duration = 0.001  # Minimum duration to avoid zero-length entries
+
+        for sub_path, start, end in sorted_subs:
+            sub_duration = max(end - start, min_duration)
+
+            # Gap before this subtitle
+            gap = start - current_time
+            if gap > min_duration:
+                entries.append(f"file '{blank_png}'\nduration {gap:.6f}")
+
+            # Subtitle still
+            entries.append(f"file '{sub_path}'\nduration {sub_duration:.6f}")
+            current_time = end
+
+        # Trailing gap after last subtitle until end of video
+        trailing_gap = video_duration - current_time
+        if trailing_gap > min_duration:
+            entries.append(f"file '{blank_png}'\nduration {trailing_gap:.6f}")
+
+        # Concat demuxer requires a final entry without duration (last frame)
+        entries.append(f"file '{blank_png}'")
+
+        with open(concat_file, "w") as f:
+            f.write("\n".join(entries) + "\n")
+
+        logger.info(
+            f"Subtitle video concat: {len(sorted_subs)} subtitle entries, "
+            f"{len(entries)} total entries, {video_duration:.1f}s duration"
+        )
+
+        # Encode subtitle video
+        encode_cmd = [
+            "ffmpeg",
+            "-f", "concat", "-safe", "0",
+            "-i", str(concat_file),
+            "-r", "30",
+            "-pix_fmt", "yuv420p",
+        ]
+        if self.use_nvenc:
+            encode_cmd.extend(["-c:v", "h264_nvenc", "-preset", "p1"])
+        else:
+            encode_cmd.extend(["-c:v", "libx264", "-preset", "ultrafast", "-crf", "18"])
+        encode_cmd.extend(["-y", str(subtitle_video_path)])
+
+        if progress_callback:
+            progress_callback(20, "生成字幕视频轨…")
+
+        proc = await asyncio.create_subprocess_exec(
+            *encode_cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        _, stderr_data = await proc.communicate()
+
+        if proc.returncode != 0:
+            stderr_text = stderr_data.decode("utf-8", errors="replace")[-500:]
+            raise RuntimeError(
+                f"Subtitle video creation failed (exit {proc.returncode}): {stderr_text}"
+            )
+
+        if progress_callback:
+            progress_callback(25, "字幕视频轨完成")
+
+        logger.info(f"Created subtitle video track: {subtitle_video_path}")
+        return subtitle_video_path
+
     async def _render_stills(
         self,
         pinned_cards: List[PinnedCard],
@@ -1110,6 +1241,7 @@ class ExportWorker:
             "--output-dir", str(output_dir),
             "--width", str(panel_width),
             "--height", str(panel_height),
+            "--concurrency", str(self._render_concurrency),
         ])
 
         total_items = len(cards_json) + len(subtitles_json)
@@ -1312,29 +1444,43 @@ class ExportWorker:
             timeline_id=timeline_id,
         )
 
-        # ── Cancellation check: between Phase A and B ──
+        # ── Cancellation check: between Phase A and A.5 ──
         if timeline_id and self._check_cancelled(timeline_id):
             raise ExportCancelledError(f"Export cancelled for timeline {timeline_id}")
 
-        # ── Phase B: FFmpeg composition with card + subtitle PNG overlays ──
+        # ── Phase A.5: Create subtitle video track from PNGs ──
+        subtitle_video_path = None
+        if rendered_subtitles:
+            # Determine background color from subtitle_style
+            bg_color = "#1a2744"
+            if subtitle_style:
+                bg_color = getattr(subtitle_style, 'background_color', "#1a2744") or "#1a2744"
+
+            subtitle_video_path = await self._create_subtitle_video(
+                rendered_subtitles=rendered_subtitles,
+                video_duration=video_duration,
+                output_dir=stills_dir,
+                bg_color=bg_color,
+                progress_callback=progress_callback,
+            )
+
+        # ── Cancellation check: between Phase A.5 and B ──
+        if timeline_id and self._check_cancelled(timeline_id):
+            raise ExportCancelledError(f"Export cancelled for timeline {timeline_id}")
+
+        # ── Phase B: FFmpeg composition with card overlays + subtitle video ──
         if progress_callback:
             progress_callback(25, "合成视频…")
 
         filter_complex, overlay_input_args, final_label = self._build_wysiwyg_filter(
             cards=rendered_cards,
-            subtitle_stills=rendered_subtitles,
+            subtitle_video_path=subtitle_video_path,
             video_duration=video_duration,
         )
 
-        # Write filter_complex to a script file to avoid OS argument length
-        # limit (MAX_ARG_STRLEN=128KB). With 1000+ subtitle overlays the
-        # filter string can easily exceed that.
-        filter_script_path = output_path.parent / "filter_complex.txt"
-        filter_script_path.write_text(filter_complex)
-
         cmd = ["ffmpeg", "-i", str(video_path)]
         cmd.extend(overlay_input_args)
-        cmd.extend(["-filter_complex_script", str(filter_script_path)])
+        cmd.extend(["-filter_complex", filter_complex])
         cmd.extend(["-map", f"[{final_label}]", "-map", "0:a?"])
 
         if self.use_nvenc:
@@ -1345,7 +1491,7 @@ class ExportWorker:
 
         logger.info(
             f"Hybrid WYSIWYG export: {len(rendered_cards)} card stills, "
-            f"{len(rendered_subtitles)} subtitle overlays, "
+            f"subtitle_video={'yes' if subtitle_video_path else 'no'}, "
             f"FFmpeg composition → {output_path}"
         )
 
