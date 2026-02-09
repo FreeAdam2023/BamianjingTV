@@ -283,15 +283,6 @@ export async function markTimelineReviewed(
   });
 }
 
-export async function setSubtitleAreaRatio(
-  timelineId: string,
-  ratio: number
-): Promise<{ timeline_id: string; subtitle_area_ratio: number; message: string }> {
-  return fetchAPI(`/timelines/${timelineId}/subtitle-ratio?ratio=${ratio}`, {
-    method: "POST",
-  });
-}
-
 // Subtitle style mode APIs
 import type { SubtitleStyleMode, SubtitleLanguageMode } from "./types";
 
