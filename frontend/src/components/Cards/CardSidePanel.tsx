@@ -67,7 +67,9 @@ export function SidePanelWordCard({ card, onClose, isPinned, pinLoading, onToggl
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [imageError, setImageError] = useState(false);
 
-  const primaryPronunciation = card.pronunciations.find((p) => p.region === "us") || card.pronunciations[0];
+  const pronunciations = card.pronunciations || [];
+  const senses = card.senses || [];
+  const primaryPronunciation = pronunciations.find((p) => p.region === "us") || pronunciations[0];
   const primaryImage = card.images?.[0];
 
   const playPronunciation = () => {
@@ -77,12 +79,12 @@ export function SidePanelWordCard({ card, onClose, isPinned, pinLoading, onToggl
     audioRef.current.play().catch(() => {});
   };
 
-  const sensesByPos = card.senses.reduce((acc, sense) => {
+  const sensesByPos = senses.reduce((acc, sense) => {
     const pos = sense.part_of_speech;
     if (!acc[pos]) acc[pos] = [];
     acc[pos].push(sense);
     return acc;
-  }, {} as Record<string, typeof card.senses>);
+  }, {} as Record<string, typeof senses>);
 
   return (
     <div className="h-full flex flex-col">
@@ -202,7 +204,7 @@ export function SidePanelWordCard({ card, onClose, isPinned, pinLoading, onToggl
                   )}
 
                   {/* Examples with Chinese translations */}
-                  {sense.examples.length > 0 && (
+                  {(sense.examples?.length ?? 0) > 0 && (
                     <div className="ml-4 space-y-2">
                       {sense.examples.slice(0, 2).map((example, exIdx) => (
                         <div key={exIdx} className="pl-3 border-l-2 border-white/20">
@@ -218,12 +220,12 @@ export function SidePanelWordCard({ card, onClose, isPinned, pinLoading, onToggl
                   )}
 
                   {/* Synonyms & Antonyms */}
-                  {(sense.synonyms.length > 0 || sense.antonyms.length > 0) && (
+                  {((sense.synonyms?.length ?? 0) > 0 || (sense.antonyms?.length ?? 0) > 0) && (
                     <div className="flex flex-wrap gap-2 ml-4 pt-1">
-                      {sense.synonyms.length > 0 && (
+                      {(sense.synonyms?.length ?? 0) > 0 && (
                         <div className="flex flex-wrap items-center gap-1">
                           <span className="text-green-400 text-xs">≈</span>
-                          {sense.synonyms.slice(0, 3).map((syn, synIdx) => (
+                          {sense.synonyms!.slice(0, 3).map((syn, synIdx) => (
                             <span
                               key={synIdx}
                               className="text-xs px-1.5 py-0.5 bg-green-900/40 text-green-300 rounded"
@@ -233,10 +235,10 @@ export function SidePanelWordCard({ card, onClose, isPinned, pinLoading, onToggl
                           ))}
                         </div>
                       )}
-                      {sense.antonyms.length > 0 && (
+                      {(sense.antonyms?.length ?? 0) > 0 && (
                         <div className="flex flex-wrap items-center gap-1">
                           <span className="text-red-400 text-xs">≠</span>
-                          {sense.antonyms.slice(0, 2).map((ant, antIdx) => (
+                          {sense.antonyms!.slice(0, 2).map((ant, antIdx) => (
                             <span
                               key={antIdx}
                               className="text-xs px-1.5 py-0.5 bg-red-900/40 text-red-300 rounded"
