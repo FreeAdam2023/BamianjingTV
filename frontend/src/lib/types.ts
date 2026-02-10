@@ -139,6 +139,7 @@ export interface ExportRequest {
   use_traditional_chinese: boolean;
   subtitle_style_mode?: SubtitleStyleMode;  // half_screen, floating, none
   subtitle_style?: SubtitleStyleOptions;
+  test_seconds?: number;  // Quick test: limit export to first N seconds
   upload_to_youtube?: boolean;
   youtube_title?: string;
   youtube_description?: string;
