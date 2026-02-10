@@ -361,22 +361,25 @@ class ExportWorker:
         # Step 4.5: Draw placeholder text on right panel (always visible, cards cover it)
         placeholder_cx = left_width + right_width // 2
         placeholder_cy = video_area_height // 2
-        # "Learning Notes" title
+        # Use Noto CJK font for Chinese text (installed in Docker)
+        noto_cjk = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+        # Main title: 学习卡片
         filters.append(
             f"[{prev_label}]drawtext="
-            f"text='Learning Notes':"
+            f"text='学习卡片':"
+            f"fontfile={noto_cjk}:"
             f"fontcolor=0xFFFFFF@0.15:"
-            f"fontsize=24:"
+            f"fontsize=28:"
             f"x={placeholder_cx}-tw/2:y={placeholder_cy}-20"
             f"[ph1]"
         )
-        # "SceneMind" subtitle
+        # Subtitle: SceneMind
         filters.append(
             f"[ph1]drawtext="
             f"text='SceneMind':"
             f"fontcolor=0xFFFFFF@0.08:"
             f"fontsize=14:"
-            f"x={placeholder_cx}-tw/2:y={placeholder_cy}+16"
+            f"x={placeholder_cx}-tw/2:y={placeholder_cy}+20"
             f"[with_placeholder]"
         )
         prev_label = "with_placeholder"
