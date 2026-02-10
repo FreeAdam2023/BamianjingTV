@@ -358,20 +358,40 @@ class ExportWorker:
             prev_label = out_label
             input_idx += 1
 
-        # Step 5: Draw subtle divider lines between areas
-        # Vertical divider: between video (left) and card panel (right)
-        # Horizontal divider: between video+card area and subtitle area
-        # FFmpeg hex color: 0xRRGGBB@opacity (white at 10%)
+        # Step 4.5: Draw placeholder text on right panel (always visible, cards cover it)
+        placeholder_cx = left_width + right_width // 2
+        placeholder_cy = video_area_height // 2
+        # "Learning Notes" title
+        filters.append(
+            f"[{prev_label}]drawtext="
+            f"text='Learning Notes':"
+            f"fontcolor=0xFFFFFF@0.15:"
+            f"fontsize=24:"
+            f"x={placeholder_cx}-tw/2:y={placeholder_cy}-20"
+            f"[ph1]"
+        )
+        # "SceneMind" subtitle
+        filters.append(
+            f"[ph1]drawtext="
+            f"text='SceneMind':"
+            f"fontcolor=0xFFFFFF@0.08:"
+            f"fontsize=14:"
+            f"x={placeholder_cx}-tw/2:y={placeholder_cy}+16"
+            f"[with_placeholder]"
+        )
+        prev_label = "with_placeholder"
+
+        # Step 5: Draw divider lines between areas (2px, 20% white)
         filters.append(
             f"[{prev_label}]drawbox="
-            f"x={left_width}:y=0:w=1:h={video_area_height}:"
-            f"color=0xFFFFFF@0.1:t=fill"
+            f"x={left_width}:y=0:w=2:h={video_area_height}:"
+            f"color=0xFFFFFF@0.2:t=fill"
             f"[div1]"
         )
         filters.append(
             f"[div1]drawbox="
-            f"x=0:y={video_area_height}:w={OUTPUT_WIDTH}:h=1:"
-            f"color=0xFFFFFF@0.1:t=fill"
+            f"x=0:y={video_area_height}:w={OUTPUT_WIDTH}:h=2:"
+            f"color=0xFFFFFF@0.2:t=fill"
             f"[with_dividers]"
         )
 

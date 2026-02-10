@@ -811,14 +811,14 @@ export default function ExportPanel({
             取消
           </button>
           <button
-            onClick={() => handleExport(120)}
+            onClick={() => handleExport(60)}
             className="px-4 py-2 bg-amber-600 hover:bg-amber-700 rounded text-sm flex items-center gap-1.5"
-            title="只导出前 2 分钟，快速验证效果"
+            title="只导出前 1 分钟，快速验证效果"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
-            测试 2min
+            测试 1min
           </button>
           <button
             onClick={() => handleExport()}
