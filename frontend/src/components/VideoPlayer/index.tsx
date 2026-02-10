@@ -418,7 +418,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   const currentSegmentRaw = currentSegmentId !== null
     ? segments.find((s) => s.id === currentSegmentId)
     : findSegmentAtTime(currentTime);
-  const currentSegment = currentSegmentRaw?.state === "drop" ? null : currentSegmentRaw;
+  const currentSegment = (currentSegmentRaw?.state === "drop" || currentSegmentRaw?.subtitle_hidden) ? null : currentSegmentRaw;
 
   // Video source URL (always source video, export preview in modal)
   const videoUrl = typeof window !== "undefined"
