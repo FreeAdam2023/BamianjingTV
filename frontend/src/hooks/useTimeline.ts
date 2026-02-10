@@ -74,26 +74,46 @@ export function useTimeline(timelineId: string) {
   );
 
   // Toggle subtitle_hidden on a segment
+  // When hiding, extend the next visible segment's start to cover the gap
   const toggleSubtitleHidden = useCallback(
     async (segmentId: number) => {
       if (!timeline) return;
-      const seg = timeline.segments.find((s) => s.id === segmentId);
-      if (!seg) return;
+      const idx = timeline.segments.findIndex((s) => s.id === segmentId);
+      if (idx === -1) return;
+      const seg = timeline.segments[idx];
       const newVal = !seg.subtitle_hidden;
 
+      // Find the next non-dropped segment to extend its start time
+      let nextSeg: typeof seg | null = null;
+      if (newVal) {
+        for (let i = idx + 1; i < timeline.segments.length; i++) {
+          if (timeline.segments[i].state !== "drop") {
+            nextSeg = timeline.segments[i];
+            break;
+          }
+        }
+      }
+
+      // Optimistic update
       setTimeline((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
-          segments: prev.segments.map((s) =>
-            s.id === segmentId ? { ...s, subtitle_hidden: newVal } : s
-          ),
+          segments: prev.segments.map((s) => {
+            if (s.id === segmentId) return { ...s, subtitle_hidden: newVal };
+            if (nextSeg && s.id === nextSeg.id && newVal) return { ...s, start: seg.start };
+            return s;
+          }),
         };
       });
 
       setSaving(true);
       try {
         await updateSegment(timelineId, segmentId, { subtitle_hidden: newVal });
+        // Also update next segment's start time to absorb the hidden gap
+        if (nextSeg && newVal) {
+          await updateSegment(timelineId, nextSeg.id, { start: seg.start });
+        }
       } catch (err) {
         console.error("Failed to toggle subtitle_hidden:", err);
         getTimeline(timelineId).then(setTimeline);
