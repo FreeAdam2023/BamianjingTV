@@ -27,15 +27,17 @@ const AMBER_300 = "#fcd34d";
 const BLUE_300 = "#93c5fd";
 const PURPLE_300 = "rgba(196,181,253,1)";
 const PURPLE_BG = "rgba(168,85,247,0.3)";
+const GREEN_400 = "#4ade80";
 const GREEN_300 = "#86efac";
 const GREEN_BG = "rgba(20,83,45,0.4)";
+const RED_400 = "#f87171";
 const RED_300 = "#fca5a5";
 const RED_BG = "rgba(127,29,29,0.4)";
 
 // ---- Section header (e.g., "释义 ───────") ----
 function SectionHeader({ label }: { label: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
       <span style={{ fontSize: 12, fontWeight: 500, color: WHITE_40, textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: FONT }}>
         {label}
       </span>
@@ -50,12 +52,10 @@ function TagChip({ text, color, bg }: { text: string; color: string; bg: string 
     <span style={{
       display: "inline-block",
       fontSize: 12,
-      padding: "2px 7px",
+      padding: "2px 6px",
       background: bg,
       color,
       borderRadius: 4,
-      marginRight: 4,
-      marginBottom: 4,
       fontFamily: FONT,
     }}>
       {text}
@@ -117,36 +117,37 @@ export function ExportWordCard({ card }: { card: WordCard }) {
       </div>
 
       {/* Senses */}
-      <div style={{ flex: 1, overflow: "hidden", padding: 16 }}>
+      <div style={{ flex: 1, overflow: "hidden", padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
         {Object.entries(sensesByPos).map(([pos, posSenses]) => (
-          <div key={pos} style={{ marginBottom: 20 }}>
+          <div key={pos}>
             <SectionHeader label={pos} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {posSenses.slice(0, 3).map((sense, idx) => (
-              <div key={idx} style={{ marginBottom: 16 }}>
+              <div key={idx} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {/* Chinese Definition - Primary */}
                 {sense.definition_zh && (
-                  <p style={{ fontSize: 15, color: WHITE, fontWeight: 500, margin: 0, marginBottom: 6 }}>
+                  <p style={{ fontSize: 16, color: WHITE, fontWeight: 500, margin: 0 }}>
                     {idx + 1}. {sense.definition_zh}
                   </p>
                 )}
 
                 {/* English Definition */}
                 {sense.definition && sense.definition !== sense.definition_zh && (
-                  <p style={{ fontSize: 13, color: WHITE_60, margin: 0, marginLeft: 16, marginBottom: 6 }}>
+                  <p style={{ fontSize: 14, color: WHITE_60, margin: 0, marginLeft: 16 }}>
                     {sense.definition}
                   </p>
                 )}
 
                 {/* Examples with translations */}
                 {(sense.examples?.length ?? 0) > 0 && (
-                  <div style={{ marginLeft: 16, marginBottom: 8 }}>
+                  <div style={{ marginLeft: 16, display: "flex", flexDirection: "column", gap: 8 }}>
                     {sense.examples.slice(0, 2).map((example, exIdx) => (
-                      <div key={exIdx} style={{ paddingLeft: 12, borderLeft: "2px solid rgba(255,255,255,0.2)", marginBottom: 8 }}>
-                        <p style={{ fontSize: 13, color: WHITE_70, fontStyle: "italic", margin: 0 }}>
+                      <div key={exIdx} style={{ paddingLeft: 12, borderLeft: "2px solid rgba(255,255,255,0.2)" }}>
+                        <p style={{ fontSize: 14, color: WHITE_70, fontStyle: "italic", margin: 0 }}>
                           &quot;{example}&quot;
                         </p>
                         {sense.examples_zh?.[exIdx] && (
-                          <p style={{ fontSize: 13, color: YELLOW_70, margin: "3px 0 0" }}>
+                          <p style={{ fontSize: 14, color: YELLOW_70, margin: "2px 0 0" }}>
                             {sense.examples_zh[exIdx]}
                           </p>
                         )}
@@ -157,27 +158,28 @@ export function ExportWordCard({ card }: { card: WordCard }) {
 
                 {/* Synonyms & Antonyms */}
                 {((sense.synonyms?.length ?? 0) > 0 || (sense.antonyms?.length ?? 0) > 0) && (
-                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, marginLeft: 16, marginTop: 6 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginLeft: 16 }}>
                     {(sense.synonyms?.length ?? 0) > 0 && (
-                      <>
-                        <span style={{ fontSize: 12, color: GREEN_300, marginRight: 2 }}>&asymp;</span>
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
+                        <span style={{ fontSize: 12, color: GREEN_400 }}>&asymp;</span>
                         {sense.synonyms!.slice(0, 3).map((syn, synIdx) => (
                           <TagChip key={synIdx} text={syn} color={GREEN_300} bg={GREEN_BG} />
                         ))}
-                      </>
+                      </div>
                     )}
                     {(sense.antonyms?.length ?? 0) > 0 && (
-                      <>
-                        <span style={{ fontSize: 12, color: RED_300, marginLeft: 4, marginRight: 2 }}>&ne;</span>
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
+                        <span style={{ fontSize: 12, color: RED_400 }}>&ne;</span>
                         {sense.antonyms!.slice(0, 2).map((ant, antIdx) => (
                           <TagChip key={antIdx} text={ant} color={RED_300} bg={RED_BG} />
                         ))}
-                      </>
+                      </div>
                     )}
                   </div>
                 )}
               </div>
             ))}
+            </div>
           </div>
         ))}
       </div>
@@ -293,18 +295,18 @@ export function ExportIdiomCard({ card }: { card: IdiomCard }) {
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflow: "hidden", padding: 16 }}>
-        <p style={{ fontSize: 20, fontWeight: 700, color: AMBER_300, margin: "0 0 20px" }}>{card.text}</p>
+      <div style={{ flex: 1, overflow: "hidden", padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
+        <p style={{ fontSize: 20, fontWeight: 700, color: AMBER_300, margin: 0 }}>{card.text}</p>
 
         {card.meaning_localized && (
-          <div style={{ marginBottom: 20 }}>
+          <div>
             <SectionHeader label="释义" />
             <p style={{ fontSize: 14, color: YELLOW_70, margin: 0, lineHeight: 1.6 }}>{card.meaning_localized}</p>
           </div>
         )}
 
         {card.example_localized && (
-          <div style={{ marginBottom: 20 }}>
+          <div>
             <SectionHeader label="例句" />
             <div style={{ paddingLeft: 12, borderLeft: "2px solid rgba(245,158,11,0.3)" }}>
               <p style={{ fontSize: 14, color: YELLOW_70, margin: 0, lineHeight: 1.6 }}>{card.example_localized}</p>
@@ -313,14 +315,14 @@ export function ExportIdiomCard({ card }: { card: IdiomCard }) {
         )}
 
         {card.origin_localized && (
-          <div style={{ marginBottom: 20 }}>
+          <div>
             <SectionHeader label="来源" />
             <p style={{ fontSize: 14, color: YELLOW_60, margin: 0, lineHeight: 1.6 }}>{card.origin_localized}</p>
           </div>
         )}
 
         {card.usage_note_localized && (
-          <div style={{ marginBottom: 20 }}>
+          <div>
             <SectionHeader label="用法" />
             <p style={{ fontSize: 14, color: YELLOW_60, margin: 0, lineHeight: 1.6 }}>{card.usage_note_localized}</p>
           </div>
