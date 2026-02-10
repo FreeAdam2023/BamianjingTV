@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # SceneMind - Backend API
 # Learning video factory with bilingual subtitles
 
@@ -65,13 +66,15 @@ RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
 RUN useradd -m -u 1000 app
 WORKDIR /app
 
-# Install Python dependencies
+# Install Python dependencies (BuildKit cache keeps pip downloads across rebuilds)
 COPY requirements.txt .
 COPY requirements-tts.txt .
-RUN python3 -m pip install --no-cache-dir -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python3 -m pip install -r requirements.txt
 
 # Optional: Install TTS dependencies (comment out if not needed)
-RUN python3 -m pip install --no-cache-dir -r requirements-tts.txt || echo "TTS installation skipped"
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python3 -m pip install -r requirements-tts.txt || echo "TTS installation skipped"
 
 # Copy application code
 COPY app/ ./app/

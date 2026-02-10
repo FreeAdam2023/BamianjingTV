@@ -324,9 +324,9 @@ export const LearningVideoComposition: React.FC<LearningVideoProps> = ({
         {/* Vertical divider */}
         <div
           style={{
-            width: 1,
+            width: 2,
             height: videoAreaHeight,
-            backgroundColor: "rgba(255,255,255,0.1)",
+            background: "linear-gradient(to bottom, rgba(255,255,255,0.05), rgba(255,255,255,0.2), rgba(255,255,255,0.05))",
             flexShrink: 0,
           }}
         />
@@ -340,6 +340,51 @@ export const LearningVideoComposition: React.FC<LearningVideoProps> = ({
             height: videoAreaHeight,
           }}
         >
+          {/* Empty-state placeholder (behind card Sequences) */}
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "rgba(0,0,0,0.85)",
+              gap: 16,
+            }}
+          >
+            {/* Decorative bracket icon */}
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+              <rect x="8" y="6" width="32" height="36" rx="3" stroke="rgba(255,255,255,0.12)" strokeWidth="1.5" />
+              <line x1="14" y1="16" x2="34" y2="16" stroke="rgba(255,255,255,0.10)" strokeWidth="1.5" strokeLinecap="round" />
+              <line x1="14" y1="22" x2="30" y2="22" stroke="rgba(255,255,255,0.10)" strokeWidth="1.5" strokeLinecap="round" />
+              <line x1="14" y1="28" x2="26" y2="28" stroke="rgba(255,255,255,0.10)" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            <div style={{ textAlign: "center" }}>
+              <div
+                style={{
+                  fontSize: 16,
+                  fontWeight: 500,
+                  color: "rgba(255,255,255,0.18)",
+                  fontFamily: "'Noto Sans CJK SC', 'PingFang SC', sans-serif",
+                  letterSpacing: "0.08em",
+                }}
+              >
+                Learning Notes
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "rgba(255,255,255,0.10)",
+                  fontFamily: "Inter, Arial, sans-serif",
+                  marginTop: 6,
+                }}
+              >
+                SceneMind
+              </div>
+            </div>
+          </div>
+
           {pinnedCards.map((card) => {
             const fromFrame = secondsToFrames(card.display_start, fps);
             const durationFrames = secondsToFrames(
@@ -365,8 +410,8 @@ export const LearningVideoComposition: React.FC<LearningVideoProps> = ({
       <div
         style={{
           width: "100%",
-          height: 1,
-          backgroundColor: "rgba(255,255,255,0.1)",
+          height: 2,
+          background: "linear-gradient(to right, rgba(255,255,255,0.05), rgba(255,255,255,0.2), rgba(255,255,255,0.05))",
         }}
       />
 

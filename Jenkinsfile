@@ -8,7 +8,7 @@ pipeline {
             choices: ['quick', 'full'],
             description: '''
             quick (默认): 利用 Docker 缓存，只重建变更的层，快速部署
-            full: 清除缓存，从头构建所有镜像
+            full: 拉取最新基础镜像，依赖层仍利用缓存
             '''
         )
         booleanParam(
@@ -21,6 +21,8 @@ pipeline {
     environment {
         PROJECT_DIR = '/home/adamlyu/BamianjingTV'
         COMPOSE_FILE = 'docker-compose.yml'
+        DOCKER_BUILDKIT = '1'
+        COMPOSE_DOCKER_CLI_BUILD = '1'
     }
 
     options {
@@ -44,8 +46,8 @@ pipeline {
                     script {
                         def buildArgs = ''
                         if (params.DEPLOY_MODE == 'full') {
-                            echo "🔨 Full Build: Clearing cache, rebuilding all layers..."
-                            buildArgs = '--no-cache --pull'
+                            echo "🔨 Full Build: Pulling fresh base images, layer cache for deps..."
+                            buildArgs = '--pull'
                         } else {
                             echo "⚡ Quick Build: Using Docker cache for unchanged layers..."
                             buildArgs = ''
@@ -92,13 +94,8 @@ pipeline {
         stage('Cleanup') {
             steps {
                 script {
-                    if (params.DEPLOY_MODE == 'full') {
-                        echo "🧹 Full cleanup: Removing dangling images..."
-                        sh 'docker image prune -af || true'
-                    } else {
-                        echo "🧹 Quick cleanup: Removing only dangling images..."
-                        sh 'docker image prune -f || true'
-                    }
+                    echo "🧹 Removing dangling images..."
+                    sh 'docker image prune -f || true'
                 }
             }
         }

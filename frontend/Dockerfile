@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # SceneMind - Frontend
 # Next.js UI for Watch & Learn with bilingual subtitles
 
@@ -11,8 +12,9 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile
+# Install dependencies (BuildKit cache keeps pnpm store across rebuilds)
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
 
 # Copy source code
 COPY . .
