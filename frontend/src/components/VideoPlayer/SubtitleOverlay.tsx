@@ -190,11 +190,7 @@ export default function SubtitleOverlay({
             </div>
           )}
         </>
-      ) : (
-        <div className="text-gray-500 text-center">
-          {style.languageMode === "none" ? "" : "No subtitle"}
-        </div>
-      )}
+      ) : null}
 
       {/* Style settings button (floating) */}
       <button
