@@ -8,7 +8,7 @@
  * Visually mirrors SidePanelWordCard / SidePanelEntityCard / SidePanelIdiomCard.
  */
 
-import React from "react";
+import React, { useState } from "react";
 import type { WordCard, EntityCard, IdiomCard } from "../../src/lib/types";
 
 const FONT = "'Noto Sans CJK SC', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif";
@@ -66,10 +66,12 @@ function TagChip({ text, color, bg }: { text: string; color: string; bg: string 
 // ============ Word Card ============
 
 export function ExportWordCard({ card }: { card: WordCard }) {
+  const [imageError, setImageError] = useState(false);
   const pronunciations = card.pronunciations || [];
   const senses = card.senses || [];
   const primaryPronunciation = pronunciations.find((p) => p.region === "us") || pronunciations[0];
   const primaryImage = card.images?.[0];
+  const showImage = primaryImage && !imageError;
 
   const sensesByPos = senses.reduce((acc, sense) => {
     const pos = sense.part_of_speech;
@@ -81,9 +83,9 @@ export function ExportWordCard({ card }: { card: WordCard }) {
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", fontFamily: FONT }}>
       {/* Image header */}
-      {primaryImage && (
+      {showImage && (
         <div style={{ position: "relative", height: 160, flexShrink: 0, overflow: "hidden", background: "rgba(0,0,0,0.3)" }}>
-          <img src={primaryImage} alt={card.word} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+          <img src={primaryImage} alt={card.word} style={{ width: "100%", height: "100%", objectFit: "contain" }} onError={() => setImageError(true)} />
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.8), rgba(0,0,0,0.2), transparent)" }} />
         </div>
       )}
@@ -92,7 +94,7 @@ export function ExportWordCard({ card }: { card: WordCard }) {
       <div style={{
         display: "flex", alignItems: "flex-start", justifyContent: "space-between",
         padding: 16, borderBottom: `1px solid ${WHITE_10}`,
-        ...(primaryImage ? { marginTop: -56, position: "relative" as const, zIndex: 10 } : {}),
+        ...(showImage ? { marginTop: -56, position: "relative" as const, zIndex: 10 } : {}),
       }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -197,16 +199,18 @@ const ENTITY_TYPE_COLORS: Record<string, string> = {
 };
 
 export function ExportEntityCard({ card }: { card: EntityCard }) {
+  const [imageError, setImageError] = useState(false);
   const zhLocalization = card.localizations?.zh;
   const badgeColor = ENTITY_TYPE_COLORS[card.entity_type] || ENTITY_TYPE_COLORS.other;
+  const showImage = card.image_url && !imageError;
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", fontFamily: FONT }}>
       {/* Header */}
       <div style={{ position: "relative", flexShrink: 0 }}>
-        {card.image_url ? (
+        {showImage ? (
           <div style={{ height: 160, overflow: "hidden", background: "rgba(0,0,0,0.3)" }}>
-            <img src={card.image_url} alt={card.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+            <img src={card.image_url!} alt={card.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} onError={() => setImageError(true)} />
             <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.8), rgba(0,0,0,0.2), transparent)" }} />
           </div>
         ) : (
