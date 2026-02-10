@@ -96,12 +96,6 @@ async def trigger_export(
         timeline.subtitle_style_mode = request.subtitle_style_mode
         manager.save_timeline(timeline)
 
-    # Apply test_seconds: temporarily override video_trim_end for quick test exports
-    if request.test_seconds is not None and request.test_seconds > 0:
-        trim_start = timeline.video_trim_start or 0.0
-        timeline.video_trim_end = trim_start + request.test_seconds
-        manager.save_timeline(timeline)
-
     # Get video path from job
     jobs_dir = _get_jobs_dir()
     if jobs_dir is None:
@@ -125,6 +119,7 @@ async def trigger_export(
         youtube_description=request.youtube_description,
         youtube_tags=request.youtube_tags,
         youtube_privacy=request.youtube_privacy,
+        test_seconds=request.test_seconds,
     )
 
     message = f"Export started with profile: {request.profile.value}"
@@ -185,6 +180,7 @@ async def _run_export(
     youtube_description: Optional[str] = None,
     youtube_tags: Optional[List[str]] = None,
     youtube_privacy: str = "private",
+    test_seconds: Optional[float] = None,
 ) -> None:
     """Background task to run video export and optional YouTube upload."""
     from loguru import logger
@@ -196,6 +192,11 @@ async def _run_export(
     timeline = manager.get_timeline(timeline_id)
     if not timeline:
         return
+
+    # Apply test_seconds as in-memory override (not saved to timeline JSON)
+    if test_seconds is not None and test_seconds > 0:
+        trim_start = timeline.video_trim_start or 0.0
+        timeline.video_trim_end = trim_start + test_seconds
 
     # Get job for timing tracking
     job = job_manager.get_job(timeline.job_id)
