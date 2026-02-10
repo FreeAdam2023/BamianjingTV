@@ -86,8 +86,18 @@ const composition = await selectComposition({
   },
 });
 
-// Override dimensions
-const finalComp = { ...composition, width: 672, height: 756 };
+// Remotion 4.x uses composition.props as the component's React props,
+// NOT renderStill's inputProps. We must set composition.props per render.
+const cardProps = {
+  card: {
+    id: card.id,
+    card_type: card.card_type,
+    card_data: card.card_data,
+    display_start: 0,
+    display_end: 1,
+  },
+};
+const finalComp = { ...composition, width: 672, height: 756, props: cardProps };
 
 // Render
 console.error(`\nRendering card "${card.id}" (${card.card_type})...`);
@@ -95,15 +105,7 @@ await renderStill({
   composition: finalComp,
   serveUrl: bundleLocation,
   output: outputFile,
-  inputProps: {
-    card: {
-      id: card.id,
-      card_type: card.card_type,
-      card_data: card.card_data,
-      display_start: 0,
-      display_end: 1,
-    },
-  },
+  inputProps: cardProps,
   imageFormat: "png",
 });
 

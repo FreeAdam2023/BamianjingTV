@@ -278,19 +278,23 @@ async function main() {
       const results = await Promise.allSettled(
         batch.map((card) => {
           const outputPath = path.join(options.outputDir, `${card.id}.png`);
+          // Remotion 4.x uses composition.props (not renderStill's inputProps)
+          // as the component's React props. We must override composition.props
+          // per render so each card gets its own data.
+          const cardProps = {
+            card: {
+              id: card.id,
+              card_type: card.card_type,
+              card_data: card.card_data,
+              display_start: 0,
+              display_end: 1,
+            },
+          };
           return renderStill({
-            composition: cardComposition,
+            composition: { ...cardComposition, props: cardProps },
             serveUrl: bundleLocation,
             output: outputPath,
-            inputProps: {
-              card: {
-                id: card.id,
-                card_type: card.card_type,
-                card_data: card.card_data,
-                display_start: 0,
-                display_end: 1,
-              },
-            },
+            inputProps: cardProps,
             imageFormat: "png",
           });
         })
@@ -371,19 +375,21 @@ async function main() {
       const results = await Promise.allSettled(
         batch.map((sub) => {
           const outputPath = path.join(options.outputDir, `${sub.id}.png`);
+          // Same Remotion 4.x fix: override composition.props per render
+          const subProps = {
+            en: sub.en || "",
+            zh: sub.zh || "",
+            style: subtitleData.style,
+            bgColor: subtitleData.bgColor || "#1a2744",
+            width: subtitleWidth,
+            height: subtitleHeight,
+            languageMode: subtitleData.languageMode || "both",
+          };
           return renderStill({
-            composition: subComposition,
+            composition: { ...subComposition, props: subProps },
             serveUrl: bundleLocation,
             output: outputPath,
-            inputProps: {
-              en: sub.en || "",
-              zh: sub.zh || "",
-              style: subtitleData.style,
-              bgColor: subtitleData.bgColor || "#1a2744",
-              width: subtitleWidth,
-              height: subtitleHeight,
-              languageMode: subtitleData.languageMode || "both",
-            },
+            inputProps: subProps,
             imageFormat: "png",
           });
         })
