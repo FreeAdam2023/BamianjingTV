@@ -321,10 +321,35 @@ class ExportWorker:
             f"[canvas][video_panel]overlay=0:0[with_video]"
         )
 
-        # Step 4: Overlay card PNGs in right panel area with animation
+        # Step 4: Draw placeholder text on right panel (behind cards)
+        placeholder_cx = left_width + right_width // 2
+        placeholder_cy = video_area_height // 2
+        # Use Noto CJK font for Chinese text (installed in Docker)
+        noto_cjk = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+        # Main title: 学习卡片
+        filters.append(
+            f"[with_video]drawtext="
+            f"text='学习卡片':"
+            f"fontfile={noto_cjk}:"
+            f"fontcolor=0xFFFFFF@0.15:"
+            f"fontsize=28:"
+            f"x={placeholder_cx}-tw/2:y={placeholder_cy}-20"
+            f"[ph1]"
+        )
+        # Subtitle: SceneMind
+        filters.append(
+            f"[ph1]drawtext="
+            f"text='SceneMind':"
+            f"fontcolor=0xFFFFFF@0.08:"
+            f"fontsize=14:"
+            f"x={placeholder_cx}-tw/2:y={placeholder_cy}+20"
+            f"[with_placeholder]"
+        )
+
+        # Step 5: Overlay card PNGs in right panel area with animation
         # Track input index: 0 = source video, 1+ = card/subtitle PNGs
         input_idx = 1
-        prev_label = "with_video"
+        prev_label = "with_placeholder"
         for i, (card_path, start, end) in enumerate(cards):
             input_args.extend(["-i", str(card_path)])
 
@@ -361,33 +386,7 @@ class ExportWorker:
             prev_label = out_label
             input_idx += 1
 
-        # Step 4.5: Draw placeholder text on right panel (always visible, cards cover it)
-        placeholder_cx = left_width + right_width // 2
-        placeholder_cy = video_area_height // 2
-        # Use Noto CJK font for Chinese text (installed in Docker)
-        noto_cjk = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
-        # Main title: 学习卡片
-        filters.append(
-            f"[{prev_label}]drawtext="
-            f"text='学习卡片':"
-            f"fontfile={noto_cjk}:"
-            f"fontcolor=0xFFFFFF@0.15:"
-            f"fontsize=28:"
-            f"x={placeholder_cx}-tw/2:y={placeholder_cy}-20"
-            f"[ph1]"
-        )
-        # Subtitle: SceneMind
-        filters.append(
-            f"[ph1]drawtext="
-            f"text='SceneMind':"
-            f"fontcolor=0xFFFFFF@0.08:"
-            f"fontsize=14:"
-            f"x={placeholder_cx}-tw/2:y={placeholder_cy}+20"
-            f"[with_placeholder]"
-        )
-        prev_label = "with_placeholder"
-
-        # Step 5: Draw divider lines between areas (2px, 20% white)
+        # Step 6: Draw divider lines between areas (2px, 20% white)
         filters.append(
             f"[{prev_label}]drawbox="
             f"x={left_width}:y=0:w=2:h={video_area_height}:"
@@ -401,7 +400,7 @@ class ExportWorker:
             f"[with_dividers]"
         )
 
-        # Step 6: Overlay subtitle video track in the bottom subtitle area
+        # Step 7: Overlay subtitle video track in the bottom subtitle area
         # Single pre-composed video replaces per-subtitle PNG overlays
         prev_label = "with_dividers"
         subtitle_y = video_area_height + 1  # Below horizontal divider
