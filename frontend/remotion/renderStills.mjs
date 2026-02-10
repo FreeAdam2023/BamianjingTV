@@ -236,6 +236,28 @@ async function main() {
   let globalCurrent = 0;
   const allErrors = [];
 
+  // ── Phase 0: Render card placeholder still ──
+  if (cards.length > 0) {
+    try {
+      const placeholderComp = await selectComposition({
+        serveUrl: bundleLocation,
+        id: "CardPlaceholder",
+        inputProps: {},
+      });
+      const placeholderPath = path.join(options.outputDir, "_placeholder.png");
+      await renderStill({
+        composition: { ...placeholderComp, width: options.width, height: options.height, props: {} },
+        serveUrl: bundleLocation,
+        output: placeholderPath,
+        inputProps: {},
+        imageFormat: "png",
+      });
+      console.error(`[renderStills] Rendered card placeholder: ${placeholderPath}`);
+    } catch (err) {
+      console.error(`[renderStills] Failed to render placeholder (non-fatal): ${err?.message || err}`);
+    }
+  }
+
   // ── Phase 1: Render card stills ──
   if (cards.length > 0) {
     const defaultCardProp = {

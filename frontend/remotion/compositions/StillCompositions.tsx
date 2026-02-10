@@ -10,7 +10,7 @@
 
 import React from "react";
 import { AbsoluteFill } from "remotion";
-import { ExportWordCard, ExportEntityCard, ExportIdiomCard } from "./ExportCard";
+import { ExportWordCard, ExportEntityCard, ExportIdiomCard, ExportCardPlaceholder } from "./ExportCard";
 import type { WordCard, EntityCard, IdiomCard } from "../../src/lib/types";
 import type { PinnedCardInput, SubtitleStillProps } from "../types";
 
@@ -123,6 +123,18 @@ export const CardStillComposition: React.FC<{ card: PinnedCardInput }> = ({ card
             <ExportIdiomCard card={cardData as unknown as IdiomCard} />
           )}
         </CardErrorBoundary>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+// ---- CardPlaceholderComposition ----
+
+export const CardPlaceholderComposition: React.FC = () => {
+  return (
+    <AbsoluteFill>
+      <div style={{ height: "100%", background: "#1a2744" }}>
+        <ExportCardPlaceholder />
       </div>
     </AbsoluteFill>
   );

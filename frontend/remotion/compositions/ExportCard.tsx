@@ -331,3 +331,68 @@ export function ExportIdiomCard({ card }: { card: IdiomCard }) {
     </div>
   );
 }
+
+// ============ Card Placeholder (empty state) ============
+
+function PlaceholderBadge({ text, color, bg }: { text: string; color: string; bg: string }) {
+  return (
+    <span style={{
+      display: "inline-block",
+      padding: "4px 8px",
+      background: bg,
+      color,
+      fontSize: 12,
+      borderRadius: 9999,
+      fontFamily: FONT,
+    }}>
+      {text}
+    </span>
+  );
+}
+
+export function ExportCardPlaceholder() {
+  return (
+    <div style={{
+      height: "100%",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 24,
+      fontFamily: FONT,
+    }}>
+      {/* Icon */}
+      <div style={{
+        width: 64,
+        height: 64,
+        borderRadius: 16,
+        background: "linear-gradient(135deg, rgba(168,85,247,0.2), rgba(59,130,246,0.2))",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 16,
+      }}>
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(168,85,247,0.6)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      </div>
+
+      {/* Title */}
+      <p style={{ fontSize: 18, fontWeight: 500, color: WHITE_70, margin: "0 0 8px", textAlign: "center" }}>
+        学习卡片
+      </p>
+
+      {/* Description */}
+      <p style={{ fontSize: 14, color: WHITE_40, margin: "0 0 16px", textAlign: "center", maxWidth: 200, lineHeight: 1.6 }}>
+        点击字幕中高亮的单词或实体查看详细卡片
+      </p>
+
+      {/* Badges */}
+      <div style={{ display: "flex", gap: 8 }}>
+        <PlaceholderBadge text="单词" color="rgba(96,165,250,0.6)" bg="rgba(59,130,246,0.1)" />
+        <PlaceholderBadge text="实体" color="rgba(192,132,252,0.6)" bg="rgba(168,85,247,0.1)" />
+        <PlaceholderBadge text="习语" color="rgba(251,191,36,0.6)" bg="rgba(245,158,11,0.1)" />
+      </div>
+    </div>
+  );
+}

@@ -10,7 +10,7 @@
 
 import React from "react";
 import { Composition, registerRoot } from "remotion";
-import { CardStillComposition, SubtitleStillComposition } from "./compositions/StillCompositions";
+import { CardStillComposition, CardPlaceholderComposition, SubtitleStillComposition } from "./compositions/StillCompositions";
 import type { PinnedCardInput, SubtitleStillProps } from "./types";
 
 const RemotionStillsRoot: React.FC = () => {
@@ -32,6 +32,15 @@ const RemotionStillsRoot: React.FC = () => {
             display_end: 1,
           } satisfies PinnedCardInput,
         }}
+      />
+      <Composition
+        id="CardPlaceholder"
+        component={CardPlaceholderComposition as unknown as React.ComponentType<Record<string, unknown>>}
+        width={672}
+        height={756}
+        fps={30}
+        durationInFrames={1}
+        defaultProps={{}}
       />
       <Composition
         id="SubtitleStill"

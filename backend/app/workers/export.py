@@ -256,6 +256,7 @@ class ExportWorker:
         subtitle_video_path: Optional[Path],
         video_duration: float,
         fallback_subtitles: Optional[List[Tuple[float, float, str, str]]] = None,
+        placeholder_image: Optional[Path] = None,
     ) -> Tuple[str, List[str], str]:
         """Build FFmpeg filter_complex for WYSIWYG 65/35 side-by-side layout.
 
@@ -321,34 +322,46 @@ class ExportWorker:
             f"[canvas][video_panel]overlay=0:0[with_video]"
         )
 
-        # Step 4: Draw placeholder text on right panel (behind cards)
-        placeholder_cx = left_width + right_width // 2
-        placeholder_cy = video_area_height // 2
-        # Use Noto CJK font for Chinese text (installed in Docker)
-        noto_cjk = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
-        # Main title: 学习卡片
-        filters.append(
-            f"[with_video]drawtext="
-            f"text='学习卡片':"
-            f"fontfile={noto_cjk}:"
-            f"fontcolor=0xFFFFFF@0.15:"
-            f"fontsize=28:"
-            f"x={placeholder_cx}-tw/2:y={placeholder_cy}-20"
-            f"[ph1]"
-        )
-        # Subtitle: SceneMind
-        filters.append(
-            f"[ph1]drawtext="
-            f"text='SceneMind':"
-            f"fontcolor=0xFFFFFF@0.08:"
-            f"fontsize=14:"
-            f"x={placeholder_cx}-tw/2:y={placeholder_cy}+20"
-            f"[with_placeholder]"
-        )
+        # Step 4: Overlay card placeholder on right panel (behind active cards)
+        if placeholder_image and placeholder_image.exists():
+            input_args.extend(["-loop", "1", "-i", str(placeholder_image)])
+            # Placeholder is input index 1 (after source video at 0)
+            filters.append(
+                f"[with_video][1:v]overlay="
+                f"x={left_width}:y=0:"
+                f"shortest=1:"
+                f"format=auto"
+                f"[with_placeholder]"
+            )
+            # Shift card/subtitle input indices since placeholder took index 1
+            placeholder_input_offset = 1
+        else:
+            # Fallback: simple drawtext placeholder
+            placeholder_cx = left_width + right_width // 2
+            placeholder_cy = video_area_height // 2
+            noto_cjk = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+            filters.append(
+                f"[with_video]drawtext="
+                f"text='学习卡片':"
+                f"fontfile={noto_cjk}:"
+                f"fontcolor=0xFFFFFF@0.15:"
+                f"fontsize=28:"
+                f"x={placeholder_cx}-tw/2:y={placeholder_cy}-20"
+                f"[ph1]"
+            )
+            filters.append(
+                f"[ph1]drawtext="
+                f"text='SceneMind':"
+                f"fontcolor=0xFFFFFF@0.08:"
+                f"fontsize=14:"
+                f"x={placeholder_cx}-tw/2:y={placeholder_cy}+20"
+                f"[with_placeholder]"
+            )
+            placeholder_input_offset = 0
 
         # Step 5: Overlay card PNGs in right panel area with animation
-        # Track input index: 0 = source video, 1+ = card/subtitle PNGs
-        input_idx = 1
+        # Track input index: 0 = source video, 1 = placeholder (if PNG), 2+ = cards
+        input_idx = 1 + placeholder_input_offset
         prev_label = "with_placeholder"
         for i, (card_path, start, end) in enumerate(cards):
             input_args.extend(["-i", str(card_path)])
@@ -1717,11 +1730,15 @@ class ExportWorker:
         if progress_callback:
             progress_callback(25, "合成视频…")
 
+        # Check for placeholder image rendered by Remotion
+        placeholder_image = stills_dir / "_placeholder.png" if stills_dir.exists() else None
+
         filter_complex, overlay_input_args, final_label = self._build_wysiwyg_filter(
             cards=rendered_cards,
             subtitle_video_path=subtitle_video_path,
             video_duration=video_duration,
             fallback_subtitles=fallback_subtitles,
+            placeholder_image=placeholder_image,
         )
 
         cmd = ["ffmpeg", "-i", str(video_path)]
