@@ -198,9 +198,19 @@ export default function ReviewPage() {
     }
   }, [timeline]);
 
+  // Filter segments to only those within the trim range (matches export logic)
+  const trimmedSegments = useMemo(() => {
+    if (!timeline) return [];
+    const trimStart = timeline.video_trim_start ?? 0;
+    const trimEnd = timeline.video_trim_end ?? timeline.source_duration;
+    return timeline.segments.filter(
+      (s) => s.start >= trimStart && s.end <= trimEnd
+    );
+  }, [timeline]);
+
   // Keyboard navigation
   useKeyboardNavigation({
-    segmentCount: timeline?.segments.length || 0,
+    segmentCount: trimmedSegments.length,
     currentSegmentId,
     onSegmentChange: setCurrentSegmentId,
     onStateChange: setSegmentState,
@@ -844,7 +854,7 @@ export default function ReviewPage() {
 
           {/* Segment list - scrollable */}
           <SegmentList
-            segments={timeline.segments}
+            segments={trimmedSegments}
             currentSegmentId={currentSegmentId}
             onSegmentClick={handleSegmentClick}
             onStateChange={setSegmentState}
