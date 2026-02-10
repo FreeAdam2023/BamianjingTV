@@ -255,6 +255,7 @@ class ExportWorker:
         cards: List[Tuple[Path, float, float]],
         subtitle_video_path: Optional[Path],
         video_duration: float,
+        fallback_subtitles: Optional[List[Tuple[float, float, str, str]]] = None,
     ) -> Tuple[str, List[str], str]:
         """Build FFmpeg filter_complex for WYSIWYG 65/35 side-by-side layout.
 
@@ -272,6 +273,8 @@ class ExportWorker:
             cards: List of (image_path, start_time, end_time) tuples
             subtitle_video_path: Path to pre-composed subtitle video track, or None
             video_duration: Total video duration for canvas
+            fallback_subtitles: Optional list of (start, end, en, zh) for drawtext
+                fallback when Remotion subtitle rendering fails
 
         Returns:
             Tuple of (filter_complex string, input arguments, final output label)
@@ -402,6 +405,7 @@ class ExportWorker:
         # Single pre-composed video replaces per-subtitle PNG overlays
         prev_label = "with_dividers"
         subtitle_y = video_area_height + 1  # Below horizontal divider
+        subtitle_h = OUTPUT_HEIGHT - video_area_height - 2
 
         if subtitle_video_path:
             input_args.extend(["-i", str(subtitle_video_path)])
@@ -413,15 +417,58 @@ class ExportWorker:
             )
             prev_label = "with_subs"
             input_idx += 1
+        elif fallback_subtitles:
+            # FALLBACK: Remotion didn't produce subtitle stills — use FFmpeg drawtext
+            # This ensures subtitles always render even when Remotion is unavailable
+            logger.warning(
+                f"Using FFmpeg drawtext fallback for {len(fallback_subtitles)} subtitles "
+                f"(Remotion subtitle rendering failed or unavailable)"
+            )
+            noto_cjk = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+            en_y = subtitle_y + int(subtitle_h * 0.30)
+            zh_y = subtitle_y + int(subtitle_h * 0.58)
+
+            for i, (start, end, en, zh) in enumerate(fallback_subtitles):
+                enable = f"between(t\\,{start:.3f}\\,{end:.3f})"
+                # Escape FFmpeg drawtext special chars
+                safe_en = (en or "").replace("'", "\u2019").replace(":", "\\:").replace("%", "%%")
+                safe_zh = (zh or "").replace("'", "\u2019").replace(":", "\\:").replace("%", "%%")
+
+                if safe_en:
+                    out = f"dtsub_en{i}"
+                    filters.append(
+                        f"[{prev_label}]drawtext="
+                        f"text='{safe_en}':"
+                        f"fontcolor=white:fontsize=24:"
+                        f"fontfile={noto_cjk}:"
+                        f"x=(w-tw)/2:y={en_y}:"
+                        f"enable='{enable}'"
+                        f"[{out}]"
+                    )
+                    prev_label = out
+
+                if safe_zh:
+                    out = f"dtsub_zh{i}"
+                    filters.append(
+                        f"[{prev_label}]drawtext="
+                        f"text='{safe_zh}':"
+                        f"fontcolor=#facc15:fontsize=26:"
+                        f"fontfile={noto_cjk}:"
+                        f"x=(w-tw)/2:y={zh_y}:"
+                        f"enable='{enable}'"
+                        f"[{out}]"
+                    )
+                    prev_label = out
 
         final_label = prev_label
 
         filter_complex = ";".join(filters)
 
+        sub_mode = "video" if subtitle_video_path else ("drawtext_fallback" if fallback_subtitles else "none")
         logger.info(
             f"WYSIWYG filter: {left_width}x{video_area_height} video + "
             f"{right_width}x{video_area_height} card panel, "
-            f"{len(cards)} cards, subtitle_video={'yes' if subtitle_video_path else 'no'}"
+            f"{len(cards)} cards, subtitles={sub_mode}"
         )
 
         return filter_complex, input_args, final_label
@@ -1164,10 +1211,20 @@ class ExportWorker:
         # ── Load card data: cache → API → embedded card_data ──
         # Pinned cards only store card_type + card_id + timing.
         # Load the full card content from the most reliable source available.
+        logger.info(f"=== CARD DATA LOADING: {len(pinned_cards)} pinned cards ===")
         card_cache = CardCache()
         card_generator = CardGeneratorWorker()
-        for card in pinned_cards:
+        for idx, card in enumerate(pinned_cards):
             card_type_val = card.card_type.value if hasattr(card.card_type, 'value') else card.card_type
+
+            # Log what we have BEFORE loading
+            existing_keys = list(card.card_data.keys()) if isinstance(card.card_data, dict) else "NOT_DICT"
+            existing_size = len(card.card_data) if isinstance(card.card_data, dict) else 0
+            logger.info(
+                f"Card [{idx}] {card.id}: type={card_type_val}, card_id='{card.card_id}', "
+                f"existing card_data keys={existing_keys} ({existing_size} keys), "
+                f"timing={card.display_start:.1f}-{card.display_end:.1f}s"
+            )
 
             # 1) Try disk cache first (fast, no network)
             cached_card = None
@@ -1206,6 +1263,11 @@ class ExportWorker:
                 logger.info(f"Card {card.id}: using embedded card_data from timeline")
             else:
                 logger.warning(f"Card {card.id} ({card_type_val}:{card.card_id}): no data available, skipping")
+
+        # Summary after loading
+        cards_with_data = sum(1 for c in pinned_cards if c.card_data and len(c.card_data) > 0)
+        cards_without = len(pinned_cards) - cards_with_data
+        logger.info(f"=== CARD DATA LOADING COMPLETE: {cards_with_data} with data, {cards_without} without data ===")
 
         # ── Build cards JSON ──
         card_dicts = [
@@ -1272,6 +1334,19 @@ class ExportWorker:
             cards_file = output_dir / "cards_input.json"
             with open(cards_file, "w", encoding="utf-8") as f:
                 json.dump(cards_json, f, ensure_ascii=False)
+            cards_file_size = cards_file.stat().st_size
+            logger.info(f"Written cards_input.json: {cards_file} ({cards_file_size} bytes, {len(cards_json)} cards)")
+            # Dump first card for debugging
+            if cards_json:
+                first = cards_json[0]
+                logger.info(f"First card in JSON: id={first['id']}, type={first['card_type']}, data_keys={list(first['card_data'].keys()) if isinstance(first['card_data'], dict) else 'N/A'}")
+                # Write debug file with full first card data for inspection
+                debug_file = output_dir / "debug_first_card.json"
+                with open(debug_file, "w", encoding="utf-8") as f:
+                    json.dump(first, f, ensure_ascii=False, indent=2)
+                logger.info(f"Debug card data written to: {debug_file}")
+        else:
+            logger.warning("No cards with data to render — cards_json is empty")
 
         subtitles_file = None
         if has_subtitles:
@@ -1335,6 +1410,8 @@ class ExportWorker:
             f"{len(cards_json)} cards ({panel_width}x{panel_height}), "
             f"{len(subtitles_json)} subtitle stills (1920x324)"
         )
+        logger.info(f"Remotion command: {' '.join(cmd)}")
+        logger.info(f"Remotion cwd: {frontend_dir}")
 
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -1429,6 +1506,15 @@ class ExportWorker:
             )
 
         # ── Collect rendered card PNGs ──
+        logger.info(f"=== CARD PNG COLLECTION: checking {len(cards_json)} cards in {output_dir} ===")
+        # List all files in output_dir for debugging
+        all_files = list(output_dir.iterdir()) if output_dir.exists() else []
+        png_files = [f for f in all_files if f.suffix == '.png']
+        logger.info(f"Output dir has {len(all_files)} files total, {len(png_files)} PNGs")
+        if png_files:
+            card_pngs = [f.name for f in png_files if not f.name.startswith('sub_')]
+            logger.info(f"Card PNGs found: {card_pngs[:10]}")
+
         rendered_cards = []
         missing_cards = []
         small_cards = []
@@ -1438,13 +1524,16 @@ class ExportWorker:
             if card_path.exists() and card_id in card_timing:
                 display_start, display_end = card_timing[card_id]
                 rendered_cards.append((card_path, display_start, display_end))
-                # Detect suspiciously small PNGs (likely blank/empty renders)
+                # Log every card PNG with its size
                 file_size = card_path.stat().st_size
+                logger.info(f"Card PNG: {card_id}.png — {file_size} bytes, {display_start:.1f}-{display_end:.1f}s")
                 if file_size < 5000:  # <5KB is likely blank for 672x756 PNG
                     small_cards.append((card_id, file_size))
             else:
                 missing_cards.append(card_id)
-                logger.warning(f"Card still not found: {card_path}")
+                exists = card_path.exists()
+                in_timing = card_id in card_timing
+                logger.warning(f"Card still not collected: {card_path} (exists={exists}, in_timing={in_timing})")
 
         if small_cards:
             logger.warning(
@@ -1533,18 +1622,28 @@ class ExportWorker:
         if progress_callback:
             progress_callback(0, "渲染字幕和卡片图片…")
 
-        rendered_cards, rendered_subtitles = await self._render_stills(
-            pinned_cards=pinned_cards,
-            segments=segments,
-            output_dir=stills_dir,
-            time_offset=time_offset,
-            subtitle_style=subtitle_style,
-            subtitle_language_mode=subtitle_language_mode,
-            use_traditional=use_traditional,
-            retimed_segments=retimed_segments,
-            progress_callback=progress_callback,
-            timeline_id=timeline_id,
-        )
+        rendered_cards: List[Tuple[Path, float, float]] = []
+        rendered_subtitles: List[Tuple[Path, float, float]] = []
+        try:
+            rendered_cards, rendered_subtitles = await self._render_stills(
+                pinned_cards=pinned_cards,
+                segments=segments,
+                output_dir=stills_dir,
+                time_offset=time_offset,
+                subtitle_style=subtitle_style,
+                subtitle_language_mode=subtitle_language_mode,
+                use_traditional=use_traditional,
+                retimed_segments=retimed_segments,
+                progress_callback=progress_callback,
+                timeline_id=timeline_id,
+            )
+        except ExportCancelledError:
+            raise  # Re-raise cancellation
+        except Exception as e:
+            logger.error(
+                f"Remotion renderStills FAILED: {e}. "
+                f"Will fall back to FFmpeg drawtext for subtitles."
+            )
 
         # ── Cancellation check: between Phase A and A.5 ──
         if timeline_id and self._check_cancelled(timeline_id):
@@ -1570,6 +1669,51 @@ class ExportWorker:
         if timeline_id and self._check_cancelled(timeline_id):
             raise ExportCancelledError(f"Export cancelled for timeline {timeline_id}")
 
+        # ── Build fallback subtitle data if Remotion didn't produce stills ──
+        fallback_subtitles = None
+        if not subtitle_video_path:
+            lang_mode = subtitle_language_mode.value if hasattr(subtitle_language_mode, 'value') else subtitle_language_mode
+            if lang_mode != "none":
+                converter = None
+                if use_traditional:
+                    try:
+                        import opencc
+                        converter = opencc.OpenCC("s2t")
+                    except ImportError:
+                        pass
+
+                fb_subs = []
+                if retimed_segments:
+                    # Retimed segments already have correct timing
+                    for start, end, en, zh in retimed_segments:
+                        if converter and zh:
+                            zh = converter.convert(zh)
+                        show_en = en if lang_mode in ("both", "en") else ""
+                        show_zh = zh if lang_mode in ("both", "zh") else ""
+                        if show_en or show_zh:
+                            fb_subs.append((start, end, show_en, show_zh))
+                else:
+                    for seg in segments:
+                        if seg.state == SegmentState.DROP:
+                            continue
+                        start = seg.effective_start - time_offset
+                        end = seg.effective_end - time_offset
+                        en = seg.en
+                        zh = seg.zh
+                        if converter and zh:
+                            zh = converter.convert(zh)
+                        show_en = en if lang_mode in ("both", "en") else ""
+                        show_zh = zh if lang_mode in ("both", "zh") else ""
+                        if show_en or show_zh:
+                            fb_subs.append((start, end, show_en, show_zh))
+
+                if fb_subs:
+                    logger.info(
+                        f"Built {len(fb_subs)} fallback subtitles for FFmpeg drawtext "
+                        f"(Remotion subtitle stills unavailable)"
+                    )
+                    fallback_subtitles = fb_subs
+
         # ── Phase B: FFmpeg composition with card overlays + subtitle video ──
         if progress_callback:
             progress_callback(25, "合成视频…")
@@ -1578,6 +1722,7 @@ class ExportWorker:
             cards=rendered_cards,
             subtitle_video_path=subtitle_video_path,
             video_duration=video_duration,
+            fallback_subtitles=fallback_subtitles,
         )
 
         cmd = ["ffmpeg", "-i", str(video_path)]

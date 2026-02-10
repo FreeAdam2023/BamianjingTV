@@ -157,6 +157,13 @@ async function main() {
       const inputContent = fs.readFileSync(options.input, "utf-8");
       cards = JSON.parse(inputContent);
       if (!Array.isArray(cards)) cards = [];
+      // Diagnostic: log card data summary
+      console.error(`[renderStills] Loaded ${cards.length} cards from ${options.input}`);
+      for (const card of cards.slice(0, 3)) {
+        const dataKeys = card.card_data ? Object.keys(card.card_data) : [];
+        const dataSize = JSON.stringify(card.card_data || {}).length;
+        console.error(`[renderStills] Card ${card.id}: type=${card.card_type}, data_keys=[${dataKeys.join(',')}], data_size=${dataSize} bytes`);
+      }
     } catch (err) {
       logError("Failed to read cards input file", err);
       process.exit(1);
@@ -199,22 +206,19 @@ async function main() {
   logProgress({ status: "bundling", current: 0, total: totalItems });
 
   // Bundle the composition (once — shared for cards and subtitles)
+  // Uses RenderStillsEntry.tsx — isolated entry point WITHOUT Tailwind CSS.
+  // Tailwind's Preflight CSS reset was causing blank card renders in Docker.
   let bundleLocation;
   try {
-    const { enableTailwind } = await import("@remotion/tailwind");
-    const tailwindConfigPath = path.join(__dirname, "../tailwind.config.ts");
     bundleLocation = await bundle({
-      entryPoint: path.join(__dirname, "RenderEntry.tsx"),
+      entryPoint: path.join(__dirname, "RenderStillsEntry.tsx"),
       webpackOverride: (currentConfig) => {
-        const withTailwind = enableTailwind(currentConfig, {
-          configLocation: tailwindConfigPath,
-        });
         return {
-          ...withTailwind,
+          ...currentConfig,
           resolve: {
-            ...withTailwind.resolve,
+            ...currentConfig.resolve,
             alias: {
-              ...withTailwind.resolve?.alias,
+              ...currentConfig.resolve?.alias,
               "@": path.join(__dirname, "../src"),
             },
           },
@@ -296,9 +300,16 @@ async function main() {
         const card = batch[j];
         if (results[j].status === "fulfilled") {
           totalRendered++;
+          // Log rendered PNG file size
+          const outputPath = path.join(options.outputDir, `${card.id}.png`);
+          try {
+            const stat = fs.statSync(outputPath);
+            console.error(`[renderStills] Rendered card ${card.id}: ${stat.size} bytes`);
+          } catch (_) {}
         } else {
           const err = results[j].reason;
           logError(`Failed to render card ${card.id}`, err);
+          console.error(`[renderStills] FAILED card ${card.id}: ${err?.message || err}`);
           allErrors.push({ id: card.id, phase: "cards", error: err?.message || String(err) });
         }
         globalCurrent++;

@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import List, Optional
 
+from loguru import logger
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from fastapi.responses import FileResponse
@@ -756,6 +757,14 @@ async def pin_card(timeline_id: str, create: PinnedCardCreate, background_tasks:
     timeline = manager.get_timeline(timeline_id)
     if not timeline:
         raise HTTPException(status_code=404, detail="Timeline not found")
+
+    # Diagnostic: log what card_data was received from frontend
+    data_keys = list(create.card_data.keys()) if isinstance(create.card_data, dict) else "None"
+    data_size = len(create.card_data) if isinstance(create.card_data, dict) else 0
+    logger.info(
+        f"Pin card request: type={create.card_type.value}, card_id='{create.card_id}', "
+        f"card_data keys={data_keys} ({data_size} keys)"
+    )
 
     try:
         pinned = manager.add_pinned_card(timeline_id, create)
