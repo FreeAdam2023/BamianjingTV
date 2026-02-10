@@ -25,6 +25,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import { SidePanelWordCard, SidePanelEntityCard, SidePanelIdiomCard } from "../../src/components/Cards/CardSidePanel";
+import { ExportWordCard, ExportEntityCard, ExportIdiomCard } from "./ExportCard";
 import type { WordCard, EntityCard, IdiomCard } from "../../src/lib/types";
 import type { LearningVideoProps, PinnedCardInput, SubtitleInput, SubtitleStillProps } from "../types";
 import { secondsToFrames } from "../types";
@@ -125,20 +126,19 @@ function BilingualSubtitle({
 // ---- CardStillComposition: static card for renderStill (no animation) ----
 
 export const CardStillComposition: React.FC<{ card: PinnedCardInput }> = ({ card }) => {
-  const noop = () => {};
   const cardData = card.card_data;
 
   return (
     <AbsoluteFill>
-      <div className="h-full bg-black/80">
+      <div style={{ height: "100%", background: "rgba(0,0,0,0.8)" }}>
         {card.card_type === "word" && (
-          <SidePanelWordCard card={cardData as unknown as WordCard} onClose={noop} canPin={false} />
+          <ExportWordCard card={cardData as unknown as WordCard} />
         )}
         {card.card_type === "entity" && (
-          <SidePanelEntityCard card={cardData as unknown as EntityCard} onClose={noop} canPin={false} />
+          <ExportEntityCard card={cardData as unknown as EntityCard} />
         )}
         {card.card_type === "idiom" && (
-          <SidePanelIdiomCard card={cardData as unknown as IdiomCard} onClose={noop} canPin={false} />
+          <ExportIdiomCard card={cardData as unknown as IdiomCard} />
         )}
       </div>
     </AbsoluteFill>
