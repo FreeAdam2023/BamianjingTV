@@ -111,7 +111,7 @@ export const CardStillComposition: React.FC<{ card: PinnedCardInput }> = ({ card
 
   return (
     <AbsoluteFill>
-      <div style={{ height: "100%", background: "rgba(0,0,0,0.8)" }}>
+      <div style={{ height: "100%", background: "#1a2744" }}>
         <CardErrorBoundary cardId={card.id} cardType={card.card_type}>
           {card.card_type === "word" && (
             <ExportWordCard card={cardData as unknown as WordCard} />

@@ -23,7 +23,7 @@ export default function ExportCardTestPage() {
   const [error, setError] = useState<string | null>(null);
   const [customQuery, setCustomQuery] = useState("");
   const [customType, setCustomType] = useState<CardType>("word");
-  const [bgColor, setBgColor] = useState("rgba(0,0,0,0.8)");
+  const [bgColor, setBgColor] = useState("#1a2744");
 
   const fetchCard = useCallback(async (type: CardType, query: string): Promise<LoadedCard | null> => {
     try {
@@ -142,9 +142,9 @@ export default function ExportCardTestPage() {
               onChange={(e) => setBgColor(e.target.value)}
               className="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm"
             >
-              <option value="rgba(0,0,0,0.8)">Dark (export default)</option>
+              <option value="#1a2744">Navy (export default)</option>
+              <option value="rgba(0,0,0,0.8)">Dark (80% black)</option>
               <option value="rgba(0,0,0,1)">Pure black</option>
-              <option value="#1a2744">Navy (#1a2744)</option>
               <option value="#ff0000">Red (debug)</option>
             </select>
           </div>
