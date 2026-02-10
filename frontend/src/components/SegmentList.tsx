@@ -13,6 +13,7 @@ interface SegmentListProps {
   onSegmentClick: (segmentId: number) => void;
   onStateChange: (segmentId: number, state: SegmentState) => void | Promise<void>;
   onTextChange?: (segmentId: number, en: string, zh: string) => void | Promise<void>;
+  onTimeChange?: (segmentId: number, start: number, end: number) => void | Promise<void>;
   onSplitSegment?: (segmentId: number, enIndex: number, zhIndex: number) => Promise<void>;
   // NER annotations for segments (optional)
   segmentAnnotations?: Map<number, SegmentAnnotations>;
@@ -40,6 +41,7 @@ export default function SegmentList({
   onSegmentClick,
   onStateChange,
   onTextChange,
+  onTimeChange,
   onSplitSegment,
   segmentAnnotations,
   onRefreshEntities,
@@ -62,6 +64,10 @@ export default function SegmentList({
   const [splittingSegment, setSplittingSegment] = useState<EditableSegment | null>(null);
   const [refreshingEntities, setRefreshingEntities] = useState<number | null>(null);
   const [refreshingIdioms, setRefreshingIdioms] = useState<number | null>(null);
+  const [editingTimeId, setEditingTimeId] = useState<number | null>(null);
+  const [editStart, setEditStart] = useState("");
+  const [editEnd, setEditEnd] = useState("");
+  const [savingTime, setSavingTime] = useState(false);
 
   // Filter segments by bookmark status
   const filteredSegments = bookmarkFilter === true
@@ -153,6 +159,41 @@ export default function SegmentList({
     }
   };
 
+  // Parse "H:MM:SS" or "M:SS" or "M:SS.s" back to seconds
+  const parseTimeInput = (str: string): number | null => {
+    const parts = str.trim().split(":").map(Number);
+    if (parts.some(isNaN)) return null;
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    if (parts.length === 2) return parts[0] * 60 + parts[1];
+    return null;
+  };
+
+  const startEditingTime = (segment: EditableSegment) => {
+    setEditingTimeId(segment.id);
+    setEditStart(formatDuration(segment.start));
+    setEditEnd(formatDuration(segment.end));
+  };
+
+  const cancelEditingTime = () => {
+    setEditingTimeId(null);
+  };
+
+  const saveEditingTime = async (segmentId: number) => {
+    if (!onTimeChange) return;
+    const s = parseTimeInput(editStart);
+    const e = parseTimeInput(editEnd);
+    if (s === null || e === null || s >= e) return;
+    setSavingTime(true);
+    try {
+      await onTimeChange(segmentId, s, e);
+      setEditingTimeId(null);
+    } catch (err) {
+      console.error("Failed to save time:", err);
+    } finally {
+      setSavingTime(false);
+    }
+  };
+
   // Handle double-click to edit
   const handleDoubleClick = (segment: EditableSegment, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -177,9 +218,56 @@ export default function SegmentList({
         >
           {/* Time and speaker */}
           <div className="flex justify-between items-center text-xs text-gray-400 mb-1">
-            <span>
-              {formatDuration(segment.start)} - {formatDuration(segment.end)}
-            </span>
+            {editingTimeId === segment.id ? (
+              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                <input
+                  value={editStart}
+                  onChange={(e) => setEditStart(e.target.value)}
+                  className="w-16 bg-gray-800 text-white text-xs px-1.5 py-0.5 rounded border border-gray-600 focus:border-blue-500 outline-none text-center"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveEditingTime(segment.id);
+                    if (e.key === "Escape") cancelEditingTime();
+                  }}
+                  autoFocus
+                />
+                <span>-</span>
+                <input
+                  value={editEnd}
+                  onChange={(e) => setEditEnd(e.target.value)}
+                  className="w-16 bg-gray-800 text-white text-xs px-1.5 py-0.5 rounded border border-gray-600 focus:border-blue-500 outline-none text-center"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveEditingTime(segment.id);
+                    if (e.key === "Escape") cancelEditingTime();
+                  }}
+                />
+                <button
+                  onClick={() => saveEditingTime(segment.id)}
+                  disabled={savingTime}
+                  className="px-1.5 py-0.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  ✓
+                </button>
+                <button
+                  onClick={cancelEditingTime}
+                  className="px-1.5 py-0.5 text-xs bg-gray-700 text-gray-300 rounded hover:bg-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <span
+                className={onTimeChange ? "cursor-pointer hover:text-blue-400 transition" : ""}
+                onClick={(e) => {
+                  if (onTimeChange) {
+                    e.stopPropagation();
+                    startEditingTime(segment);
+                  }
+                }}
+                title={onTimeChange ? "点击编辑时间戳" : undefined}
+              >
+                {formatDuration(segment.start)} - {formatDuration(segment.end)}
+              </span>
+            )}
             <div className="flex items-center gap-2">
               {segment.speaker && (
                 <span className="bg-gray-700 px-2 py-0.5 rounded">

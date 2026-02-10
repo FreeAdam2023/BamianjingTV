@@ -154,6 +154,36 @@ export function useTimeline(timelineId: string) {
     [timeline, timelineId]
   );
 
+  // Update segment timestamps (start/end)
+  const setSegmentTime = useCallback(
+    async (segmentId: number, start: number, end: number) => {
+      if (!timeline) return;
+
+      // Optimistic update
+      setTimeline((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          segments: prev.segments.map((seg) =>
+            seg.id === segmentId ? { ...seg, start, end } : seg
+          ),
+        };
+      });
+
+      // Persist to backend
+      setSaving(true);
+      try {
+        await updateSegment(timelineId, segmentId, { start, end });
+      } catch (err) {
+        console.error("Failed to update segment time:", err);
+        getTimeline(timelineId).then(setTimeline);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [timeline, timelineId]
+  );
+
   // Update segment trim values
   const setSegmentTrim = useCallback(
     async (segmentId: number, trimStart: number, trimEnd: number) => {
@@ -230,6 +260,7 @@ export function useTimeline(timelineId: string) {
     stats,
     setSegmentState,
     setSegmentText,
+    setSegmentTime,
     setSegmentTrim,
     toggleBookmark,
     markReviewed,

@@ -55,6 +55,7 @@ export default function ReviewPage() {
     stats,
     setSegmentState,
     setSegmentText,
+    setSegmentTime,
     setSegmentTrim,
     toggleBookmark,
     markReviewed,
@@ -847,6 +848,7 @@ export default function ReviewPage() {
             onSegmentClick={handleSegmentClick}
             onStateChange={setSegmentState}
             onTextChange={setSegmentText}
+            onTimeChange={setSegmentTime}
             onSplitSegment={handleSplitSegment}
             segmentAnnotations={segmentAnnotations}
             onRefreshEntities={handleRefreshEntities}

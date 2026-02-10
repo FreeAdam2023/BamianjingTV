@@ -191,6 +191,8 @@ class SegmentUpdate(BaseModel):
     trim_end: Optional[float] = None
     en: Optional[str] = None
     zh: Optional[str] = None
+    start: Optional[float] = None
+    end: Optional[float] = None
 
 
 class SegmentBatchUpdate(BaseModel):
@@ -333,6 +335,10 @@ class Timeline(BaseModel):
             seg.en = update.en
         if update.zh is not None:
             seg.zh = update.zh
+        if update.start is not None:
+            seg.start = update.start
+        if update.end is not None:
+            seg.end = update.end
 
         self.updated_at = datetime.now()
         return seg

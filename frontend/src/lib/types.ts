@@ -118,6 +118,8 @@ export interface SegmentUpdate {
   trim_end?: number;
   en?: string;
   zh?: string;
+  start?: number;
+  end?: number;
 }
 
 export interface SegmentBatchUpdate {
