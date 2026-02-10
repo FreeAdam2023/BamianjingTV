@@ -4,7 +4,7 @@
  * VideoPlayer - Main component for video playback with bilingual subtitles
  */
 
-import { useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
+import { useRef, useEffect, useCallback, useState, forwardRef, useImperativeHandle } from "react";
 import type { EditableSegment, PinnedCard } from "@/lib/types";
 import type { CardPopupState } from "@/hooks/useCardPopup";
 import { useVideoState } from "./useVideoState";
@@ -121,6 +121,28 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     updateSubtitleStyle,
     resetSubtitleStyle,
   } = useVideoState();
+
+  // Fullscreen state
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const toggleFullscreen = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) {
+      el.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  }, []);
+
+  // Listen for fullscreen change events
+  useEffect(() => {
+    const handleChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleChange);
+    return () => document.removeEventListener("fullscreenchange", handleChange);
+  }, []);
 
   // Sync subtitle language mode with prop (from backend)
   useEffect(() => {
@@ -604,6 +626,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         onWatermarkUpload={handleWatermarkUpload}
         onWatermarkRemove={removeWatermark}
         onSetCover={onSetCover ? () => onSetCover(currentTime) : undefined}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={toggleFullscreen}
       />
     </div>
   );

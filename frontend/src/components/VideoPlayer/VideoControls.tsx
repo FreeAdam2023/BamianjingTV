@@ -151,6 +151,9 @@ interface VideoControlsProps {
   onWatermarkUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onWatermarkRemove: () => void;
   onSetCover?: () => void;
+  // Fullscreen
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
 export default function VideoControls({
@@ -183,6 +186,8 @@ export default function VideoControls({
   onWatermarkUpload,
   onWatermarkRemove,
   onSetCover,
+  isFullscreen = false,
+  onToggleFullscreen,
 }: VideoControlsProps) {
   const watermarkInputRef = useRef<HTMLInputElement>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
@@ -437,6 +442,26 @@ export default function VideoControls({
           >
             循环
           </button>
+
+          {/* Fullscreen toggle */}
+          {onToggleFullscreen && (
+            <button
+              onClick={onToggleFullscreen}
+              className="text-white hover:text-blue-400 p-1"
+              title={isFullscreen ? "退出全屏 (F)" : "全屏预览 (F)"}
+              aria-label={isFullscreen ? "退出全屏" : "全屏预览"}
+            >
+              {isFullscreen ? (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                </svg>
+              )}
+            </button>
+          )}
 
           {/* Chinese Subtitle Language Selector */}
           {onConvertChinese && (

@@ -6,6 +6,12 @@
  * Tailwind CSS purging or font resolution may fail.
  *
  * Visually mirrors SidePanelWordCard / SidePanelEntityCard / SidePanelIdiomCard.
+ *
+ * Scale factor: The export card panel is 672px (35% of 1920) while the
+ * review UI card panel is ~493px (35% of ~1408px). To achieve identical
+ * visual perception at fullscreen, all sizes are multiplied by 1.36×.
+ * UI text-xs (12) → 16, text-sm (14) → 19, text-base (16) → 22,
+ * text-xl (20) → 27, text-2xl (24) → 33, p-4 (16) → 22.
  */
 
 import React, { useState } from "react";
@@ -38,8 +44,8 @@ const RED_BG = "rgba(127,29,29,0.4)";
 // ---- Section header (e.g., "释义 ───────") ----
 function SectionHeader({ label }: { label: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-      <span style={{ fontSize: 14, fontWeight: 500, color: WHITE_40, textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: FONT }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 11 }}>
+      <span style={{ fontSize: 16, fontWeight: 500, color: WHITE_40, textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: FONT }}>
         {label}
       </span>
       <div style={{ flex: 1, height: 1, background: WHITE_10 }} />
@@ -52,7 +58,7 @@ function TagChip({ text, color, bg }: { text: string; color: string; bg: string 
   return (
     <span style={{
       display: "inline-block",
-      fontSize: 14,
+      fontSize: 16,
       padding: "3px 8px",
       background: bg,
       color,
@@ -94,23 +100,23 @@ export function ExportWordCard({ card }: { card: WordCard }) {
       {/* Header */}
       <div style={{
         display: "flex", alignItems: "flex-start", justifyContent: "space-between",
-        padding: 20, borderBottom: `1px solid ${WHITE_10}`,
+        padding: 22, borderBottom: `1px solid ${WHITE_10}`,
         ...(showImage ? { marginTop: -56, position: "relative" as const, zIndex: 10 } : {}),
       }}>
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 30, fontWeight: 700, color: WHITE }}>{card.word}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+            <span style={{ fontSize: 33, fontWeight: 700, color: WHITE }}>{card.word}</span>
             {card.lemma && card.lemma !== card.word && (
-              <span style={{ fontSize: 18, color: WHITE_50 }}>({card.lemma})</span>
+              <span style={{ fontSize: 19, color: WHITE_50 }}>({card.lemma})</span>
             )}
           </div>
           {primaryPronunciation && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-              <span style={{ color: BLUE_300, fontFamily: FONT_IPA, fontSize: 18 }}>{primaryPronunciation.ipa}</span>
+              <span style={{ color: BLUE_300, fontFamily: FONT_IPA, fontSize: 19 }}>{primaryPronunciation.ipa}</span>
             </div>
           )}
           {card.cefr_level && (
-            <span style={{ display: "inline-block", marginTop: 8, padding: "3px 10px", background: PURPLE_BG, color: PURPLE_300, fontSize: 14, borderRadius: 4 }}>
+            <span style={{ display: "inline-block", marginTop: 8, padding: "3px 11px", background: PURPLE_BG, color: PURPLE_300, fontSize: 16, borderRadius: 4 }}>
               {card.cefr_level}
             </span>
           )}
@@ -118,37 +124,37 @@ export function ExportWordCard({ card }: { card: WordCard }) {
       </div>
 
       {/* Senses */}
-      <div style={{ flex: 1, overflow: "hidden", padding: 20, display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ flex: 1, overflow: "hidden", padding: 22, display: "flex", flexDirection: "column", gap: 22 }}>
         {Object.entries(sensesByPos).map(([pos, posSenses]) => (
           <div key={pos}>
             <SectionHeader label={pos} />
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
             {posSenses.slice(0, 3).map((sense, idx) => (
-              <div key={idx} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div key={idx} style={{ display: "flex", flexDirection: "column", gap: 11 }}>
                 {/* Chinese Definition - Primary */}
                 {sense.definition_zh && (
-                  <p style={{ fontSize: 20, color: WHITE, fontWeight: 500, margin: 0 }}>
+                  <p style={{ fontSize: 22, color: WHITE, fontWeight: 500, margin: 0 }}>
                     {idx + 1}. {sense.definition_zh}
                   </p>
                 )}
 
                 {/* English Definition */}
                 {sense.definition && sense.definition !== sense.definition_zh && (
-                  <p style={{ fontSize: 17, color: WHITE_60, margin: 0, marginLeft: 16 }}>
+                  <p style={{ fontSize: 19, color: WHITE_60, margin: 0, marginLeft: 22 }}>
                     {sense.definition}
                   </p>
                 )}
 
                 {/* Examples with translations */}
                 {(sense.examples?.length ?? 0) > 0 && (
-                  <div style={{ marginLeft: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ marginLeft: 22, display: "flex", flexDirection: "column", gap: 11 }}>
                     {sense.examples.slice(0, 2).map((example, exIdx) => (
-                      <div key={exIdx} style={{ paddingLeft: 14, borderLeft: "3px solid rgba(255,255,255,0.2)" }}>
-                        <p style={{ fontSize: 17, color: WHITE_70, fontStyle: "italic", margin: 0, lineHeight: 1.6 }}>
+                      <div key={exIdx} style={{ paddingLeft: 16, borderLeft: "3px solid rgba(255,255,255,0.2)" }}>
+                        <p style={{ fontSize: 19, color: WHITE_70, fontStyle: "italic", margin: 0, lineHeight: 1.6 }}>
                           &quot;{example}&quot;
                         </p>
                         {sense.examples_zh?.[exIdx] && (
-                          <p style={{ fontSize: 17, color: YELLOW_70, margin: "4px 0 0", lineHeight: 1.6 }}>
+                          <p style={{ fontSize: 19, color: YELLOW_70, margin: "4px 0 0", lineHeight: 1.6 }}>
                             {sense.examples_zh[exIdx]}
                           </p>
                         )}
@@ -159,18 +165,18 @@ export function ExportWordCard({ card }: { card: WordCard }) {
 
                 {/* Synonyms & Antonyms */}
                 {((sense.synonyms?.length ?? 0) > 0 || (sense.antonyms?.length ?? 0) > 0) && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginLeft: 16 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 11, marginLeft: 22 }}>
                     {(sense.synonyms?.length ?? 0) > 0 && (
-                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
-                        <span style={{ fontSize: 14, color: GREEN_400 }}>&asymp;</span>
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
+                        <span style={{ fontSize: 16, color: GREEN_400 }}>&asymp;</span>
                         {sense.synonyms!.slice(0, 3).map((syn, synIdx) => (
                           <TagChip key={synIdx} text={syn} color={GREEN_300} bg={GREEN_BG} />
                         ))}
                       </div>
                     )}
                     {(sense.antonyms?.length ?? 0) > 0 && (
-                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
-                        <span style={{ fontSize: 14, color: RED_400 }}>&ne;</span>
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
+                        <span style={{ fontSize: 16, color: RED_400 }}>&ne;</span>
                         {sense.antonyms!.slice(0, 2).map((ant, antIdx) => (
                           <TagChip key={antIdx} text={ant} color={RED_300} bg={RED_BG} />
                         ))}
@@ -221,41 +227,41 @@ export function ExportEntityCard({ card }: { card: EntityCard }) {
         )}
         <span style={{
           position: "absolute", top: 8, left: 8,
-          padding: "3px 10px", background: badgeColor,
-          color: WHITE, fontSize: 14, fontWeight: 500, borderRadius: 4,
+          padding: "3px 11px", background: badgeColor,
+          color: WHITE, fontSize: 16, fontWeight: 500, borderRadius: 4,
         }}>
           {card.entity_type}
         </span>
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflow: "hidden", padding: 20 }}>
-        <p style={{ fontSize: 26, fontWeight: 700, color: WHITE, margin: "0 0 6px" }}>{card.name}</p>
+      <div style={{ flex: 1, overflow: "hidden", padding: 22 }}>
+        <p style={{ fontSize: 27, fontWeight: 700, color: WHITE, margin: "0 0 6px" }}>{card.name}</p>
         {zhLocalization?.name && zhLocalization.name !== card.name && (
-          <p style={{ fontSize: 18, color: YELLOW_80, margin: "0 0 14px" }}>{zhLocalization.name}</p>
+          <p style={{ fontSize: 19, color: YELLOW_80, margin: "0 0 16px" }}>{zhLocalization.name}</p>
         )}
-        <p style={{ fontSize: 17, color: WHITE_80, margin: "0 0 14px", lineHeight: 1.7 }}>{card.description}</p>
+        <p style={{ fontSize: 19, color: WHITE_80, margin: "0 0 16px", lineHeight: 1.7 }}>{card.description}</p>
         {zhLocalization?.description && zhLocalization.description !== card.description && (
-          <p style={{ fontSize: 17, color: WHITE_60, margin: "0 0 18px", lineHeight: 1.7 }}>{zhLocalization.description}</p>
+          <p style={{ fontSize: 19, color: WHITE_60, margin: "0 0 22px", lineHeight: 1.7 }}>{zhLocalization.description}</p>
         )}
 
         {/* Links */}
         {(card.wikipedia_url || card.wikidata_url) && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 18 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 11, marginTop: 22 }}>
             {card.wikipedia_url && (
               <span style={{
-                display: "inline-flex", alignItems: "center", gap: 4,
-                padding: "5px 12px", background: "rgba(255,255,255,0.1)",
-                color: WHITE_80, fontSize: 14, borderRadius: 4,
+                display: "inline-flex", alignItems: "center", gap: 5,
+                padding: "5px 14px", background: "rgba(255,255,255,0.1)",
+                color: WHITE_80, fontSize: 16, borderRadius: 4,
               }}>
                 Wikipedia
               </span>
             )}
             {card.wikidata_url && (
               <span style={{
-                display: "inline-flex", alignItems: "center", gap: 4,
-                padding: "5px 12px", background: "rgba(255,255,255,0.1)",
-                color: WHITE_80, fontSize: 14, borderRadius: 4,
+                display: "inline-flex", alignItems: "center", gap: 5,
+                padding: "5px 14px", background: "rgba(255,255,255,0.1)",
+                color: WHITE_80, fontSize: 16, borderRadius: 4,
               }}>
                 Wikidata
               </span>
@@ -288,29 +294,29 @@ export function ExportIdiomCard({ card }: { card: IdiomCard }) {
         <div style={{ height: 64, background: "linear-gradient(to right, rgba(120,53,15,0.3), rgba(146,64,14,0.2))" }} />
         <span style={{
           position: "absolute", top: 8, left: 8,
-          padding: "3px 10px", background: categoryColors[card.category] || categoryColors.idiom,
-          color: WHITE, fontSize: 14, fontWeight: 500, borderRadius: 4,
+          padding: "3px 11px", background: categoryColors[card.category] || categoryColors.idiom,
+          color: WHITE, fontSize: 16, fontWeight: 500, borderRadius: 4,
         }}>
           {categoryLabels[card.category] || card.category}
         </span>
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflow: "hidden", padding: 20, display: "flex", flexDirection: "column", gap: 20 }}>
-        <p style={{ fontSize: 26, fontWeight: 700, color: AMBER_300, margin: 0 }}>{card.text}</p>
+      <div style={{ flex: 1, overflow: "hidden", padding: 22, display: "flex", flexDirection: "column", gap: 22 }}>
+        <p style={{ fontSize: 27, fontWeight: 700, color: AMBER_300, margin: 0 }}>{card.text}</p>
 
         {card.meaning_localized && (
           <div>
             <SectionHeader label="释义" />
-            <p style={{ fontSize: 17, color: YELLOW_70, margin: 0, lineHeight: 1.7 }}>{card.meaning_localized}</p>
+            <p style={{ fontSize: 19, color: YELLOW_70, margin: 0, lineHeight: 1.7 }}>{card.meaning_localized}</p>
           </div>
         )}
 
         {card.example_localized && (
           <div>
             <SectionHeader label="例句" />
-            <div style={{ paddingLeft: 14, borderLeft: "3px solid rgba(245,158,11,0.3)" }}>
-              <p style={{ fontSize: 17, color: YELLOW_70, margin: 0, lineHeight: 1.7 }}>{card.example_localized}</p>
+            <div style={{ paddingLeft: 16, borderLeft: "3px solid rgba(245,158,11,0.3)" }}>
+              <p style={{ fontSize: 19, color: YELLOW_70, margin: 0, lineHeight: 1.7 }}>{card.example_localized}</p>
             </div>
           </div>
         )}
@@ -318,14 +324,14 @@ export function ExportIdiomCard({ card }: { card: IdiomCard }) {
         {card.origin_localized && (
           <div>
             <SectionHeader label="来源" />
-            <p style={{ fontSize: 17, color: YELLOW_60, margin: 0, lineHeight: 1.7 }}>{card.origin_localized}</p>
+            <p style={{ fontSize: 19, color: YELLOW_60, margin: 0, lineHeight: 1.7 }}>{card.origin_localized}</p>
           </div>
         )}
 
         {card.usage_note_localized && (
           <div>
             <SectionHeader label="用法" />
-            <p style={{ fontSize: 17, color: YELLOW_60, margin: 0, lineHeight: 1.7 }}>{card.usage_note_localized}</p>
+            <p style={{ fontSize: 19, color: YELLOW_60, margin: 0, lineHeight: 1.7 }}>{card.usage_note_localized}</p>
           </div>
         )}
       </div>
@@ -339,10 +345,10 @@ function PlaceholderBadge({ text, color, bg }: { text: string; color: string; bg
   return (
     <span style={{
       display: "inline-block",
-      padding: "4px 8px",
+      padding: "5px 11px",
       background: bg,
       color,
-      fontSize: 12,
+      fontSize: 16,
       borderRadius: 9999,
       fontFamily: FONT,
     }}>
@@ -359,37 +365,37 @@ export function ExportCardPlaceholder() {
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
-      padding: 24,
+      padding: 33,
       fontFamily: FONT,
     }}>
       {/* Icon */}
       <div style={{
-        width: 64,
-        height: 64,
-        borderRadius: 16,
+        width: 87,
+        height: 87,
+        borderRadius: 22,
         background: "linear-gradient(135deg, rgba(168,85,247,0.2), rgba(59,130,246,0.2))",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        marginBottom: 16,
+        marginBottom: 22,
       }}>
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(168,85,247,0.6)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="rgba(168,85,247,0.6)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
       </div>
 
       {/* Title */}
-      <p style={{ fontSize: 18, fontWeight: 500, color: WHITE_70, margin: "0 0 8px", textAlign: "center" }}>
+      <p style={{ fontSize: 24, fontWeight: 500, color: WHITE_70, margin: "0 0 11px", textAlign: "center" }}>
         学习卡片
       </p>
 
       {/* Description */}
-      <p style={{ fontSize: 14, color: WHITE_40, margin: "0 0 16px", textAlign: "center", maxWidth: 200, lineHeight: 1.6 }}>
+      <p style={{ fontSize: 19, color: WHITE_40, margin: "0 0 22px", textAlign: "center", maxWidth: 272, lineHeight: 1.6 }}>
         点击字幕中高亮的单词或实体查看详细卡片
       </p>
 
       {/* Badges */}
-      <div style={{ display: "flex", gap: 8 }}>
+      <div style={{ display: "flex", gap: 11 }}>
         <PlaceholderBadge text="单词" color="rgba(96,165,250,0.6)" bg="rgba(59,130,246,0.1)" />
         <PlaceholderBadge text="实体" color="rgba(192,132,252,0.6)" bg="rgba(168,85,247,0.1)" />
         <PlaceholderBadge text="习语" color="rgba(251,191,36,0.6)" bg="rgba(245,158,11,0.1)" />
