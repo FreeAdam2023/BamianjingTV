@@ -1132,9 +1132,41 @@ class ExportWorker:
             Tuple of (rendered_cards, rendered_subtitle_stills)
         """
         from app.workers.card_renderer import batch_precache_images
+        from app.services.card_cache import CardCache
 
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
+
+        # ── Heal missing card_data from card cache ──
+        card_cache = CardCache()
+        healed_count = 0
+        for card in pinned_cards:
+            if not card.card_data or not isinstance(card.card_data, dict) or len(card.card_data) == 0:
+                card_type_val = card.card_type.value if hasattr(card.card_type, 'value') else card.card_type
+                logger.warning(
+                    f"Card {card.id} ({card_type_val}:{card.card_id}) has empty card_data, "
+                    f"attempting to heal from cache..."
+                )
+                cached_card = None
+                if card_type_val == "word":
+                    cached_card = card_cache.get_word_card(card.card_id)
+                elif card_type_val == "entity":
+                    cached_card = card_cache.get_entity_card(card.card_id)
+                elif card_type_val == "idiom":
+                    cached_card = card_cache.get_idiom_card(card.card_id)
+
+                if cached_card:
+                    card.card_data = cached_card.model_dump(mode="json")
+                    healed_count += 1
+                    logger.info(
+                        f"Healed card {card.id} from cache: "
+                        f"{list(card.card_data.keys())[:5]}"
+                    )
+                else:
+                    logger.warning(f"Card {card.id} ({card_type_val}:{card.card_id}) not found in cache, skipping")
+
+        if healed_count:
+            logger.info(f"Healed {healed_count}/{len(pinned_cards)} cards from cache")
 
         # ── Build cards JSON ──
         card_dicts = [
@@ -1148,7 +1180,7 @@ class ExportWorker:
         card_timing = {}
         for card in pinned_cards:
             if not card.card_data:
-                logger.warning(f"Card {card.id} has no card_data, skipping")
+                logger.warning(f"Card {card.id} has no card_data after healing, skipping")
                 continue
             card_type = card.card_type.value if hasattr(card.card_type, 'value') else card.card_type
             card_data = self._replace_image_urls_with_local(card.card_data, card_type)

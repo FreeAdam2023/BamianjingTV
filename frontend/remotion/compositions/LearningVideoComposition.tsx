@@ -127,22 +127,10 @@ function BilingualSubtitle({
 export const CardStillComposition: React.FC<{ card: PinnedCardInput }> = ({ card }) => {
   const noop = () => {};
   const cardData = card.card_data;
-  const dataKeys = Object.keys(cardData || {});
-
-  // Debug: log card data to stderr (captured by Python)
-  console.error(`[CardStill] type=${card.card_type}, keys=[${dataKeys.join(",")}], sample=${JSON.stringify(cardData).slice(0, 200)}`);
 
   return (
     <AbsoluteFill>
       <div className="h-full bg-black/80">
-        {/* DEBUG: visible banner with inline styles (no Tailwind dependency) */}
-        <div style={{
-          background: "#dc2626", color: "white", padding: "8px 12px",
-          fontSize: "14px", fontWeight: "bold", fontFamily: "monospace",
-          position: "relative", zIndex: 9999,
-        }}>
-          {card.card_type} | {dataKeys.length} keys: {dataKeys.slice(0, 5).join(", ")}
-        </div>
         {card.card_type === "word" && (
           <SidePanelWordCard card={cardData as unknown as WordCard} onClose={noop} canPin={false} />
         )}
