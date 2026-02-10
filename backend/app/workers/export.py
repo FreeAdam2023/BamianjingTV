@@ -1137,50 +1137,48 @@ class ExportWorker:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # ── Heal missing card_data from card cache ──
+        # ── Load card data from cache (authoritative source) ──
+        # Pinned cards only store card_type + card_id + timing.
+        # Always load the full card data from the disk cache at export time,
+        # so we don't depend on card_data being saved in the timeline JSON.
         card_cache = CardCache()
-        healed_count = 0
         for card in pinned_cards:
-            if not card.card_data or not isinstance(card.card_data, dict) or len(card.card_data) == 0:
-                card_type_val = card.card_type.value if hasattr(card.card_type, 'value') else card.card_type
-                logger.warning(
-                    f"Card {card.id} ({card_type_val}:{card.card_id}) has empty card_data, "
-                    f"attempting to heal from cache..."
+            card_type_val = card.card_type.value if hasattr(card.card_type, 'value') else card.card_type
+            cached_card = None
+            if card_type_val == "word":
+                cached_card = card_cache.get_word_card(card.card_id)
+            elif card_type_val == "entity":
+                cached_card = card_cache.get_entity_card(card.card_id)
+            elif card_type_val == "idiom":
+                cached_card = card_cache.get_idiom_card(card.card_id)
+
+            if cached_card:
+                card.card_data = cached_card.model_dump(mode="json")
+                logger.info(
+                    f"Loaded card {card.id} ({card_type_val}:{card.card_id}) "
+                    f"from cache: {list(card.card_data.keys())[:5]}"
                 )
-                cached_card = None
-                if card_type_val == "word":
-                    cached_card = card_cache.get_word_card(card.card_id)
-                elif card_type_val == "entity":
-                    cached_card = card_cache.get_entity_card(card.card_id)
-                elif card_type_val == "idiom":
-                    cached_card = card_cache.get_idiom_card(card.card_id)
-
-                if cached_card:
-                    card.card_data = cached_card.model_dump(mode="json")
-                    healed_count += 1
-                    logger.info(
-                        f"Healed card {card.id} from cache: "
-                        f"{list(card.card_data.keys())[:5]}"
-                    )
-                else:
-                    logger.warning(f"Card {card.id} ({card_type_val}:{card.card_id}) not found in cache, skipping")
-
-        if healed_count:
-            logger.info(f"Healed {healed_count}/{len(pinned_cards)} cards from cache")
+            elif card.card_data and isinstance(card.card_data, dict) and len(card.card_data) > 0:
+                logger.info(f"Card {card.id} not in cache, using embedded card_data")
+            else:
+                logger.warning(
+                    f"Card {card.id} ({card_type_val}:{card.card_id}) "
+                    f"has no data in cache or timeline, will be skipped"
+                )
 
         # ── Build cards JSON ──
         card_dicts = [
             {"card_type": c.card_type.value if hasattr(c.card_type, 'value') else c.card_type,
              "card_data": c.card_data}
-            for c in pinned_cards if c.card_data
+            for c in pinned_cards if c.card_data and len(c.card_data) > 0
         ]
         batch_precache_images(card_dicts)
 
         cards_json = []
         card_timing = {}
         for card in pinned_cards:
-            if not card.card_data:
-                logger.warning(f"Card {card.id} has no card_data after healing, skipping")
+            if not card.card_data or len(card.card_data) == 0:
+                logger.warning(f"Card {card.id} has no card_data, skipping")
                 continue
             card_type = card.card_type.value if hasattr(card.card_type, 'value') else card.card_type
             card_data = self._replace_image_urls_with_local(card.card_data, card_type)
