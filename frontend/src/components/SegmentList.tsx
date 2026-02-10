@@ -163,7 +163,7 @@ export default function SegmentList({
 
   return (
     <>
-    <div ref={listRef} className="h-full overflow-y-auto space-y-2 p-2">
+    <div ref={listRef} className="h-full overflow-y-auto divide-y divide-white/5 p-2">
       {filteredSegments.map((segment) => (
         <div
           key={segment.id}
@@ -432,7 +432,7 @@ export default function SegmentList({
                 </button>
               ) : (
                 <button
-                  className="w-full py-1 px-3 text-xs rounded transition text-gray-500 hover:bg-red-500/20 hover:text-red-400"
+                  className="w-full py-1 px-3 text-xs rounded transition text-gray-500 border border-white/10 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30"
                   onClick={() => onStateChange(segment.id, "drop")}
                   title="D: 丢弃"
                 >
