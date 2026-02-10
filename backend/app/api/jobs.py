@@ -433,6 +433,54 @@ async def get_cover_frame(job_id: str):
     )
 
 
+@router.get("/jobs/{job_id}/stills")
+async def list_stills(job_id: str):
+    """List rendered card/subtitle still PNGs for a job."""
+    stills_dir = settings.jobs_dir / job_id / "output" / "stills"
+    if not stills_dir.exists():
+        raise HTTPException(status_code=404, detail="Stills directory not found")
+
+    pngs = sorted(
+        [f.name for f in stills_dir.iterdir() if f.suffix == ".png"],
+    )
+    # Load cards_input.json for metadata if available
+    cards_meta = {}
+    cards_file = stills_dir / "cards_input.json"
+    if cards_file.exists():
+        import json
+        try:
+            cards = json.loads(cards_file.read_text(encoding="utf-8"))
+            for c in cards:
+                cards_meta[c["id"]] = {"card_type": c.get("card_type"), "card_data_keys": list(c.get("card_data", {}).keys())}
+        except Exception:
+            pass
+
+    items = []
+    for name in pngs:
+        card_id = name.replace(".png", "")
+        size = (stills_dir / name).stat().st_size
+        meta = cards_meta.get(card_id)
+        items.append({
+            "filename": name,
+            "card_id": card_id,
+            "size": size,
+            "is_subtitle": name.startswith("sub_"),
+            "card_type": meta["card_type"] if meta else None,
+        })
+    return {"job_id": job_id, "count": len(items), "stills": items}
+
+
+@router.get("/jobs/{job_id}/stills/{filename}")
+async def get_still(job_id: str, filename: str):
+    """Get a rendered still PNG for a job."""
+    if not filename.endswith(".png"):
+        raise HTTPException(status_code=400, detail="Only .png files allowed")
+    still_path = settings.jobs_dir / job_id / "output" / "stills" / filename
+    if not still_path.exists():
+        raise HTTPException(status_code=404, detail="Still not found")
+    return FileResponse(still_path, media_type="image/png")
+
+
 @router.post("/jobs/{job_id}/retry")
 async def retry_job(job_id: str):
     """Retry a failed job."""
