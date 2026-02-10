@@ -12,6 +12,7 @@ import React, { useState } from "react";
 import type { WordCard, EntityCard, IdiomCard } from "../../src/lib/types";
 
 const FONT = "'Noto Sans CJK SC', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif";
+const FONT_IPA = "'Noto Sans', 'Noto Sans CJK SC', 'DejaVu Sans', Arial, sans-serif";
 const FONT_MONO = "'Courier New', monospace";
 const WHITE = "#ffffff";
 const WHITE_80 = "rgba(255,255,255,0.8)";
@@ -105,7 +106,7 @@ export function ExportWordCard({ card }: { card: WordCard }) {
           </div>
           {primaryPronunciation && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-              <span style={{ color: BLUE_300, fontFamily: FONT_MONO, fontSize: 14 }}>{primaryPronunciation.ipa}</span>
+              <span style={{ color: BLUE_300, fontFamily: FONT_IPA, fontSize: 14 }}>{primaryPronunciation.ipa}</span>
             </div>
           )}
           {card.cefr_level && (

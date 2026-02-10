@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     unzip \
     fonts-noto-cjk \
+    fonts-noto-core \
     fonts-liberation \
     fontconfig \
     && rm -rf /var/lib/apt/lists/* \
