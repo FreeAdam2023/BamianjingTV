@@ -1133,17 +1133,20 @@ class ExportWorker:
         """
         from app.workers.card_renderer import batch_precache_images
         from app.services.card_cache import CardCache
+        from app.workers.card_generator import CardGeneratorWorker
 
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # ── Load card data from cache (authoritative source) ──
+        # ── Load card data: cache → API → embedded card_data ──
         # Pinned cards only store card_type + card_id + timing.
-        # Always load the full card data from the disk cache at export time,
-        # so we don't depend on card_data being saved in the timeline JSON.
+        # Load the full card content from the most reliable source available.
         card_cache = CardCache()
+        card_generator = CardGeneratorWorker()
         for card in pinned_cards:
             card_type_val = card.card_type.value if hasattr(card.card_type, 'value') else card.card_type
+
+            # 1) Try disk cache first (fast, no network)
             cached_card = None
             if card_type_val == "word":
                 cached_card = card_cache.get_word_card(card.card_id)
@@ -1154,17 +1157,32 @@ class ExportWorker:
 
             if cached_card:
                 card.card_data = cached_card.model_dump(mode="json")
-                logger.info(
-                    f"Loaded card {card.id} ({card_type_val}:{card.card_id}) "
-                    f"from cache: {list(card.card_data.keys())[:5]}"
-                )
-            elif card.card_data and isinstance(card.card_data, dict) and len(card.card_data) > 0:
-                logger.info(f"Card {card.id} not in cache, using embedded card_data")
+                logger.info(f"Card {card.id} ({card_type_val}:{card.card_id}): loaded from cache")
+                continue
+
+            # 2) Cache miss — fetch from API
+            logger.info(f"Card {card.id} ({card_type_val}:{card.card_id}): not in cache, fetching from API...")
+            try:
+                fetched_card = None
+                if card_type_val == "word":
+                    fetched_card = await card_generator.get_word_card(card.card_id)
+                elif card_type_val == "entity":
+                    fetched_card = await card_generator.get_entity_card(card.card_id)
+                elif card_type_val == "idiom":
+                    fetched_card = await card_generator.get_idiom_card(card.card_id)
+
+                if fetched_card:
+                    card.card_data = fetched_card.model_dump(mode="json")
+                    logger.info(f"Card {card.id} ({card_type_val}:{card.card_id}): fetched from API")
+                    continue
+            except Exception as e:
+                logger.warning(f"Card {card.id} API fetch failed: {e}")
+
+            # 3) Last resort — use embedded card_data from timeline
+            if card.card_data and isinstance(card.card_data, dict) and len(card.card_data) > 0:
+                logger.info(f"Card {card.id}: using embedded card_data from timeline")
             else:
-                logger.warning(
-                    f"Card {card.id} ({card_type_val}:{card.card_id}) "
-                    f"has no data in cache or timeline, will be skipped"
-                )
+                logger.warning(f"Card {card.id} ({card_type_val}:{card.card_id}): no data available, skipping")
 
         # ── Build cards JSON ──
         card_dicts = [
