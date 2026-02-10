@@ -43,6 +43,7 @@ export interface EditableSegment {
   zh: string;
   speaker: string | null;
   state: SegmentState;
+  subtitle_hidden: boolean;
   bookmarked: boolean;
   trim_start: number;
   trim_end: number;
@@ -113,6 +114,7 @@ export interface TimelineSummary {
 
 export interface SegmentUpdate {
   state?: SegmentState;
+  subtitle_hidden?: boolean;
   bookmarked?: boolean;
   trim_start?: number;
   trim_end?: number;

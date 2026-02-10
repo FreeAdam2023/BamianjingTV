@@ -73,6 +73,37 @@ export function useTimeline(timelineId: string) {
     [timeline, timelineId]
   );
 
+  // Toggle subtitle_hidden on a segment
+  const toggleSubtitleHidden = useCallback(
+    async (segmentId: number) => {
+      if (!timeline) return;
+      const seg = timeline.segments.find((s) => s.id === segmentId);
+      if (!seg) return;
+      const newVal = !seg.subtitle_hidden;
+
+      setTimeline((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          segments: prev.segments.map((s) =>
+            s.id === segmentId ? { ...s, subtitle_hidden: newVal } : s
+          ),
+        };
+      });
+
+      setSaving(true);
+      try {
+        await updateSegment(timelineId, segmentId, { subtitle_hidden: newVal });
+      } catch (err) {
+        console.error("Failed to toggle subtitle_hidden:", err);
+        getTimeline(timelineId).then(setTimeline);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [timeline, timelineId]
+  );
+
   // Toggle bookmark on a segment
   const toggleBookmark = useCallback(
     async (segmentId: number) => {
@@ -262,6 +293,7 @@ export function useTimeline(timelineId: string) {
     setSegmentText,
     setSegmentTime,
     setSegmentTrim,
+    toggleSubtitleHidden,
     toggleBookmark,
     markReviewed,
     startExport,

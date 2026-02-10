@@ -162,6 +162,7 @@ class EditableSegment(BaseModel):
     zh: str  # Chinese translation
     speaker: Optional[str] = None
     state: SegmentState = SegmentState.UNDECIDED
+    subtitle_hidden: bool = False  # True = keep video but hide subtitle
     bookmarked: bool = False
     trim_start: float = 0.0  # Trim from segment start (seconds)
     trim_end: float = 0.0  # Trim from segment end (seconds)
@@ -186,6 +187,7 @@ class SegmentUpdate(BaseModel):
     """Request model for updating a segment."""
 
     state: Optional[SegmentState] = None
+    subtitle_hidden: Optional[bool] = None
     bookmarked: Optional[bool] = None
     trim_start: Optional[float] = None
     trim_end: Optional[float] = None
@@ -325,6 +327,8 @@ class Timeline(BaseModel):
 
         if update.state is not None:
             seg.state = update.state
+        if update.subtitle_hidden is not None:
+            seg.subtitle_hidden = update.subtitle_hidden
         if update.bookmarked is not None:
             seg.bookmarked = update.bookmarked
         if update.trim_start is not None:

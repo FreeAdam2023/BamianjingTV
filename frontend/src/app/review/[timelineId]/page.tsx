@@ -57,6 +57,7 @@ export default function ReviewPage() {
     setSegmentText,
     setSegmentTime,
     setSegmentTrim,
+    toggleSubtitleHidden,
     toggleBookmark,
     markReviewed,
     startExport,
@@ -860,6 +861,7 @@ export default function ReviewPage() {
             onEditEntity={handleEditEntity}
             onAddIdiom={handleAddIdiom}
             onEditIdiom={handleEditIdiom}
+            onToggleSubtitleHidden={toggleSubtitleHidden}
             onToggleBookmark={toggleBookmark}
             bookmarkFilter={bookmarkFilter}
           />

@@ -14,6 +14,7 @@ interface SegmentListProps {
   onStateChange: (segmentId: number, state: SegmentState) => void | Promise<void>;
   onTextChange?: (segmentId: number, en: string, zh: string) => void | Promise<void>;
   onTimeChange?: (segmentId: number, start: number, end: number) => void | Promise<void>;
+  onToggleSubtitleHidden?: (segmentId: number) => void | Promise<void>;
   onSplitSegment?: (segmentId: number, enIndex: number, zhIndex: number) => Promise<void>;
   // NER annotations for segments (optional)
   segmentAnnotations?: Map<number, SegmentAnnotations>;
@@ -53,6 +54,7 @@ export default function SegmentList({
   onEditEntity,
   onAddIdiom,
   onEditIdiom,
+  onToggleSubtitleHidden,
   onToggleBookmark,
   bookmarkFilter,
 }: SegmentListProps) {
@@ -388,14 +390,14 @@ export default function SegmentList({
               title="双击编辑"
             >
               {/* English text - clickable words for dictionary lookup */}
-              <div className="text-white text-sm mb-1 group-hover:bg-gray-700/50 rounded px-1 -mx-1 transition">
+              <div className={`text-white text-sm mb-1 group-hover:bg-gray-700/50 rounded px-1 -mx-1 transition ${segment.subtitle_hidden ? "line-through opacity-50" : ""}`}>
                 <ClickableSubtitle
                   text={segment.en}
                   onWordClick={handleWordClick}
                 />
               </div>
               {/* Chinese text */}
-              <div className="text-yellow-400 text-sm mb-2 group-hover:bg-gray-700/50 rounded px-1 -mx-1 transition">
+              <div className={`text-yellow-400 text-sm mb-2 group-hover:bg-gray-700/50 rounded px-1 -mx-1 transition ${segment.subtitle_hidden ? "line-through opacity-50" : ""}`}>
                 {segment.zh}
               </div>
               {/* Entity row — label + badges + refresh + add */}
@@ -509,23 +511,38 @@ export default function SegmentList({
 
           {/* State toggle - hide when editing */}
           {editingId !== segment.id && (
-            <div onClick={(e) => e.stopPropagation()}>
+            <div className="flex gap-1.5 mt-1" onClick={(e) => e.stopPropagation()}>
               {segment.state === "drop" ? (
                 <button
-                  className="w-full py-1 px-3 text-xs rounded transition bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-green-500/20 hover:text-green-400 hover:border-green-500/30"
+                  className="flex-1 py-1 px-3 text-xs rounded transition bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-green-500/20 hover:text-green-400 hover:border-green-500/30"
                   onClick={() => onStateChange(segment.id, "keep")}
-                  title="K: 恢复"
+                  title="K: 恢复片段"
                 >
                   已丢弃 · 恢复
                 </button>
               ) : (
-                <button
-                  className="w-full py-1 px-3 text-xs rounded transition text-gray-500 border border-white/10 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30"
-                  onClick={() => onStateChange(segment.id, "drop")}
-                  title="D: 丢弃"
-                >
-                  丢弃
-                </button>
+                <>
+                  {onToggleSubtitleHidden && (
+                    <button
+                      className={`flex-1 py-1 px-3 text-xs rounded transition border ${
+                        segment.subtitle_hidden
+                          ? "bg-orange-500/20 text-orange-400 border-orange-500/30 hover:bg-green-500/20 hover:text-green-400 hover:border-green-500/30"
+                          : "text-gray-500 border-white/10 hover:bg-orange-500/20 hover:text-orange-400 hover:border-orange-500/30"
+                      }`}
+                      onClick={() => onToggleSubtitleHidden(segment.id)}
+                      title={segment.subtitle_hidden ? "恢复字幕显示" : "隐藏字幕（保留视频）"}
+                    >
+                      {segment.subtitle_hidden ? "字幕已隐藏 · 恢复" : "隐藏字幕"}
+                    </button>
+                  )}
+                  <button
+                    className="flex-1 py-1 px-3 text-xs rounded transition text-gray-500 border border-white/10 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30"
+                    onClick={() => onStateChange(segment.id, "drop")}
+                    title="D: 丢弃片段（视频+字幕）"
+                  >
+                    丢弃片段
+                  </button>
+                </>
               )}
             </div>
           )}

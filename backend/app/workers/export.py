@@ -686,8 +686,10 @@ class ExportWorker:
         lines = [ASS_HEADER]
 
         for seg in segments:
-            # Skip dropped segments
+            # Skip dropped segments and subtitle-hidden segments
             if seg.state == SegmentState.DROP:
+                continue
+            if seg.subtitle_hidden:
                 continue
             # Apply time offset
             start = _seconds_to_ass_time(seg.effective_start - time_offset)
@@ -1010,6 +1012,8 @@ class ExportWorker:
         else:
             for seg in segments:
                 if seg.state == SegmentState.DROP:
+                    continue
+                if seg.subtitle_hidden:
                     continue
                 en = seg.en
                 zh = seg.zh
@@ -2390,12 +2394,11 @@ class ExportWorker:
 
         for seg in segments:
             duration = seg.effective_duration
-            retimed.append((
-                current_time,
-                current_time + duration,
-                seg.en,
-                seg.zh,
-            ))
+            # Include timing for all segments, but clear text for subtitle-hidden ones
+            if seg.subtitle_hidden:
+                retimed.append((current_time, current_time + duration, "", ""))
+            else:
+                retimed.append((current_time, current_time + duration, seg.en, seg.zh))
             current_time += duration
 
         return retimed
