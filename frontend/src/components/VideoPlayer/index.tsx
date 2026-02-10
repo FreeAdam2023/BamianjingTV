@@ -490,7 +490,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
 
         {/* Card panel (next to video only) — matches export card area */}
         <div
-          className="w-[35%] flex-shrink-0 border-l border-white/10 relative overflow-hidden"
+          className="w-[35%] flex-shrink-0 border-l border-white/20 relative overflow-hidden"
           style={{ backgroundColor: containerBgColor }}
         >
           {/* Layer 1: Placeholder (visible when nothing else is showing) */}
@@ -560,7 +560,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
       {/* Split mode: subtitles below video (full width) */}
       {!isOverlayMode && (
         <div
-          className="flex-1 min-h-0"
+          className="flex-1 min-h-0 border-t border-white/20"
           style={{ height: `${subtitleHeightPercent}%` }}
         >
           <SubtitleOverlay
