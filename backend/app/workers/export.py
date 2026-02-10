@@ -1165,15 +1165,18 @@ class ExportWorker:
             })
             card_timing[card.id] = (display_start, display_end)
 
-        # Diagnostic: log first card's data structure for debugging
+        # Diagnostic: log card data structure for debugging black card issue
         if cards_json:
             sample = cards_json[0]
             data_keys = list(sample["card_data"].keys()) if isinstance(sample["card_data"], dict) else "NOT_DICT"
+            data_json = json.dumps(sample["card_data"], ensure_ascii=False, default=str)
             logger.info(
                 f"Card sample: type={sample['card_type']}, "
                 f"data_keys={data_keys}, "
                 f"timing={card_timing.get(sample['id'])}"
             )
+            logger.info(f"Card data (first 1000 chars): {data_json[:1000]}")
+            logger.info(f"Total cards to render: {len(cards_json)}")
 
         # ── Build subtitles JSON ──
         subtitles_json, subtitle_timing_map = self._build_subtitle_stills_input(
@@ -1338,6 +1341,12 @@ class ExportWorker:
         # Check if cancelled
         if timeline_id and self._check_cancelled(timeline_id):
             raise ExportCancelledError(f"Export cancelled for timeline {timeline_id}")
+
+        # Always log stderr (captures Remotion/Chrome console.error output)
+        if stderr_lines:
+            logger.info(f"renderStills stderr ({len(stderr_lines)} lines):")
+            for sl in stderr_lines[-30:]:
+                logger.info(f"  stderr: {sl[:300]}")
 
         if proc.returncode != 0:
             if timeline_id and self._check_cancelled(timeline_id):
