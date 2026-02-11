@@ -704,12 +704,23 @@ export default function CardSidePanel({
       {state.error && !state.loading && (
         <div className="flex-1 flex flex-col items-center justify-center p-4">
           <p className="text-red-400 text-sm text-center mb-3">{state.error}</p>
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white/80 text-sm rounded transition"
-          >
-            Close
-          </button>
+          <div className="flex items-center gap-2">
+            {onRefresh && (
+              <button
+                onClick={onRefresh}
+                disabled={refreshing}
+                className={`px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-sm rounded transition ${refreshing ? "opacity-50 cursor-wait" : ""}`}
+              >
+                {refreshing ? "重试中..." : "强制重试"}
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white/80 text-sm rounded transition"
+            >
+              关闭
+            </button>
+          </div>
         </div>
       )}
 
@@ -801,12 +812,23 @@ export default function CardSidePanel({
       {state.error && !state.loading && (
         <div className="flex-1 flex flex-col items-center justify-center p-4">
           <p className="text-red-400 text-sm text-center mb-3">{state.error}</p>
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white/80 text-sm rounded transition"
-          >
-            Close
-          </button>
+          <div className="flex items-center gap-2">
+            {onRefresh && (
+              <button
+                onClick={onRefresh}
+                disabled={refreshing}
+                className={`px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-sm rounded transition ${refreshing ? "opacity-50 cursor-wait" : ""}`}
+              >
+                {refreshing ? "重试中..." : "强制重试"}
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white/80 text-sm rounded transition"
+            >
+              关闭
+            </button>
+          </div>
         </div>
       )}
 
