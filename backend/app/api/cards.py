@@ -598,6 +598,7 @@ class ManualEntityRequest(BaseModel):
     end_char: Opt[int] = None
     custom_name: Opt[str] = None  # Custom entity name (no Wikipedia/Wikidata)
     custom_description: Opt[str] = None  # Custom entity description
+    note: Opt[str] = None  # User note for this entity in context
 
 
 class ManualEntityResponse(BaseModel):
@@ -778,6 +779,7 @@ async def add_manual_entity(
         start_char=start_char,
         end_char=end_char,
         confidence=1.0,  # Manual = full confidence
+        note=request.note if request.note else None,
     )
 
     # Get or create segment annotations

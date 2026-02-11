@@ -164,6 +164,7 @@ class EntityAnnotation(BaseModel):
     start_char: int
     end_char: int
     confidence: float = 1.0
+    note: Optional[str] = None  # User note for this entity in context
 
 
 class SegmentAnnotations(BaseModel):

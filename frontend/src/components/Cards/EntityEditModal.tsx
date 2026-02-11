@@ -101,6 +101,7 @@ export default function EntityEditModal({
   const [entityId, setEntityId] = useState(entity?.entity_id || "");
   const [customName, setCustomName] = useState("");
   const [customDescription, setCustomDescription] = useState("");
+  const [note, setNote] = useState(entity?.note || "");
   const [loading, setLoading] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -117,6 +118,7 @@ export default function EntityEditModal({
       setEntityId(entity?.entity_id || "");
       setCustomName("");
       setCustomDescription("");
+      setNote(entity?.note || "");
       setError(null);
       setDeleteConfirm(false);
       setResolving(false);
@@ -188,6 +190,7 @@ export default function EntityEditModal({
         entity_id: entityId.trim() || undefined,
         custom_name: customName.trim() || undefined,
         custom_description: customDescription.trim() || undefined,
+        note: note.trim() || undefined,
       });
 
       if (result.success) {
@@ -370,6 +373,23 @@ export default function EntityEditModal({
               rows={2}
               className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none resize-none"
             />
+          </div>
+
+          {/* Note */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">
+              备注
+            </label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="记录该实体在此视频中的相关事件/上下文..."
+              rows={2}
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none resize-none"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              备注会显示在实体标签旁，帮助记忆上下文
+            </p>
           </div>
 
           {/* Error message */}

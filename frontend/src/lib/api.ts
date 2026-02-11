@@ -1078,6 +1078,7 @@ export interface ManualEntityRequest {
   end_char?: number;
   custom_name?: string;
   custom_description?: string;
+  note?: string;
 }
 
 export interface ManualEntityResponse {

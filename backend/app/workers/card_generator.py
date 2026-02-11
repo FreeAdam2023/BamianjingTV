@@ -535,6 +535,7 @@ class CardGeneratorWorker:
             EntityCard or None.
         """
         entity_id = entity_id.upper().strip()
+        force_refresh = not use_cache
 
         # Check cache first
         if use_cache:
@@ -544,7 +545,7 @@ class CardGeneratorWorker:
                 return cached
 
         # Fetch from TomTrove API
-        card = await self._fetch_entity_from_tomtrove(entity_id, target_lang)
+        card = await self._fetch_entity_from_tomtrove(entity_id, target_lang, force_refresh=force_refresh)
 
         # Always cache the result (even on force refresh, to update stale data)
         if card:
@@ -657,12 +658,14 @@ class CardGeneratorWorker:
         self,
         entity_id: str,
         target_lang: Optional[str] = None,
+        force_refresh: bool = False,
     ) -> Optional[EntityCard]:
         """Fetch entity data from TomTrove API.
 
         Args:
             entity_id: Wikidata QID.
             target_lang: Target language for localization.
+            force_refresh: Whether to bypass TomTrove server-side cache.
 
         Returns:
             EntityCard or None.
@@ -674,10 +677,12 @@ class CardGeneratorWorker:
         # Strip trailing slash from base URL
         base_url = self.tomtrove_url.rstrip("/")
         url = f"{base_url}/entities/details"
-        params = {
+        params: dict = {
             "entity_id": entity_id,
             "lang": "zh_cn",  # Request Simplified Chinese localization
         }
+        if force_refresh:
+            params["force_refresh"] = "true"
 
         try:
             client = await self._get_client()

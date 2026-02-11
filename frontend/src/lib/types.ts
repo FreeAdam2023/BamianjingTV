@@ -755,6 +755,7 @@ export interface EntityAnnotation {
   start_char: number;
   end_char: number;
   confidence: number;
+  note?: string | null;  // User note for this entity in context
 }
 
 export interface IdiomAnnotation {
