@@ -770,11 +770,13 @@ class CardGeneratorWorker:
 
             # Extract labels
             labels = entity.get("labels", {})
-            name = labels.get("en", {}).get("value", entity_id)
+            en_name = labels.get("en", {}).get("value", entity_id)
+            name = en_name
 
             # Extract descriptions
             descriptions = entity.get("descriptions", {})
-            description = descriptions.get("en", {}).get("value", "")
+            en_description = descriptions.get("en", {}).get("value", "")
+            description = en_description
 
             # Extract claims for type-specific data
             claims = entity.get("claims", {})
@@ -799,11 +801,43 @@ class CardGeneratorWorker:
 
             # Build localizations
             localizations = {}
-            if "zh" in labels or "zh" in descriptions:
+            has_zh = "zh" in labels or "zh" in descriptions
+            if has_zh:
                 localizations["zh"] = EntityLocalization(
                     name=labels.get("zh", {}).get("value", name),
                     description=descriptions.get("zh", {}).get("value"),
                 )
+            elif azure_translator.is_available():
+                # Auto-translate English to Chinese when zh localization is missing
+                logger.info(f"No Chinese localization for {entity_id} on Wikidata, auto-translating...")
+                zh_name = en_name
+                zh_desc = None
+
+                if en_name and en_name != entity_id:
+                    translated_name = await self._translate_to_chinese(en_name)
+                    if translated_name:
+                        zh_name = translated_name
+
+                if en_description:
+                    translated_desc = await self._translate_to_chinese(en_description, context=en_name)
+                    if translated_desc:
+                        zh_desc = translated_desc
+
+                localizations["zh"] = EntityLocalization(
+                    name=zh_name,
+                    description=zh_desc,
+                )
+
+                # Use translated values as primary display
+                name = zh_name
+                if zh_desc:
+                    description = zh_desc
+
+            # Always store English localization
+            localizations["en"] = EntityLocalization(
+                name=en_name,
+                description=en_description,
+            )
 
             card = EntityCard(
                 entity_id=entity_id,
