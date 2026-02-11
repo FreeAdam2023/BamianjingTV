@@ -337,7 +337,7 @@ export default function Home() {
                         {job.duration ? formatDuration(job.duration) : ""}
                       </p>
                       <p className="text-gray-500 text-xs mt-1 truncate font-mono">
-                        {job.url?.startsWith("file://") ? "Uploaded video" : job.url}
+                        {job.url?.startsWith("file://") ? "本地上传" : job.url}
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-2">
@@ -400,6 +400,7 @@ export default function Home() {
                       <h3 className="text-lg font-semibold truncate">
                         {timeline.source_title}
                       </h3>
+                      {getModeBadge(timeline.mode)}
                       {getExportStatusBadge(timeline)}
                     </div>
                     <p className="text-gray-400 text-sm">
