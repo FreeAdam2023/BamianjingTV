@@ -18,24 +18,28 @@ class CardCache:
     - data/cards/entities/{entity_id}.json
 
     Cache entries expire after a configurable TTL (default 30 days).
+    Negative cache (not-found markers) expire after a shorter TTL (default 7 days).
     """
 
     def __init__(
         self,
         cards_dir: Optional[Path] = None,
         ttl_days: int = 30,
+        negative_ttl_days: int = 7,
     ):
         """Initialize card cache.
 
         Args:
             cards_dir: Directory for card storage. Defaults to data/cards.
             ttl_days: Cache TTL in days.
+            negative_ttl_days: Negative cache TTL in days.
         """
         self.cards_dir = cards_dir or settings.data_dir / "cards"
         self.words_dir = self.cards_dir / "words"
         self.entities_dir = self.cards_dir / "entities"
         self.idioms_dir = self.cards_dir / "idioms"
         self.ttl = timedelta(days=ttl_days)
+        self.negative_ttl = timedelta(days=negative_ttl_days)
 
         # Create directories
         self.words_dir.mkdir(parents=True, exist_ok=True)
@@ -132,6 +136,66 @@ class CardCache:
             logger.debug(f"Word card deleted: {word}")
             return True
         return False
+
+    # ============ Negative Cache ============
+
+    def is_negative_cached(self, word: str, cache_key: Optional[str] = None) -> bool:
+        """Check if a word is in the negative cache (known not found).
+
+        Args:
+            word: The word to check.
+            cache_key: Optional custom cache key.
+
+        Returns:
+            True if word is negatively cached (should skip API calls).
+        """
+        key = cache_key or word
+        filename = self._sanitize_filename(key) + ".notfound"
+        file_path = self.words_dir / filename
+
+        if not file_path.exists():
+            return False
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            fetched_at = datetime.fromisoformat(data.get("fetched_at", "2000-01-01"))
+            if datetime.now() - fetched_at > self.negative_ttl:
+                # Expired negative cache — remove and retry
+                file_path.unlink()
+                logger.debug(f"Negative cache expired: {word}")
+                return False
+
+            logger.debug(f"Negative cache hit: {word}")
+            return True
+
+        except Exception:
+            return False
+
+    def set_negative_cache(self, word: str, cache_key: Optional[str] = None) -> None:
+        """Mark a word as not found in the negative cache.
+
+        Args:
+            word: The word to mark.
+            cache_key: Optional custom cache key.
+        """
+        key = cache_key or word
+        filename = self._sanitize_filename(key) + ".notfound"
+        file_path = self.words_dir / filename
+
+        try:
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump({
+                    "word": word,
+                    "not_found": True,
+                    "fetched_at": datetime.now().isoformat(),
+                }, f)
+
+            logger.debug(f"Negative cached: {word}")
+
+        except Exception as e:
+            logger.error(f"Failed to set negative cache for {word}: {e}")
 
     # ============ Entity Cards ============
 

@@ -101,6 +101,8 @@ async def get_word_card(
     """
     generator = _get_card_generator()
 
+    logger.info(f"Word card request: word={word}, lang={lang}, force_refresh={force_refresh}")
+
     try:
         card = await generator.get_word_card(
             word,
@@ -109,8 +111,10 @@ async def get_word_card(
         )
 
         if card:
+            logger.info(f"Word card found: {word} (lemma={card.lemma}, source={card.source})")
             return WordCardResponse(word=word, found=True, card=card)
         else:
+            logger.info(f"Word card not found: {word}")
             return WordCardResponse(word=word, found=False, error="Word not found in dictionary")
 
     except Exception as e:

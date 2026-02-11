@@ -54,7 +54,7 @@ class CardGeneratorWorker:
             if self.tomtrove_key:
                 headers["X-API-Key"] = self.tomtrove_key
             self.http_client = httpx.AsyncClient(
-                timeout=30.0,
+                timeout=httpx.Timeout(60.0, connect=10.0),
                 headers=headers,
             )
         return self.http_client
@@ -99,6 +99,63 @@ class CardGeneratorWorker:
 
     # ============ Word Card Generation ============
 
+    # Common English suffixes and their base form transformations
+    # Each entry: (suffix, replacements_to_try)
+    LEMMA_SUFFIX_RULES = [
+        ("atory", ["ate"]),           # deregulatory → deregulate
+        ("atory", ["ation"]),         # regulatory → regulation
+        ("ization", ["ize"]),         # modernization → modernize
+        ("isation", ["ise"]),         # modernisation → modernise
+        ("tion", ["te", ""]),         # regulation → regulate
+        ("sion", ["de", ""]),         # decision → decide
+        ("ment", [""]),               # development → develop
+        ("iness", ["y"]),             # happiness → happy
+        ("ness", [""]),               # darkness → dark
+        ("ity", ["e", ""]),           # creativity → creative, ability → able
+        ("ous", ["", "e"]),           # famous → fame, dangerous → danger
+        ("ive", ["e", ""]),           # creative → create, active → act
+        ("ful", [""]),                # powerful → power
+        ("less", [""]),               # homeless → home
+        ("able", ["e", ""]),          # removable → remove, readable → read
+        ("ible", ["", "e"]),          # visible → vise (skip)
+        ("ize", ["", "e"]),           # modernize → modern
+        ("ise", ["", "e"]),           # modernise → modern
+        ("ical", ["ic", ""]),         # economical → economic
+        ("ally", ["al", ""]),         # finally → final
+        ("ily", ["y"]),               # happily → happy
+        ("ly", [""]),                 # quickly → quick
+        ("ing", ["", "e"]),           # running → run, making → make
+        ("ed", ["", "e"]),            # walked → walk, created → create
+        ("er", [""]),                 # worker → work
+        ("est", [""]),                # fastest → fast
+        ("ism", [""]),                # capitalism → capital
+        ("ist", [""]),                # capitalist → capital
+        ("al", [""]),                 # national → nation
+    ]
+
+    def _get_lemma_candidates(self, word: str) -> List[str]:
+        """Generate potential base forms of a word by stripping common suffixes.
+
+        Args:
+            word: The word to find lemma candidates for.
+
+        Returns:
+            List of candidate base forms (deduplicated, excluding the original word).
+        """
+        candidates = []
+        seen = {word}
+
+        for suffix, replacements in self.LEMMA_SUFFIX_RULES:
+            if word.endswith(suffix) and len(word) > len(suffix) + 2:
+                stem = word[:-len(suffix)]
+                for replacement in replacements:
+                    candidate = stem + replacement
+                    if candidate not in seen and len(candidate) >= 3:
+                        candidates.append(candidate)
+                        seen.add(candidate)
+
+        return candidates
+
     async def get_word_card(
         self,
         word: str,
@@ -106,6 +163,9 @@ class CardGeneratorWorker:
         target_lang: Optional[str] = None,
     ) -> Optional[WordCard]:
         """Get word card from TomTrove API.
+
+        Tries the exact word first, then lemma candidates if not found.
+        Uses negative caching to avoid repeated failed lookups.
 
         Args:
             word: The word to look up.
@@ -116,6 +176,7 @@ class CardGeneratorWorker:
             WordCard or None if not found.
         """
         word = word.lower().strip()
+        force_refresh = not use_cache
 
         # Normalize language code for TomTrove
         tomtrove_lang = self._normalize_lang_for_tomtrove(target_lang)
@@ -130,14 +191,39 @@ class CardGeneratorWorker:
                 logger.debug(f"Word card cache hit: {word}")
                 return cached
 
-        # Fetch from TomTrove API
-        card = await self._fetch_word_from_tomtrove(word, tomtrove_lang)
+            # Check negative cache
+            if self.cache.is_negative_cached(word, cache_key=cache_key):
+                logger.debug(f"Word negative cache hit, skipping API: {word}")
+                return None
 
-        # Always cache the result (even on force refresh, to update stale data)
+        # Fetch from TomTrove API (only force_refresh when user explicitly requests)
+        card = await self._fetch_word_from_tomtrove(word, tomtrove_lang, force_refresh=force_refresh)
+
         if card:
             self.cache.set_word_card(card, cache_key=cache_key)
+            return card
 
-        return card
+        # Try lemma candidates (never force_refresh for fallback lookups)
+        candidates = self._get_lemma_candidates(word)
+        if candidates:
+            logger.info(f"Word '{word}' not found, trying lemma candidates: {candidates[:5]}")
+
+        for candidate in candidates:
+            card = await self._fetch_word_from_tomtrove(candidate, tomtrove_lang, force_refresh=False)
+            if card:
+                # Found via lemma — set the original word and lemma
+                card.word = word
+                card.lemma = candidate
+                self.cache.set_word_card(card, cache_key=cache_key)
+                logger.info(f"Word '{word}' found via lemma fallback: '{candidate}'")
+                return card
+
+        # All attempts failed — set negative cache
+        if use_cache:
+            self.cache.set_negative_cache(word, cache_key=cache_key)
+            logger.info(f"Word '{word}' not found in any source, negative cached")
+
+        return None
 
     def _normalize_lang_for_tomtrove(self, lang: Optional[str]) -> str:
         """Normalize language code for TomTrove API.
@@ -166,12 +252,14 @@ class CardGeneratorWorker:
         self,
         word: str,
         target_lang: str = "zh-Hant",
+        force_refresh: bool = False,
     ) -> Optional[WordCard]:
         """Fetch word data from TomTrove Dictionary API.
 
         Args:
             word: Word to look up.
             target_lang: Target language for translations.
+            force_refresh: If True, force TomTrove to regenerate data.
 
         Returns:
             WordCard or None.
@@ -187,8 +275,9 @@ class CardGeneratorWorker:
         params = {
             "from_lang": "en",
             "to_langs": target_lang,
-            "force_refresh": "true",
         }
+        if force_refresh:
+            params["force_refresh"] = "true"
 
         logger.info(f"Fetching word from TomTrove: {url} params={params}")
 
@@ -211,9 +300,13 @@ class CardGeneratorWorker:
             # Parse TomTrove response into WordCard
             return self._parse_tomtrove_word_response(word, data, target_lang)
 
+        except httpx.TimeoutException:
+            logger.warning(f"TomTrove timeout for {word}, falling back to free dictionary")
+            return await self._fetch_word_from_free_dictionary(word)
+
         except Exception as e:
             logger.error(f"Error fetching word from TomTrove {word}: {e}")
-            return None
+            return await self._fetch_word_from_free_dictionary(word)
 
     def _parse_tomtrove_word_response(
         self,
