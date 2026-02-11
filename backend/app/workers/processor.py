@@ -77,13 +77,11 @@ async def process_job(
         await job_manager.update_status(job, JobStatus.DOWNLOADING, 0.10)
         job.start_step("download")
 
-        # If user chose to skip diarization, try to fetch YouTube subtitles
-        fetch_subtitles = job.skip_diarization
+        # Always use Whisper for transcription — no YouTube subtitle fallback
         download_result = await download_worker.download(
             url=job.url,
             output_dir=job_dir,
-            fetch_subtitles=fetch_subtitles,
-            subtitle_langs=["en", "en-US", "en-GB"],
+            fetch_subtitles=False,
         )
 
         job.source_video = download_result["video_path"]
@@ -93,13 +91,6 @@ async def process_job(
         job.channel = download_result["channel"]
         job.end_step("download")
         job_manager.save_job(job)
-
-        # Track if we're using YouTube subtitles (skip Whisper)
-        use_youtube_subtitles = download_result.get("has_youtube_subtitles", False)
-        youtube_subtitle_path = download_result.get("subtitle_path")
-
-        if use_youtube_subtitles:
-            logger.info(f"YouTube subtitles available, will skip Whisper transcription: {job_id}")
 
         if check_cancelled():
             await job_manager.update_status(job, JobStatus.CANCELLED)
@@ -113,28 +104,6 @@ async def process_job(
         if raw_path.exists():
             logger.info(f"Transcript already exists, skipping transcription: {job_id}")
             transcript = load_json_model(raw_path, Transcript)
-        elif use_youtube_subtitles and youtube_subtitle_path:
-            # Use YouTube subtitles instead of Whisper
-            logger.info(f"Using YouTube subtitles instead of Whisper: {job_id}")
-            youtube_segments = await download_worker.parse_youtube_subtitles(
-                Path(youtube_subtitle_path)
-            )
-            # Convert to Transcript format
-            transcript = Transcript(
-                language="en",
-                segments=[
-                    Segment(
-                        start=seg["start"],
-                        end=seg["end"],
-                        text=seg["text"],
-                    )
-                    for seg in youtube_segments
-                ],
-            )
-            await whisper_worker.save_transcript(transcript, raw_path)
-            logger.info(f"Saved YouTube subtitles as transcript: {len(transcript.segments)} segments")
-            # Track that we used YouTube subtitles
-            job.used_youtube_subtitles = True
         else:
             await job_manager.update_status(job, JobStatus.TRANSCRIBING, 0.30)
             transcript = await whisper_worker.transcribe(

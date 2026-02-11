@@ -2,8 +2,167 @@
  * VideoControls - Playback controls bar
  */
 
-import { useRef, useCallback, useState } from "react";
+import { useRef, useCallback, useState, useEffect } from "react";
 import { formatDuration } from "@/lib/api";
+
+/** Spinner SVG used across multiple components */
+function Spinner({ className = "h-3 w-3" }: { className?: string }) {
+  return (
+    <svg className={`animate-spin ${className}`} viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  );
+}
+
+/** Translation engine options */
+const TRANSLATION_ENGINES = [
+  { value: "", label: "Azure 翻译 (默认)" },
+  { value: "gpt-4o", label: "GPT-4o" },
+  { value: "gpt-4o-mini", label: "GPT-4o-mini" },
+  { value: "deepseek-chat", label: "DeepSeek" },
+] as const;
+
+/** Transcription source (Whisper only) */
+
+/**
+ * RetranslateDropdown - Dropdown panel for translation model selection and retranscription
+ */
+function RetranslateDropdown({
+  regenerating,
+  regenerateProgress,
+  onRegenerateTranslation,
+  onRetranscribe,
+}: {
+  regenerating: boolean;
+  regenerateProgress?: { current: number; total: number } | null;
+  onRegenerateTranslation: (model?: string) => void;
+  onRetranscribe?: (source: "whisper", model?: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedEngine, setSelectedEngine] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [isOpen]);
+
+  const handleRetranslate = () => {
+    onRegenerateTranslation(selectedEngine || undefined);
+    setIsOpen(false);
+  };
+
+  const handleRetranscribe = () => {
+    onRetranscribe?.("whisper", selectedEngine || undefined);
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      {/* Split button: main action + dropdown arrow */}
+      <div className="flex items-center">
+        <button
+          onClick={() => onRegenerateTranslation(undefined)}
+          disabled={regenerating}
+          className="px-2 py-1 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-l disabled:opacity-50 flex items-center gap-1"
+          title="使用默认引擎重译中文"
+        >
+          {regenerating ? (
+            <>
+              <Spinner />
+              {regenerateProgress
+                ? `${regenerateProgress.current}/${regenerateProgress.total}`
+                : "处理中..."}
+            </>
+          ) : (
+            <>
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              重译
+            </>
+          )}
+        </button>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          disabled={regenerating}
+          className="px-1.5 py-1 text-sm bg-purple-700 hover:bg-purple-800 text-white rounded-r border-l border-purple-500 disabled:opacity-50"
+          title="选择翻译引擎"
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Dropdown panel */}
+      {isOpen && (
+        <div className="absolute bottom-full mb-2 right-0 w-64 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 p-3">
+          {/* Translation engine section */}
+          <div className="mb-3">
+            <div className="text-xs text-gray-400 mb-2 font-medium">翻译引擎</div>
+            <div className="space-y-1">
+              {TRANSLATION_ENGINES.map((engine) => (
+                <label
+                  key={engine.value}
+                  className="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-700 cursor-pointer text-sm text-white"
+                >
+                  <input
+                    type="radio"
+                    name="engine"
+                    value={engine.value}
+                    checked={selectedEngine === engine.value}
+                    onChange={(e) => setSelectedEngine(e.target.value)}
+                    className="accent-purple-500"
+                  />
+                  {engine.label}
+                </label>
+              ))}
+            </div>
+            <button
+              onClick={handleRetranslate}
+              disabled={regenerating}
+              className="w-full mt-2 px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded disabled:opacity-50"
+            >
+              重译中文
+            </button>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-gray-600 my-2" />
+
+          {/* Retranscription section */}
+          {onRetranscribe && (
+            <div>
+              <div className="text-xs text-gray-400 mb-2 font-medium">重新转录 (Whisper large-v3)</div>
+              <button
+                onClick={handleRetranscribe}
+                disabled={regenerating}
+                className="w-full px-3 py-1.5 text-sm bg-orange-600 hover:bg-orange-700 text-white rounded disabled:opacity-50"
+              >
+                重新转录 + 翻译
+              </button>
+              <p className="text-xs text-amber-400 mt-1.5 flex items-center gap-1">
+                <svg className="w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                英文+中文都会更新
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * Chinese Language Selector - Dropdown with confirm button and regenerate translation
@@ -16,6 +175,7 @@ function ChineseLanguageSelector({
   regenerating,
   regenerateProgress,
   onRegenerateTranslation,
+  onRetranscribe,
 }: {
   useTraditional: boolean;
   converting: boolean;
@@ -23,7 +183,8 @@ function ChineseLanguageSelector({
   onConvert: (toTraditional: boolean) => void;
   regenerating?: boolean;
   regenerateProgress?: { current: number; total: number } | null;
-  onRegenerateTranslation?: () => void;
+  onRegenerateTranslation?: (model?: string) => void;
+  onRetranscribe?: (source: "whisper", model?: string) => void;
 }) {
   const [selectedValue, setSelectedValue] = useState<string>(
     useTraditional ? "traditional" : "simplified"
@@ -67,10 +228,7 @@ function ChineseLanguageSelector({
         >
           {converting ? (
             <>
-              <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
+              <Spinner />
               {segmentCount} 条
             </>
           ) : (
@@ -84,33 +242,16 @@ function ChineseLanguageSelector({
         <span className="text-xs text-green-400">✓</span>
       )}
 
-      {/* Regenerate Translation Button */}
+      {/* Regenerate Translation Dropdown */}
       {onRegenerateTranslation && (
-        <button
-          onClick={onRegenerateTranslation}
-          disabled={regenerating || converting}
-          className="px-2 py-1 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded disabled:opacity-50 flex items-center gap-1 ml-1"
-          title="重新翻译"
-        >
-          {regenerating ? (
-            <>
-              <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              {regenerateProgress
-                ? `${regenerateProgress.current}/${regenerateProgress.total}`
-                : "翻译中..."}
-            </>
-          ) : (
-            <>
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              重译
-            </>
-          )}
-        </button>
+        <div className="ml-1">
+          <RetranslateDropdown
+            regenerating={regenerating ?? false}
+            regenerateProgress={regenerateProgress}
+            onRegenerateTranslation={onRegenerateTranslation}
+            onRetranscribe={onRetranscribe}
+          />
+        </div>
       )}
     </div>
   );
@@ -137,7 +278,8 @@ interface VideoControlsProps {
   // Regenerate translation
   regenerating?: boolean;
   regenerateProgress?: { current: number; total: number } | null;
-  onRegenerateTranslation?: () => void;
+  onRegenerateTranslation?: (model?: string) => void;
+  onRetranscribe?: (source: "whisper", model?: string) => void;
   // Export preview
   hasExportFull?: boolean;
   hasExportEssence?: boolean;
@@ -175,6 +317,7 @@ export default function VideoControls({
   regenerating,
   regenerateProgress,
   onRegenerateTranslation,
+  onRetranscribe,
   hasExportFull = false,
   hasExportEssence = false,
   onPreviewExport,
@@ -473,6 +616,7 @@ export default function VideoControls({
               regenerating={regenerating}
               regenerateProgress={regenerateProgress}
               onRegenerateTranslation={onRegenerateTranslation}
+              onRetranscribe={onRetranscribe}
             />
           )}
         </div>

@@ -8,6 +8,27 @@ import type { UploadProgress } from "@/lib/api";
 
 type VideoMode = "watching" | "dubbing";
 
+const SOURCE_LANGUAGES = [
+  { value: "en", label: "English" },
+  { value: "zh", label: "中文" },
+  { value: "ja", label: "日本語" },
+  { value: "ko", label: "한국어" },
+  { value: "es", label: "Español" },
+  { value: "fr", label: "Français" },
+  { value: "de", label: "Deutsch" },
+] as const;
+
+const TARGET_LANGUAGES = [
+  { value: "zh-CN", label: "简体中文" },
+  { value: "zh-TW", label: "繁體中文" },
+  { value: "en", label: "English" },
+  { value: "ja", label: "日本語" },
+  { value: "ko", label: "한국어" },
+  { value: "es", label: "Español" },
+  { value: "fr", label: "Français" },
+  { value: "de", label: "Deutsch" },
+] as const;
+
 export default function Home() {
   const [timelines, setTimelines] = useState<TimelineSummary[]>([]);
   const [processingJobs, setProcessingJobs] = useState<Job[]>([]);
@@ -23,6 +44,8 @@ export default function Home() {
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sourceLanguage, setSourceLanguage] = useState("en");
+  const [targetLanguage, setTargetLanguage] = useState("zh-CN");
 
   const loadData = useCallback(async () => {
     try {
@@ -58,6 +81,8 @@ export default function Home() {
     setUploadFile(null);
     setUploadProgress(null);
     setError(null);
+    setSourceLanguage("en");
+    setTargetLanguage("zh-CN");
     setShowModal(true);
   }
 
@@ -80,9 +105,11 @@ export default function Home() {
     setUploadProgress(null);
 
     try {
+      const effectiveTargetLang = videoMode === "dubbing" ? targetLanguage : "zh-CN";
+
       const jobOptions: Partial<JobCreate> = {
         mode: videoMode,
-        target_language: "zh-CN",
+        target_language: effectiveTargetLang,
         skip_diarization: true,
       };
 
@@ -96,7 +123,7 @@ export default function Home() {
           {
             file: uploadFile!,
             mode: videoMode,
-            target_language: "zh-CN",
+            target_language: effectiveTargetLang,
             skip_diarization: true,
           },
           (progress) => setUploadProgress(progress)
@@ -423,13 +450,13 @@ export default function Home() {
           />
 
           <div className="relative bg-[var(--card)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6">
-            <h2 className="text-xl font-bold mb-6">Add Video</h2>
+            <h2 className="text-xl font-bold mb-6">添加视频</h2>
 
             <form onSubmit={handleSubmit}>
               {/* Mode Selection */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-300 mb-3">
-                  Mode
+                  模式
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <label
@@ -448,9 +475,9 @@ export default function Home() {
                       className="sr-only"
                     />
                     <span className="text-3xl mb-2">🎬</span>
-                    <span className="font-medium">Watching</span>
+                    <span className="font-medium">观看学习</span>
                     <span className="text-xs text-gray-400 text-center mt-1">
-                      Bilingual subtitles + Notes + AI
+                      双语字幕 + 笔记 + AI
                     </span>
                   </label>
                   <label
@@ -469,13 +496,53 @@ export default function Home() {
                       className="sr-only"
                     />
                     <span className="text-3xl mb-2">🎙️</span>
-                    <span className="font-medium">Dubbing</span>
+                    <span className="font-medium">AI 配音</span>
                     <span className="text-xs text-gray-400 text-center mt-1">
-                      Voice clone + Lip sync
+                      声音克隆 + 口型同步
                     </span>
                   </label>
                 </div>
               </div>
+
+              {/* Language Selection (Dubbing mode only) */}
+              {videoMode === "dubbing" && (
+                <div className="mb-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                        原视频语言
+                      </label>
+                      <select
+                        value={sourceLanguage}
+                        onChange={(e) => setSourceLanguage(e.target.value)}
+                        className="w-full bg-gray-800 text-white text-sm px-3 py-2 rounded-lg border border-gray-600 outline-none focus:border-orange-500 transition-colors"
+                      >
+                        {SOURCE_LANGUAGES.map((lang) => (
+                          <option key={lang.value} value={lang.value}>
+                            {lang.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                        目标语言
+                      </label>
+                      <select
+                        value={targetLanguage}
+                        onChange={(e) => setTargetLanguage(e.target.value)}
+                        className="w-full bg-gray-800 text-white text-sm px-3 py-2 rounded-lg border border-gray-600 outline-none focus:border-orange-500 transition-colors"
+                      >
+                        {TARGET_LANGUAGES.filter((l) => l.value !== sourceLanguage && !(sourceLanguage === "zh" && l.value.startsWith("zh"))).map((lang) => (
+                          <option key={lang.value} value={lang.value}>
+                            {lang.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Input Mode Tabs */}
               <div className="flex mb-4 border-b border-gray-700">

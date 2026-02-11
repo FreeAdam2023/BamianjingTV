@@ -188,6 +188,39 @@ class TranslationWorker:
             # Use default prompt with language name
             return DEFAULT_TRANSLATION_PROMPT.format(language=target_language)
 
+    # Model-specific configurations (base_url overrides for non-OpenAI models)
+    MODEL_CONFIGS: Dict[str, Dict[str, str]] = {
+        "deepseek-chat": {
+            "base_url": "https://api.deepseek.com/v1",
+            "env_key": "DEEPSEEK_API_KEY",
+        },
+    }
+
+    def _get_model_client(self, model: str):
+        """Get an LLM client configured for a specific model.
+
+        For models that need different base_url/key (e.g. DeepSeek),
+        creates a separate client. For standard OpenAI models, reuses
+        the default client.
+        """
+        config = self.MODEL_CONFIGS.get(model)
+        if config:
+            import os
+            from openai import AsyncOpenAI
+            api_key = os.environ.get(config["env_key"], self.api_key)
+            return AsyncOpenAI(
+                api_key=api_key,
+                base_url=config["base_url"],
+            )
+        # For standard models (gpt-4o, gpt-4o-mini, etc.), use default client
+        # but bypass Azure — use OpenAI directly
+        if settings.is_azure:
+            from openai import AsyncOpenAI
+            import os
+            api_key = os.environ.get("OPENAI_API_KEY", self.api_key)
+            return AsyncOpenAI(api_key=api_key)
+        return self._get_client()
+
     def _get_client(self):
         """Get or create LLM client."""
         if self.client is None:
@@ -247,6 +280,7 @@ class TranslationWorker:
         target_language: str = "zh-TW",
         max_retries: int = 3,
         timeout: int = 30,
+        model: Optional[str] = None,
     ) -> Tuple[str, int, int]:
         """Translate a single text segment with timeout and retry.
 
@@ -255,6 +289,8 @@ class TranslationWorker:
             target_language: Target language code (default: zh-TW)
             max_retries: Number of retries on failure
             timeout: Timeout in seconds
+            model: Optional model override (e.g. "gpt-4o", "deepseek-chat").
+                   When specified, always uses LLM instead of Azure.
 
         Returns:
             Tuple of (translated_text, tokens_in, tokens_out)
@@ -265,13 +301,18 @@ class TranslationWorker:
 
         from openai import BadRequestError
 
-        client = self._get_client()
-        system_prompt = self._get_translation_prompt(target_language)
+        # When model override is specified, create a dedicated client for that model
+        if model:
+            client = self._get_model_client(model)
+            model_or_deployment = model
+        else:
+            client = self._get_client()
+            # Use Azure deployment name for Azure, model name for others (OpenAI, Grok, etc.)
+            model_or_deployment = (
+                settings.azure_deployment_name if settings.is_azure else self.model
+            )
 
-        # Use Azure deployment name for Azure, model name for others (OpenAI, Grok, etc.)
-        model_or_deployment = (
-            settings.azure_deployment_name if settings.is_azure else self.model
-        )
+        system_prompt = self._get_translation_prompt(target_language)
 
         for attempt in range(max_retries):
             try:

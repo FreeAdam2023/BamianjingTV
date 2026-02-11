@@ -17,7 +17,7 @@ import { useMultiTrackWaveform, TrackType } from "@/hooks/useMultiTrackWaveform"
 import { useCardPopup } from "@/hooks/useCardPopup";
 import { useCreativeConfig } from "@/hooks/useCreativeConfig";
 import { useCreativeKeyboard } from "@/hooks/useCreativeKeyboard";
-import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress, splitSegment, getSegmentAnnotations, setSubtitleLanguageMode, unpinCard, analyzeTimelineEntities } from "@/lib/api";
+import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress, retranscribeWithProgress, splitSegment, getSegmentAnnotations, setSubtitleLanguageMode, unpinCard, analyzeTimelineEntities } from "@/lib/api";
 import type { ExportStatusResponse, SubtitleStyleOptions, SegmentAnnotations, PinnedCard } from "@/lib/types";
 import type { CreativeStyle } from "@/lib/creative-types";
 import { useToast, useConfirm } from "@/components/ui";
@@ -208,6 +208,14 @@ export default function ReviewPage() {
     );
   }, [timeline]);
 
+  // Nudge segment timestamp by delta (shift both start and end)
+  const handleTimeNudge = useCallback((segmentId: number, delta: number) => {
+    const seg = timeline?.segments.find(s => s.id === segmentId);
+    if (seg) {
+      setSegmentTime(segmentId, Math.max(0, seg.start + delta), Math.max(0, seg.end + delta));
+    }
+  }, [timeline, setSegmentTime]);
+
   // Keyboard navigation
   useKeyboardNavigation({
     segmentCount: trimmedSegments.length,
@@ -217,6 +225,7 @@ export default function ReviewPage() {
     onPlayToggle: handlePlayToggle,
     onLoopToggle: handleLoopToggle,
     onPlaySegment: handlePlaySegment,
+    onTimeNudge: handleTimeNudge,
   });
 
   // Screenshot keyboard shortcut (S to capture and open AI chat)
@@ -544,12 +553,13 @@ export default function ReviewPage() {
     }
   }, [timeline, router, confirm, toast]);
 
-  // Handle regenerate translation
-  const handleRegenerateTranslation = useCallback(async () => {
+  // Handle regenerate translation (with optional model override)
+  const handleRegenerateTranslation = useCallback(async (model?: string) => {
     if (!timeline) return;
+    const engineLabel = model || "默认引擎";
     const confirmed = await confirm({
       title: "重新翻译",
-      message: "确定要重新生成翻译吗？这将覆盖现有的中文字幕。",
+      message: `确定要使用 ${engineLabel} 重新翻译吗？这将覆盖现有的中文字幕。`,
       type: "warning",
       confirmText: "重新翻译",
       cancelText: "取消",
@@ -564,13 +574,49 @@ export default function ReviewPage() {
           if (progress.type === "progress" && progress.current !== undefined && progress.total !== undefined) {
             setRegenerateProgress({ current: progress.current, total: progress.total });
           }
-        }
+        },
+        model ? { model } : undefined,
       );
       await refresh();
       toast.success(`翻译完成：更新了 ${result.updated_count} 条字幕`);
     } catch (err) {
       console.error("Failed to regenerate translation:", err);
       toast.error("翻译失败: " + (err instanceof Error ? err.message : "Unknown error"));
+    } finally {
+      setRegenerating(false);
+      setRegenerateProgress(null);
+    }
+  }, [timeline, refresh, confirm, toast]);
+
+  // Handle retranscription (re-run Whisper + re-translate)
+  const handleRetranscribe = useCallback(async (source: "whisper", model?: string) => {
+    if (!timeline) return;
+    const confirmed = await confirm({
+      title: "重新转录 + 翻译",
+      message: "确定要使用 Whisper large-v3 重新转录英文，并重新翻译中文吗？英文和中文字幕都会更新。",
+      type: "warning",
+      confirmText: "开始",
+      cancelText: "取消",
+    });
+    if (!confirmed) return;
+    setRegenerating(true);
+    setRegenerateProgress({ current: 0, total: timeline.segments.length });
+    try {
+      const result = await retranscribeWithProgress(
+        timeline.timeline_id,
+        source,
+        (progress) => {
+          if (progress.type === "progress" && progress.current !== undefined && progress.total !== undefined) {
+            setRegenerateProgress({ current: progress.current, total: progress.total });
+          }
+        },
+        model ? { model } : undefined,
+      );
+      await refresh();
+      toast.success(`转录+翻译完成：更新了 ${result.updated_count} 条字幕`);
+    } catch (err) {
+      console.error("Failed to retranscribe:", err);
+      toast.error("转录失败: " + (err instanceof Error ? err.message : "Unknown error"));
     } finally {
       setRegenerating(false);
       setRegenerateProgress(null);
@@ -723,6 +769,7 @@ export default function ReviewPage() {
               regenerating={regenerating}
               regenerateProgress={regenerateProgress}
               onRegenerateTranslation={handleRegenerateTranslation}
+              onRetranscribe={handleRetranscribe}
               hasExportFull={!!timeline.output_full_path}
               hasExportEssence={!!timeline.output_essence_path}
               onPreviewExport={setExportPreviewType}

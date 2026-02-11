@@ -32,7 +32,8 @@ interface VideoPlayerProps {
   // Regenerate translation
   regenerating?: boolean;
   regenerateProgress?: { current: number; total: number } | null;
-  onRegenerateTranslation?: () => void;
+  onRegenerateTranslation?: (model?: string) => void;
+  onRetranscribe?: (source: "whisper", model?: string) => void;
   // Export preview
   hasExportFull?: boolean;
   hasExportEssence?: boolean;
@@ -79,6 +80,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   regenerating,
   regenerateProgress,
   onRegenerateTranslation,
+  onRetranscribe,
   hasExportFull = false,
   hasExportEssence = false,
   onPreviewExport,
@@ -615,6 +617,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         regenerating={regenerating}
         regenerateProgress={regenerateProgress}
         onRegenerateTranslation={onRegenerateTranslation}
+        onRetranscribe={onRetranscribe}
         hasExportFull={hasExportFull}
         hasExportEssence={hasExportEssence}
         onPreviewExport={onPreviewExport}

@@ -864,6 +864,11 @@ async def generate_waveform(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class RegenerateTranslationRequest(BaseModel):
+    """Request for regenerate translation."""
+    model: str | None = None  # Optional model override (e.g. "gpt-4o", "deepseek-chat")
+
+
 class RegenerateTranslationResponse(BaseModel):
     """Response for regenerate translation."""
     message: str
@@ -871,7 +876,10 @@ class RegenerateTranslationResponse(BaseModel):
 
 
 @router.post("/{timeline_id}/regenerate-translation")
-async def regenerate_translation(timeline_id: str):
+async def regenerate_translation(
+    timeline_id: str,
+    request: RegenerateTranslationRequest | None = None,
+):
     """Regenerate translation for all segments in a timeline with SSE progress.
 
     Uses the existing English text (original) and re-translates to Chinese.
@@ -879,6 +887,7 @@ async def regenerate_translation(timeline_id: str):
 
     Args:
         timeline_id: Timeline ID
+        request: Optional request body with model override
 
     Returns SSE stream with progress updates, then final result.
     """
@@ -894,6 +903,7 @@ async def regenerate_translation(timeline_id: str):
 
     # Determine target language based on current setting
     target_language = "zh-TW" if timeline.use_traditional_chinese else "zh-CN"
+    model_override = request.model if request else None
 
     async def generate_progress():
         """Generator that yields SSE events with progress."""
@@ -906,7 +916,8 @@ async def regenerate_translation(timeline_id: str):
                 if segment.en:  # Only translate if there's English text
                     new_translation = await worker.translate_text(
                         segment.en,
-                        target_language=target_language
+                        target_language=target_language,
+                        model=model_override,
                     )
                     if new_translation != segment.zh:
                         segment.zh = new_translation
@@ -925,7 +936,8 @@ async def regenerate_translation(timeline_id: str):
             manager.save_timeline(timeline)
 
             logger.info(
-                f"Regenerated translation for timeline {timeline_id}: {updated_count} segments updated"
+                f"Regenerated translation for timeline {timeline_id}: "
+                f"{updated_count} segments updated (model={model_override or 'default'})"
             )
 
             # Send completion event
@@ -942,6 +954,150 @@ async def regenerate_translation(timeline_id: str):
                 "type": "error",
                 "message": str(e)
             }
+            yield f"data: {json.dumps(error_data)}\n\n"
+
+    return StreamingResponse(
+        generate_progress(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )
+
+
+class RetranscribeRequest(BaseModel):
+    """Request for retranscription."""
+    source: str = "whisper"  # Currently only "whisper" is supported
+    model: str | None = None  # Optional translation model override
+
+
+@router.post("/{timeline_id}/retranscribe")
+async def retranscribe(
+    timeline_id: str,
+    request: RetranscribeRequest,
+):
+    """Re-transcribe with Whisper and re-translate all segments.
+
+    Re-runs Whisper large-v3 on the original audio, maps the new
+    transcription onto existing timeline segments, then re-translates
+    all Chinese subtitles.
+
+    Args:
+        timeline_id: Timeline ID
+        request: Optional translation model override
+
+    Returns SSE stream with progress updates.
+    """
+    import json
+    from loguru import logger
+    from fastapi.responses import StreamingResponse
+    from app.workers.translation import TranslationWorker
+
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    if request.source != "whisper":
+        raise HTTPException(status_code=400, detail="source must be 'whisper'")
+
+    jobs_dir = _get_jobs_dir()
+    if jobs_dir is None:
+        raise HTTPException(status_code=500, detail="Jobs directory not configured")
+
+    job_dir = jobs_dir / timeline.job_id
+
+    # Determine target language based on current setting
+    target_language = "zh-TW" if timeline.use_traditional_chinese else "zh-CN"
+    model_override = request.model
+    source = request.source
+
+    async def generate_progress():
+        """Generator that yields SSE events with progress."""
+        try:
+            total = len(timeline.segments)
+
+            # ── Phase 1: Get new transcription segments ──
+            yield f"data: {json.dumps({'type': 'phase', 'phase': 'transcribing', 'message': 'Starting transcription...'})}\n\n"
+
+            from app.workers.whisper import WhisperWorker
+
+            audio_path = job_dir / "source" / "audio.wav"
+            if not audio_path.exists():
+                yield f"data: {json.dumps({'type': 'error', 'message': 'Audio file not found'})}\n\n"
+                return
+
+            whisper_worker = WhisperWorker()
+            transcript = await whisper_worker.transcribe(audio_path)
+            new_segments = [
+                {"start": seg.start, "end": seg.end, "text": seg.text}
+                for seg in transcript.segments
+            ]
+            logger.info(f"Whisper produced {len(new_segments)} segments")
+
+            if not new_segments:
+                yield f"data: {json.dumps({'type': 'error', 'message': 'No transcription segments produced'})}\n\n"
+                return
+
+            yield f"data: {json.dumps({'type': 'phase', 'phase': 'mapping', 'message': f'Mapping {len(new_segments)} new segments to {total} timeline segments...'})}\n\n"
+
+            # ── Phase 2: Map new transcription onto existing segments ──
+            # For each timeline segment, find new segments whose midpoint
+            # falls within [seg.start, seg.end) and concatenate their text.
+            for seg in timeline.segments:
+                matched_texts = []
+                for ns in new_segments:
+                    midpoint = (ns["start"] + ns["end"]) / 2
+                    if seg.start <= midpoint < seg.end:
+                        matched_texts.append(ns["text"])
+                if matched_texts:
+                    seg.en = " ".join(matched_texts)
+
+            # ── Phase 3: Re-translate all segments ──
+            yield f"data: {json.dumps({'type': 'phase', 'phase': 'translating', 'message': 'Re-translating...'})}\n\n"
+
+            worker = TranslationWorker()
+            updated_count = 0
+
+            for i, segment in enumerate(timeline.segments):
+                if segment.en:
+                    new_translation = await worker.translate_text(
+                        segment.en,
+                        target_language=target_language,
+                        model=model_override,
+                    )
+                    if new_translation != segment.zh:
+                        segment.zh = new_translation
+                        updated_count += 1
+
+                progress_data = {
+                    "type": "progress",
+                    "current": i + 1,
+                    "total": total,
+                    "updated": updated_count,
+                }
+                yield f"data: {json.dumps(progress_data)}\n\n"
+
+            # Save the timeline
+            manager.save_timeline(timeline)
+
+            logger.info(
+                f"Retranscribed timeline {timeline_id} with source={source}, "
+                f"model={model_override or 'default'}: {updated_count} segments updated"
+            )
+
+            complete_data = {
+                "type": "complete",
+                "message": f"Retranscription complete: {updated_count} segments updated",
+                "updated_count": updated_count,
+            }
+            yield f"data: {json.dumps(complete_data)}\n\n"
+
+        except Exception as e:
+            logger.exception(f"Retranscription failed for timeline {timeline_id}: {e}")
+            error_data = {"type": "error", "message": str(e)}
             yield f"data: {json.dumps(error_data)}\n\n"
 
     return StreamingResponse(

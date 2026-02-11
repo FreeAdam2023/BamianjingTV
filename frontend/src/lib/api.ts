@@ -587,13 +587,15 @@ export interface RegenerateTranslationProgress {
 
 export async function regenerateTranslationWithProgress(
   timelineId: string,
-  onProgress: (progress: RegenerateTranslationProgress) => void
+  onProgress: (progress: RegenerateTranslationProgress) => void,
+  options?: { model?: string }
 ): Promise<{ message: string; updated_count: number }> {
   const response = await fetch(`${API_BASE}/timelines/${timelineId}/regenerate-translation`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
+    body: options?.model ? JSON.stringify({ model: options.model }) : undefined,
   });
 
   if (!response.ok) {
@@ -632,6 +634,78 @@ export async function regenerateTranslationWithProgress(
           }
         } catch (e) {
           if (e instanceof SyntaxError) continue; // Skip invalid JSON
+          throw e;
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+export interface RetranscribeProgress {
+  type: "phase" | "progress" | "complete" | "error";
+  phase?: string;
+  current?: number;
+  total?: number;
+  updated?: number;
+  message?: string;
+  updated_count?: number;
+}
+
+export async function retranscribeWithProgress(
+  timelineId: string,
+  source: "whisper",
+  onProgress: (progress: RetranscribeProgress) => void,
+  options?: { model?: string }
+): Promise<{ message: string; updated_count: number }> {
+  const response = await fetch(`${API_BASE}/timelines/${timelineId}/retranscribe`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      source,
+      model: options?.model || null,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(error.detail || "API request failed");
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("No response body");
+  }
+
+  const decoder = new TextDecoder();
+  let result = { message: "", updated_count: 0 };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    const chunk = decoder.decode(value, { stream: true });
+    const lines = chunk.split("\n");
+
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        try {
+          const data = JSON.parse(line.slice(6)) as RetranscribeProgress;
+          onProgress(data);
+
+          if (data.type === "complete") {
+            result = {
+              message: data.message || "",
+              updated_count: data.updated_count || 0,
+            };
+          } else if (data.type === "error") {
+            throw new Error(data.message || "Retranscription failed");
+          }
+        } catch (e) {
+          if (e instanceof SyntaxError) continue;
           throw e;
         }
       }
@@ -832,15 +906,20 @@ export function getPreviewEssenceVideoUrl(jobId: string): string {
   return `${API_BASE || ""}/jobs/${jobId}/video/preview/essence`;
 }
 
-export function formatDuration(seconds: number): string {
+export function formatDuration(seconds: number, decimals: number = 0): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
+  const sWhole = Math.floor(seconds % 60);
+  const sPart = seconds % 60;
+
+  const sStr = decimals > 0
+    ? sPart.toFixed(decimals).padStart(3 + decimals, "0")
+    : sWhole.toString().padStart(2, "0");
 
   if (h > 0) {
-    return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+    return `${h}:${m.toString().padStart(2, "0")}:${sStr}`;
   }
-  return `${m}:${s.toString().padStart(2, "0")}`;
+  return `${m}:${sStr}`;
 }
 
 export function getStateColor(state: SegmentState): string {
