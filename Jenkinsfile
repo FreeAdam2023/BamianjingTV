@@ -35,7 +35,9 @@ pipeline {
         stage('Checkout') {
             steps {
                 dir("${PROJECT_DIR}") {
-                    checkout scm
+                    retry(3) {
+                        checkout scm
+                    }
                 }
             }
         }
@@ -114,7 +116,9 @@ pipeline {
             // slackSend channel: '#deploys', message: "BamianjingTV deployment failed: ${env.BUILD_URL}"
         }
         always {
-            cleanWs()
+            node('GPU-Worker') {
+                cleanWs()
+            }
         }
     }
 }
