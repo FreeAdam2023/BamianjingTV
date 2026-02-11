@@ -172,8 +172,8 @@ export default function SegmentList({
 
   const startEditingTime = (segment: EditableSegment) => {
     setEditingTimeId(segment.id);
-    setEditStart(formatDuration(segment.start));
-    setEditEnd(formatDuration(segment.end));
+    setEditStart(formatDuration(segment.start, 1));
+    setEditEnd(formatDuration(segment.end, 1));
   };
 
   const cancelEditingTime = () => {
@@ -267,7 +267,7 @@ export default function SegmentList({
                 }}
                 title={onTimeChange ? "点击编辑时间戳" : undefined}
               >
-                {formatDuration(segment.start)} - {formatDuration(segment.end)}
+                {formatDuration(segment.start, 1)} - {formatDuration(segment.end, 1)}
               </span>
             )}
             <div className="flex items-center gap-2">

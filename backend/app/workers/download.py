@@ -1,5 +1,6 @@
 """Video download worker using yt-dlp."""
 
+import html
 import subprocess
 import json
 from pathlib import Path
@@ -74,19 +75,20 @@ class DownloadWorker:
             available_subs = info.get("subtitles", {})
             auto_subs = info.get("automatic_captions", {})
 
-            # Try to find requested language subtitles
+            # Only use manual (human-uploaded) subtitles; auto-generated ones
+            # are lower quality than Whisper large-v3, so we skip them.
             for lang in subtitle_langs:
                 if lang in available_subs:
                     logger.info(f"Found manual subtitles for language: {lang}")
                     has_subtitles = True
                     break
-                elif lang in auto_subs:
-                    logger.info(f"Found auto-generated subtitles for language: {lang}")
-                    has_subtitles = True
-                    break
 
             if not has_subtitles:
-                logger.info("No subtitles found for requested languages")
+                auto_langs = [l for l in subtitle_langs if l in auto_subs]
+                if auto_langs:
+                    logger.info(f"Only auto-generated subtitles found ({auto_langs}), preferring Whisper")
+                else:
+                    logger.info("No subtitles found for requested languages")
 
         # Check if video already exists (cache)
         if video_path.exists():
@@ -399,6 +401,8 @@ class DownloadWorker:
                     text = " ".join(text_lines)
                     # Clean up text
                     text = re.sub(r"<[^>]+>", "", text)  # Remove HTML/VTT tags
+                    text = html.unescape(text)  # Decode HTML entities (&gt;&gt; → >>)
+                    text = re.sub(r">>\s*", "", text)  # Remove >> speaker change markers
                     text = re.sub(r"\s+", " ", text).strip()  # Normalize whitespace
 
                     if text and start_str and end_str:

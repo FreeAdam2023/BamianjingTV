@@ -58,6 +58,7 @@ export default function KeyboardHelp({ isCreativeMode = false }: KeyboardHelpPro
               <span><kbd className="kbd">Shift+K</kbd> Keep</span>
               <span><kbd className="kbd">D</kbd> Drop</span>
               <span><kbd className="kbd">U</kbd> Undecided</span>
+              <span><kbd className="kbd">-</kbd>/<kbd className="kbd">=</kbd> Time ±0.05s</span>
             </div>
           )}
         </div>

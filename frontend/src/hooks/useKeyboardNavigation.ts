@@ -11,6 +11,7 @@ interface UseKeyboardNavigationProps {
   onPlayToggle: () => void;
   onLoopToggle: () => void;
   onPlaySegment: (segmentId: number) => void;
+  onTimeNudge?: (segmentId: number, delta: number) => void;
 }
 
 /**
@@ -25,6 +26,8 @@ interface UseKeyboardNavigationProps {
  * - u/U: Mark current segment as UNDECIDED
  * - l/L: Toggle loop current segment
  * - Enter: Play current segment from start
+ * - - (minus): Nudge current segment 0.05s earlier
+ * - = (plus): Nudge current segment 0.05s later
  */
 export function useKeyboardNavigation({
   segmentCount,
@@ -34,6 +37,7 @@ export function useKeyboardNavigation({
   onPlayToggle,
   onLoopToggle,
   onPlaySegment,
+  onTimeNudge,
 }: UseKeyboardNavigationProps) {
   const goToPreviousSegment = useCallback(() => {
     if (currentSegmentId === null) {
@@ -137,6 +141,20 @@ export function useKeyboardNavigation({
           e.preventDefault();
           playCurrentSegment();
           break;
+
+        case "-":
+          if (onTimeNudge && currentSegmentId !== null) {
+            e.preventDefault();
+            onTimeNudge(currentSegmentId, -0.05);
+          }
+          break;
+
+        case "=":
+          if (onTimeNudge && currentSegmentId !== null) {
+            e.preventDefault();
+            onTimeNudge(currentSegmentId, 0.05);
+          }
+          break;
       }
     };
 
@@ -151,6 +169,8 @@ export function useKeyboardNavigation({
     markDrop,
     markUndecided,
     playCurrentSegment,
+    onTimeNudge,
+    currentSegmentId,
   ]);
 
   return {

@@ -111,7 +111,7 @@ class WhisperWorker:
                 Segment(
                     start=segment.start,
                     end=segment.end,
-                    text=segment.text.strip(),
+                    text=segment.text.strip().replace(">>", "").strip(),
                 )
             )
 

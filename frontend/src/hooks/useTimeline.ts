@@ -83,12 +83,13 @@ export function useTimeline(timelineId: string) {
       const seg = timeline.segments[idx];
       const newVal = !seg.subtitle_hidden;
 
-      // Find the next non-dropped segment to extend its start time
+      // Find the next visible segment (not dropped, not already hidden) to extend its start time
       let nextSeg: typeof seg | null = null;
       if (newVal) {
         for (let i = idx + 1; i < timeline.segments.length; i++) {
-          if (timeline.segments[i].state !== "drop") {
-            nextSeg = timeline.segments[i];
+          const s = timeline.segments[i];
+          if (s.state !== "drop" && !s.subtitle_hidden) {
+            nextSeg = s;
             break;
           }
         }
