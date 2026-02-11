@@ -18,6 +18,7 @@ from app.models.timeline import (
     PinnedCardType,
     SegmentState,
     SegmentUpdate,
+    SubtitleStyleMode,
     Timeline,
     TimelineSummary,
 )
@@ -99,6 +100,12 @@ class TimelineManager:
                 )
             )
 
+        style_map = {
+            "dubbing": SubtitleStyleMode.FLOATING,
+            "watching": SubtitleStyleMode.FLOATING,
+        }
+        subtitle_style = style_map.get(mode, SubtitleStyleMode.HALF_SCREEN)
+
         timeline = Timeline(
             job_id=job_id,
             mode=mode,
@@ -106,6 +113,7 @@ class TimelineManager:
             source_title=source_title,
             source_duration=source_duration,
             segments=segments,
+            subtitle_style_mode=subtitle_style,
         )
 
         self._cache[timeline.timeline_id] = timeline
@@ -641,6 +649,7 @@ class TimelineManager:
             display_start=display_start,
             display_end=display_end,
             card_data=create.card_data,
+            note=create.note,
         )
 
         timeline.add_pinned_card(pinned_card)
@@ -739,3 +748,36 @@ class TimelineManager:
         )
 
         return True
+
+    def update_pinned_card_note(
+        self,
+        timeline_id: str,
+        card_id: str,
+        note: str,
+    ) -> Optional[PinnedCard]:
+        """Update the note on a pinned card.
+
+        Args:
+            timeline_id: Timeline ID
+            card_id: Pinned card ID
+            note: New note text (empty string to clear)
+
+        Returns:
+            Updated PinnedCard or None if not found
+        """
+        timeline = self.get_timeline(timeline_id)
+        if not timeline:
+            return None
+
+        pinned_card = timeline.get_pinned_card(card_id)
+        if not pinned_card:
+            return None
+
+        pinned_card.note = note if note else None
+        timeline.updated_at = datetime.utcnow()
+        self._save_timeline(timeline)
+        logger.info(
+            f"Updated note for pinned card {card_id} in timeline {timeline_id}"
+        )
+
+        return pinned_card

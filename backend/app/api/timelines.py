@@ -802,6 +802,23 @@ async def pin_card(timeline_id: str, create: PinnedCardCreate, background_tasks:
     return pinned
 
 
+class PinnedCardNoteUpdate(BaseModel):
+    """Request model for updating a pinned card's note."""
+    note: str  # Empty string to clear note
+
+
+@router.patch("/{timeline_id}/pinned-cards/{card_id}/note")
+async def update_pinned_card_note(timeline_id: str, card_id: str, update: PinnedCardNoteUpdate):
+    """Update the note on a pinned card."""
+    manager = _get_manager()
+
+    pinned_card = manager.update_pinned_card_note(timeline_id, card_id, update.note)
+    if not pinned_card:
+        raise HTTPException(status_code=404, detail="Pinned card not found")
+
+    return pinned_card
+
+
 @router.delete("/{timeline_id}/pinned-cards/{card_id}")
 async def unpin_card(timeline_id: str, card_id: str):
     """Remove a pinned card from a timeline."""

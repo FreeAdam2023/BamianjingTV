@@ -112,6 +112,7 @@ class PinnedCard(BaseModel):
     display_start: float  # When to start showing card
     display_end: float  # When to stop showing card
     card_data: Optional[dict] = None  # Cached card data for export
+    note: Optional[str] = None  # User note for this pinned card
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -123,6 +124,7 @@ class PinnedCardCreate(BaseModel):
     segment_id: int
     timestamp: float
     card_data: Optional[dict] = None
+    note: Optional[str] = None
 
 
 class InsightCard(BaseModel):

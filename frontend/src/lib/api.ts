@@ -1593,6 +1593,17 @@ export async function unpinCard(
   });
 }
 
+export async function updatePinnedCardNote(
+  timelineId: string,
+  cardId: string,
+  note: string
+): Promise<PinnedCard> {
+  return fetchAPI<PinnedCard>(`/timelines/${timelineId}/pinned-cards/${cardId}/note`, {
+    method: "PATCH",
+    body: JSON.stringify({ note }),
+  });
+}
+
 export async function checkCardPinned(
   timelineId: string,
   cardType: PinnedCardType,

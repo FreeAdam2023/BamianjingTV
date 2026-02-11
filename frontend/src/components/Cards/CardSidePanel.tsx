@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { CardPopupState } from "@/hooks/useCardPopup";
 import type { WordCard, EntityCard, IdiomCard, PinnedCard, PinnedCardType } from "@/lib/types";
-import { pinCard, unpinCard } from "@/lib/api";
+import { pinCard, unpinCard, updatePinnedCardNote } from "@/lib/api";
 
 interface CardSidePanelProps {
   state: CardPopupState;
@@ -61,9 +61,11 @@ export interface SidePanelWordCardProps {
   canPin?: boolean;
   onRefresh?: () => void;
   refreshing?: boolean;
+  pinnedNote?: string;
+  onNoteChange?: (note: string) => void;
 }
 
-export function SidePanelWordCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin, onRefresh, refreshing }: SidePanelWordCardProps) {
+export function SidePanelWordCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin, onRefresh, refreshing, pinnedNote, onNoteChange }: SidePanelWordCardProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [imageError, setImageError] = useState(false);
 
@@ -255,6 +257,23 @@ export function SidePanelWordCard({ card, onClose, isPinned, pinLoading, onToggl
             </div>
           </div>
         ))}
+
+        {/* Pinned note */}
+        {isPinned && onNoteChange && (
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-medium text-white/40 uppercase tracking-wider">备注</span>
+              <div className="flex-1 h-px bg-white/10" />
+            </div>
+            <textarea
+              defaultValue={pinnedNote || ""}
+              onBlur={(e) => onNoteChange(e.target.value)}
+              placeholder="添加备注..."
+              rows={2}
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/80 placeholder-white/30 resize-none focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30"
+            />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -270,9 +289,11 @@ export interface SidePanelEntityCardProps {
   onRefresh?: () => void;
   refreshing?: boolean;
   onEdit?: () => void;
+  pinnedNote?: string;
+  onNoteChange?: (note: string) => void;
 }
 
-export function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin, onRefresh, refreshing, onEdit }: SidePanelEntityCardProps) {
+export function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin, onRefresh, refreshing, onEdit, pinnedNote, onNoteChange }: SidePanelEntityCardProps) {
   const typeColors: Record<string, string> = {
     person: "bg-blue-500/50",
     place: "bg-green-500/50",
@@ -412,6 +433,23 @@ export function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTog
             </a>
           )}
         </div>
+
+        {/* Pinned note */}
+        {isPinned && onNoteChange && (
+          <div className="mt-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-medium text-white/40 uppercase tracking-wider">备注</span>
+              <div className="flex-1 h-px bg-white/10" />
+            </div>
+            <textarea
+              defaultValue={pinnedNote || ""}
+              onBlur={(e) => onNoteChange(e.target.value)}
+              placeholder="添加备注..."
+              rows={2}
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/80 placeholder-white/30 resize-none focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30"
+            />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -426,9 +464,11 @@ export interface SidePanelIdiomCardProps {
   canPin?: boolean;
   onRefresh?: () => void;
   refreshing?: boolean;
+  pinnedNote?: string;
+  onNoteChange?: (note: string) => void;
 }
 
-export function SidePanelIdiomCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin, onRefresh, refreshing }: SidePanelIdiomCardProps) {
+export function SidePanelIdiomCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin, onRefresh, refreshing, pinnedNote, onNoteChange }: SidePanelIdiomCardProps) {
   const categoryColors: Record<string, string> = {
     idiom: "bg-amber-500/50",
     phrasal_verb: "bg-amber-600/50",
@@ -547,6 +587,23 @@ export function SidePanelIdiomCard({ card, onClose, isPinned, pinLoading, onTogg
             <p className="text-sm text-yellow-300/60">{card.usage_note_localized}</p>
           </div>
         )}
+
+        {/* Pinned note */}
+        {isPinned && onNoteChange && (
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-medium text-white/40 uppercase tracking-wider">备注</span>
+              <div className="flex-1 h-px bg-white/10" />
+            </div>
+            <textarea
+              defaultValue={pinnedNote || ""}
+              onBlur={(e) => onNoteChange(e.target.value)}
+              placeholder="添加备注..."
+              rows={2}
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/80 placeholder-white/30 resize-none focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30"
+            />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -574,8 +631,8 @@ export default function CardSidePanel({
   const canPin = !!(sourceTimelineId && sourceSegmentId !== undefined && sourceTimecode !== undefined);
 
   // Check if current card is pinned (local check, no API call)
-  const getCurrentPinInfo = useCallback((): { isPinned: boolean; pinId: string | null } => {
-    if (!state.isOpen) return { isPinned: false, pinId: null };
+  const getCurrentPinInfo = useCallback((): { isPinned: boolean; pinId: string | null; pinnedNote: string | null } => {
+    if (!state.isOpen) return { isPinned: false, pinId: null, pinnedNote: null };
 
     let cardId: string | null = null;
     let cardType: PinnedCardType | null = null;
@@ -591,16 +648,16 @@ export default function CardSidePanel({
       cardType = "idiom";
     }
 
-    if (!cardId || !cardType) return { isPinned: false, pinId: null };
+    if (!cardId || !cardType) return { isPinned: false, pinId: null, pinnedNote: null };
 
     const pinned = pinnedCards.find(
       (p) => p.card_type === cardType && p.card_id === cardId && p.segment_id === sourceSegmentId
     );
 
-    return { isPinned: !!pinned, pinId: pinned?.id || null };
+    return { isPinned: !!pinned, pinId: pinned?.id || null, pinnedNote: pinned?.note || null };
   }, [state, pinnedCards, sourceSegmentId]);
 
-  const { isPinned, pinId } = getCurrentPinInfo();
+  const { isPinned, pinId, pinnedNote } = getCurrentPinInfo();
 
   // Get current card info
   const getCardInfo = useCallback((): { cardType: PinnedCardType; cardId: string; cardData: WordCard | EntityCard | IdiomCard } | null => {
@@ -615,6 +672,17 @@ export default function CardSidePanel({
     }
     return null;
   }, [state]);
+
+  // Handle note change (save on blur)
+  const handleNoteChange = useCallback(async (note: string) => {
+    if (!sourceTimelineId || !pinId) return;
+    try {
+      await updatePinnedCardNote(sourceTimelineId, pinId, note);
+      onPinChange?.(null); // trigger refresh of pinned cards
+    } catch (err) {
+      console.error("Failed to update note:", err);
+    }
+  }, [sourceTimelineId, pinId, onPinChange]);
 
   // Note: Pin status is now checked locally via pinnedCards prop instead of API call
   // This avoids unnecessary network requests when opening cards
@@ -735,6 +803,8 @@ export default function CardSidePanel({
           canPin={canPin}
           onRefresh={onRefresh}
           refreshing={refreshing}
+          pinnedNote={pinnedNote || undefined}
+          onNoteChange={isPinned ? handleNoteChange : undefined}
         />
       )}
 
@@ -750,6 +820,8 @@ export default function CardSidePanel({
           onRefresh={onRefresh}
           refreshing={refreshing}
           onEdit={onEditEntity ? () => onEditEntity(state.entityCard!.entity_id) : undefined}
+          pinnedNote={pinnedNote || undefined}
+          onNoteChange={isPinned ? handleNoteChange : undefined}
         />
       )}
 
@@ -764,6 +836,8 @@ export default function CardSidePanel({
           canPin={canPin}
           onRefresh={onRefresh}
           refreshing={refreshing}
+          pinnedNote={pinnedNote || undefined}
+          onNoteChange={isPinned ? handleNoteChange : undefined}
         />
       )}
 
@@ -843,6 +917,8 @@ export default function CardSidePanel({
           canPin={canPin}
           onRefresh={onRefresh}
           refreshing={refreshing}
+          pinnedNote={pinnedNote || undefined}
+          onNoteChange={isPinned ? handleNoteChange : undefined}
         />
       )}
 
@@ -858,6 +934,8 @@ export default function CardSidePanel({
           onRefresh={onRefresh}
           refreshing={refreshing}
           onEdit={onEditEntity ? () => onEditEntity(state.entityCard!.entity_id) : undefined}
+          pinnedNote={pinnedNote || undefined}
+          onNoteChange={isPinned ? handleNoteChange : undefined}
         />
       )}
 
@@ -872,6 +950,8 @@ export default function CardSidePanel({
           canPin={canPin}
           onRefresh={onRefresh}
           refreshing={refreshing}
+          pinnedNote={pinnedNote || undefined}
+          onNoteChange={isPinned ? handleNoteChange : undefined}
         />
       )}
 

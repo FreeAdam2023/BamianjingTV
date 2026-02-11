@@ -30,9 +30,23 @@ interface PinnedCardOverlayProps {
 /** Max cards visible at once */
 const MAX_VISIBLE = 1;
 
+/** Read-only note display for overlay */
+function NoteDisplay({ note }: { note: string }) {
+  return (
+    <div className="px-4 pb-3">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-xs font-medium text-white/40 uppercase tracking-wider">备注</span>
+        <div className="flex-1 h-px bg-white/10" />
+      </div>
+      <p className="text-sm text-purple-300/80 italic">{note}</p>
+    </div>
+  );
+}
+
 /** Renders a full card based on type — same style as CardSidePanel */
 function FullCard({ pinnedCard }: { pinnedCard: PinnedCard }) {
   const data = pinnedCard.card_data;
+  const note = pinnedCard.note;
   const noop = () => {};
 
   if (!data) {
@@ -45,31 +59,40 @@ function FullCard({ pinnedCard }: { pinnedCard: PinnedCard }) {
 
   if (pinnedCard.card_type === "word") {
     return (
-      <SidePanelWordCard
-        card={data as WordCard}
-        onClose={noop}
-        canPin={false}
-      />
+      <>
+        <SidePanelWordCard
+          card={data as WordCard}
+          onClose={noop}
+          canPin={false}
+        />
+        {note && <NoteDisplay note={note} />}
+      </>
     );
   }
 
   if (pinnedCard.card_type === "entity") {
     return (
-      <SidePanelEntityCard
-        card={data as EntityCard}
-        onClose={noop}
-        canPin={false}
-      />
+      <>
+        <SidePanelEntityCard
+          card={data as EntityCard}
+          onClose={noop}
+          canPin={false}
+        />
+        {note && <NoteDisplay note={note} />}
+      </>
     );
   }
 
   if (pinnedCard.card_type === "idiom") {
     return (
-      <SidePanelIdiomCard
-        card={data as IdiomCard}
-        onClose={noop}
-        canPin={false}
-      />
+      <>
+        <SidePanelIdiomCard
+          card={data as IdiomCard}
+          onClose={noop}
+          canPin={false}
+        />
+        {note && <NoteDisplay note={note} />}
+      </>
     );
   }
 
@@ -87,6 +110,7 @@ function FullCard({ pinnedCard }: { pinnedCard: PinnedCard }) {
         <h2 className="text-xl font-bold text-white">{insight.title}</h2>
         <p className="text-sm text-white/60">{insight.content}</p>
       </div>
+      {note && <NoteDisplay note={note} />}
     </div>
   );
 }

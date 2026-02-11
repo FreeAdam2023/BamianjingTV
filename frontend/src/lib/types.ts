@@ -816,6 +816,7 @@ export interface PinnedCard {
   display_start: number;  // When to show in video
   display_end: number;  // When to hide in video
   card_data: WordCard | EntityCard | IdiomCard | InsightCard | null;  // Cached card data
+  note?: string | null;  // User note for this pinned card
   created_at: string;
 }
 
