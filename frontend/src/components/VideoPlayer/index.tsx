@@ -15,6 +15,7 @@ import { CardSidePanel } from "@/components/Cards";
 
 interface VideoPlayerProps {
   jobId: string;
+  mode?: string;
   segments: EditableSegment[];
   currentSegmentId: number | null;
   onTimeUpdate?: (time: number) => void;
@@ -65,6 +66,7 @@ export interface VideoPlayerRef {
 
 const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoPlayer({
   jobId,
+  mode,
   segments,
   currentSegmentId,
   onTimeUpdate,
@@ -152,6 +154,13 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
       updateSubtitleStyle({ languageMode: subtitleLanguageMode });
     }
   }, [subtitleLanguageMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-set overlay mode for dubbing
+  useEffect(() => {
+    if (mode === "dubbing" && subtitleStyle.displayMode !== "overlay") {
+      updateSubtitleStyle({ displayMode: "overlay" });
+    }
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Notify backend when language mode changes locally
   const handleStyleChange = (updates: Partial<typeof subtitleStyle>) => {
@@ -430,15 +439,17 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   // Dark blue color matching subtitle area and export
   const containerBgColor = "#1a2744";
   const isOverlayMode = subtitleStyle.displayMode === "overlay";
+  const isHiddenMode = subtitleStyle.displayMode === "hidden";
   const hasCardOpen = cardState?.isOpen === true;
   const hasActivePinnedCards = pinnedCards.length > 0;
   const hasActivePinnedCardNow = pinnedCards.some(
     (c) => currentTime >= c.display_start && currentTime <= c.display_end
   );
+  const showCardPanel = mode !== "dubbing";
 
   // Calculate heights for split mode
-  const videoHeightPercent = isOverlayMode ? 100 : (1 - subtitleHeightRatio) * 100;
-  const subtitleHeightPercent = isOverlayMode ? 0 : subtitleHeightRatio * 100;
+  const videoHeightPercent = (isOverlayMode || isHiddenMode) ? 100 : (1 - subtitleHeightRatio) * 100;
+  const subtitleHeightPercent = (isOverlayMode || isHiddenMode) ? 0 : subtitleHeightRatio * 100;
 
   return (
     <div
@@ -450,12 +461,12 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
       <div
         className="flex flex-shrink-0"
         style={{
-          height: isOverlayMode ? "calc(100% - 60px)" : `${videoHeightPercent}%`,
+          height: (isOverlayMode || isHiddenMode) ? "calc(100% - 60px)" : `${videoHeightPercent}%`,
           minHeight: "200px",
         }}
       >
         {/* Video area with blurred background fill */}
-        <div className="w-[65%] relative overflow-hidden">
+        <div className={`${showCardPanel ? "w-[65%]" : "w-full"} relative overflow-hidden`}>
           {/* Blurred background: covers area, zoomed in */}
           <video
             src={videoUrl}
@@ -499,10 +510,10 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
             </div>
           )}
 
-          {/* Overlay mode: subtitles on video */}
-          {isOverlayMode && (
+          {/* Overlay/hidden mode: subtitles on video (hidden passes null segment for gear-only) */}
+          {(isOverlayMode || isHiddenMode) && (
             <SubtitleOverlay
-              segment={currentSegment || null}
+              segment={isHiddenMode ? null : (currentSegment || null)}
               style={subtitleStyle}
               onStyleChange={handleStyleChange}
               onStyleReset={resetSubtitleStyle}
@@ -513,6 +524,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         </div>
 
         {/* Card panel (next to video only) — matches export card area */}
+        {showCardPanel && (
         <div
           className="w-[35%] flex-shrink-0 border-l border-white/20 relative overflow-hidden"
           style={{ backgroundColor: containerBgColor }}
@@ -579,10 +591,11 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
             )}
           </div>
         </div>
+        )}
       </div>
 
       {/* Split mode: subtitles below video (full width) */}
-      {!isOverlayMode && (
+      {!isOverlayMode && !isHiddenMode && (
         <div
           className="flex-1 min-h-0 border-t border-white/20"
           style={{ height: `${subtitleHeightPercent}%` }}

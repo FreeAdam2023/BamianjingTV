@@ -2,7 +2,7 @@
  * VideoPlayer constants - fonts, colors, and default styles
  */
 
-export type SubtitleDisplayMode = "split" | "overlay";
+export type SubtitleDisplayMode = "split" | "overlay" | "hidden";
 export type SubtitleLanguageMode = "both" | "en" | "zh" | "none";
 
 export interface SubtitleStyle {
@@ -34,6 +34,7 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
 export const DISPLAY_MODES: { value: SubtitleDisplayMode; label: string; description: string }[] = [
   { value: "split", label: "分屏", description: "字幕在视频下方" },
   { value: "overlay", label: "悬浮", description: "字幕叠加在视频上" },
+  { value: "hidden", label: "隐藏", description: "不显示字幕" },
 ];
 
 export const LANGUAGE_MODES: { value: SubtitleLanguageMode; label: string; icon: string }[] = [

@@ -16,15 +16,17 @@ interface SubtitleStylePanelProps {
   style: SubtitleStyle;
   onStyleChange: (updates: Partial<SubtitleStyle>) => void;
   onReset: () => void;
+  openUpward?: boolean;
 }
 
 export default function SubtitleStylePanel({
   style,
   onStyleChange,
-  onReset
+  onReset,
+  openUpward = false,
 }: SubtitleStylePanelProps) {
   return (
-    <div className="absolute top-10 right-2 w-72 bg-gray-800 rounded-lg shadow-xl p-4 z-20 text-sm">
+    <div className={`absolute ${openUpward ? "bottom-full mb-2" : "top-10"} right-2 w-72 bg-gray-800 rounded-lg shadow-xl p-4 z-20 text-sm`}>
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-white font-medium">Subtitle Style</h3>
         <button

@@ -104,11 +104,12 @@ export default function SubtitleOverlay({
 
         {/* Style settings panel */}
         {showStyleSettings && (
-          <div className="pointer-events-auto">
+          <div className="pointer-events-auto relative">
             <SubtitleStylePanel
               style={style}
               onStyleChange={onStyleChange}
               onReset={onStyleReset}
+              openUpward
             />
           </div>
         )}
