@@ -74,6 +74,11 @@ class DubbingConfig(BaseModel):
     target_language: str = "zh-cn"
     keep_bgm: bool = True
     keep_sfx: bool = True
+    voice_clone: bool = True
+    voice_model: str = "xtts_v2"  # xtts_v2, gpt_sovits, preset
+    voice_preset: Optional[str] = None
+    voice_similarity: float = Field(default=0.8, ge=0, le=1)
+    lip_sync_model: str = "wav2lip"  # wav2lip, sadtalker
 
 
 class DubbingConfigUpdate(BaseModel):
@@ -84,6 +89,11 @@ class DubbingConfigUpdate(BaseModel):
     target_language: Optional[str] = None
     keep_bgm: Optional[bool] = None
     keep_sfx: Optional[bool] = None
+    voice_clone: Optional[bool] = None
+    voice_model: Optional[str] = None
+    voice_preset: Optional[str] = None
+    voice_similarity: Optional[float] = Field(default=None, ge=0, le=1)
+    lip_sync_model: Optional[str] = None
 
 
 class SpeakerVoiceConfig(BaseModel):
@@ -391,12 +401,15 @@ async def preview_segment(timeline_id: str, request: PreviewRequest):
     target_duration = segment.end - segment.start
     config = _dubbing_configs.get(timeline_id, DubbingConfig())
 
+    temperature = 1.0 - config.voice_similarity
+
     _, duration = await _voice_clone_worker.synthesize_segment(
         text=text,
         speaker_sample_path=sample_path,
         target_duration=target_duration,
         output_path=preview_path,
         language=config.target_language,
+        temperature=temperature,
     )
 
     return PreviewResponse(
@@ -539,11 +552,13 @@ async def _run_dubbing_pipeline(timeline_id: str):
         ]
 
         dubbed_dir = dubbing_dir / "dubbed_segments"
+        temperature = 1.0 - config.voice_similarity
         dubbed_segments = await _voice_clone_worker.dub_segments(
             segments=segments_to_dub,
             speaker_samples=speaker_samples,
             output_dir=dubbed_dir,
             language=config.target_language,
+            temperature=temperature,
         )
 
         _dubbing_status[timeline_id].dubbed_segments = len([s for s in dubbed_segments if s.get("dubbed_path")])

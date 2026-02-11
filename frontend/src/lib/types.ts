@@ -668,6 +668,11 @@ export interface DubbingConfig {
   target_language: string;
   keep_bgm: boolean;
   keep_sfx: boolean;
+  voice_clone: boolean;
+  voice_model: string;  // xtts_v2, gpt_sovits, preset
+  voice_preset: string | null;
+  voice_similarity: number;  // 0-1
+  lip_sync_model: string;  // wav2lip, sadtalker
 }
 
 export interface DubbingConfigUpdate {
@@ -677,6 +682,11 @@ export interface DubbingConfigUpdate {
   target_language?: string;
   keep_bgm?: boolean;
   keep_sfx?: boolean;
+  voice_clone?: boolean;
+  voice_model?: string;
+  voice_preset?: string;
+  voice_similarity?: number;
+  lip_sync_model?: string;
 }
 
 export interface SpeakerVoiceConfig {

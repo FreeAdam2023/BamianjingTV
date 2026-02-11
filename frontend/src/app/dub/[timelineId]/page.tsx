@@ -23,7 +23,7 @@ import {
   triggerSeparation,
   generateDubbing,
 } from "@/lib/api";
-import { VoiceConfig, DubbedPreview, LipSyncPreview } from "@/components/Dubbing";
+import { VoiceConfig, DubbedPreview, LipSyncPreview, SegmentPreview } from "@/components/Dubbing";
 
 export default function DubbingPage() {
   const params = useParams();
@@ -262,6 +262,12 @@ export default function DubbingPage() {
 
           {/* Right column - Preview */}
           <div className="lg:col-span-2 space-y-6">
+            <SegmentPreview
+              timelineId={timelineId}
+              segments={timeline.segments}
+              speakers={speakers}
+            />
+
             <DubbedPreview
               timelineId={timelineId}
               separationStatus={separationStatus}

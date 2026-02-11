@@ -155,6 +155,7 @@ class VoiceCloneWorker:
         output_path: Path,
         language: str = "zh-cn",
         speed: float = 1.0,
+        temperature: float = 0.2,
     ) -> Path:
         """
         Synthesize speech in a cloned voice.
@@ -165,6 +166,7 @@ class VoiceCloneWorker:
             output_path: Path for output audio
             language: Target language code
             speed: Speech speed multiplier (0.5-2.0)
+            temperature: Generation temperature (lower = closer to reference voice)
 
         Returns:
             Path to synthesized audio
@@ -182,6 +184,7 @@ class VoiceCloneWorker:
                 language=language,
                 file_path=str(output_path),
                 speed=speed,
+                temperature=temperature,
             )
 
         # Run in thread pool to not block event loop
@@ -200,6 +203,7 @@ class VoiceCloneWorker:
         language: str = "zh-cn",
         max_speed: float = 1.5,
         min_speed: float = 0.8,
+        temperature: float = 0.2,
     ) -> Tuple[Path, float]:
         """
         Synthesize speech and adjust speed to match target duration.
@@ -212,6 +216,7 @@ class VoiceCloneWorker:
             language: Target language code
             max_speed: Maximum speech speed
             min_speed: Minimum speech speed
+            temperature: Generation temperature (lower = closer to reference voice)
 
         Returns:
             Tuple of (output_path, actual_duration)
@@ -222,7 +227,7 @@ class VoiceCloneWorker:
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             temp_path = Path(tmp.name)
 
-        await self.synthesize(text, speaker_sample_path, temp_path, language, speed=1.0)
+        await self.synthesize(text, speaker_sample_path, temp_path, language, speed=1.0, temperature=temperature)
 
         # Measure duration
         waveform, sample_rate = torchaudio.load(temp_path)
@@ -241,7 +246,7 @@ class VoiceCloneWorker:
             return output_path, original_duration
 
         # Re-synthesize with adjusted speed
-        await self.synthesize(text, speaker_sample_path, output_path, language, speed=speed)
+        await self.synthesize(text, speaker_sample_path, output_path, language, speed=speed, temperature=temperature)
         temp_path.unlink(missing_ok=True)
 
         # Get actual duration
@@ -261,6 +266,7 @@ class VoiceCloneWorker:
         speaker_samples: Dict[str, Path],
         output_dir: Path,
         language: str = "zh-cn",
+        temperature: float = 0.2,
     ) -> List[Dict]:
         """
         Dub multiple segments with cloned voices.
@@ -270,6 +276,7 @@ class VoiceCloneWorker:
             speaker_samples: Map of speaker_id -> sample audio path
             output_dir: Directory to save dubbed audio
             language: Target language code
+            temperature: Generation temperature (lower = closer to reference voice)
 
         Returns:
             List of segment dicts with added 'dubbed_path' and 'dubbed_duration'
@@ -302,6 +309,7 @@ class VoiceCloneWorker:
                     target_duration=target_duration,
                     output_path=output_path,
                     language=language,
+                    temperature=temperature,
                 )
                 results.append({
                     **seg,
