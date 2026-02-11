@@ -116,9 +116,7 @@ pipeline {
             // slackSend channel: '#deploys', message: "BamianjingTV deployment failed: ${env.BUILD_URL}"
         }
         always {
-            node('GPU-Worker') {
-                cleanWs()
-            }
+            cleanWs()
         }
     }
 }
