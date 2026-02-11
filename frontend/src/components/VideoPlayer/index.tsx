@@ -32,7 +32,7 @@ interface VideoPlayerProps {
   onConvertChinese?: (toTraditional: boolean) => void;
   // Regenerate translation
   regenerating?: boolean;
-  regenerateProgress?: { current: number; total: number } | null;
+  regenerateProgress?: { current: number; total: number; phase?: string } | null;
   onRegenerateTranslation?: (model?: string) => void;
   onRetranscribe?: (source: "whisper", model?: string) => void;
   // Export preview

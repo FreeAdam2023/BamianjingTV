@@ -66,7 +66,7 @@ export default function ReviewPage() {
 
   const [converting, setConverting] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
-  const [regenerateProgress, setRegenerateProgress] = useState<{ current: number; total: number } | null>(null);
+  const [regenerateProgress, setRegenerateProgress] = useState<{ current: number; total: number; phase?: string } | null>(null);
 
   const [currentSegmentId, setCurrentSegmentId] = useState<number | null>(null);
   const [bookmarkFilter, setBookmarkFilter] = useState<boolean | null>(null);
@@ -607,7 +607,13 @@ export default function ReviewPage() {
         source,
         (progress) => {
           if (progress.type === "progress" && progress.current !== undefined && progress.total !== undefined) {
-            setRegenerateProgress({ current: progress.current, total: progress.total });
+            setRegenerateProgress({ current: progress.current, total: progress.total, phase: "translating" });
+          } else if (progress.type === "phase" && progress.phase) {
+            setRegenerateProgress((prev) => ({
+              current: prev?.current ?? 0,
+              total: prev?.total ?? timeline.segments.length,
+              phase: progress.phase,
+            }));
           }
         },
         model ? { model } : undefined,

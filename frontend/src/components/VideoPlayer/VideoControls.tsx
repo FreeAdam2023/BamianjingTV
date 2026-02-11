@@ -35,7 +35,7 @@ function RetranslateDropdown({
   onRetranscribe,
 }: {
   regenerating: boolean;
-  regenerateProgress?: { current: number; total: number } | null;
+  regenerateProgress?: { current: number; total: number; phase?: string } | null;
   onRegenerateTranslation: (model?: string) => void;
   onRetranscribe?: (source: "whisper", model?: string) => void;
 }) {
@@ -79,7 +79,11 @@ function RetranslateDropdown({
             <>
               <Spinner />
               {regenerateProgress
-                ? `${regenerateProgress.current}/${regenerateProgress.total}`
+                ? regenerateProgress.phase === "transcribing"
+                  ? "转录中..."
+                  : regenerateProgress.phase === "mapping"
+                    ? "映射中..."
+                    : `${regenerateProgress.current}/${regenerateProgress.total}`
                 : "处理中..."}
             </>
           ) : (
@@ -182,7 +186,7 @@ function ChineseLanguageSelector({
   segmentCount: number;
   onConvert: (toTraditional: boolean) => void;
   regenerating?: boolean;
-  regenerateProgress?: { current: number; total: number } | null;
+  regenerateProgress?: { current: number; total: number; phase?: string } | null;
   onRegenerateTranslation?: (model?: string) => void;
   onRetranscribe?: (source: "whisper", model?: string) => void;
 }) {
@@ -277,7 +281,7 @@ interface VideoControlsProps {
   onConvertChinese?: (toTraditional: boolean) => void;
   // Regenerate translation
   regenerating?: boolean;
-  regenerateProgress?: { current: number; total: number } | null;
+  regenerateProgress?: { current: number; total: number; phase?: string } | null;
   onRegenerateTranslation?: (model?: string) => void;
   onRetranscribe?: (source: "whisper", model?: string) => void;
   // Export preview
