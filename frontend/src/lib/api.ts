@@ -152,6 +152,16 @@ export async function getTimelineByJob(jobId: string): Promise<Timeline> {
   return fetchAPI<Timeline>(`/timelines/by-job/${jobId}`);
 }
 
+export async function updateTimelineTitle(
+  timelineId: string,
+  title: string
+): Promise<{ message: string; title: string }> {
+  return fetchAPI(`/timelines/${timelineId}/title`, {
+    method: "PATCH",
+    body: JSON.stringify({ title }),
+  });
+}
+
 export async function updateSegment(
   timelineId: string,
   segmentId: number,

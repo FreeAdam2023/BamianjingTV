@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
-import { listTimelines, listJobs, getStats, formatDuration, createJob, createJobWithUpload } from "@/lib/api";
+import { listTimelines, listJobs, getStats, formatDuration, createJob, createJobWithUpload, updateTimelineTitle } from "@/lib/api";
 import type { TimelineSummary, Job, JobCreate } from "@/lib/types";
 import type { UploadProgress } from "@/lib/api";
 
@@ -388,16 +388,46 @@ export default function Home() {
         ) : (
           <div className="space-y-4 animate-fade-in">
             {timelines.map((timeline, index) => (
-              <Link
+              <div
                 key={timeline.timeline_id}
-                href={`/review/${timeline.timeline_id}`}
-                className="card card-hover block"
+                className="card card-hover"
                 style={{ animationDelay: `${index * 50}ms` }}
               >
                 <div className="flex justify-between items-start gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-lg font-semibold truncate">
+                      <h3
+                        className="text-lg font-semibold truncate cursor-text hover:bg-gray-700/50 rounded px-1 -mx-1 outline-none focus:ring-1 focus:ring-blue-500"
+                        contentEditable
+                        suppressContentEditableWarning
+                        spellCheck={false}
+                        onBlur={(e) => {
+                          const newTitle = e.currentTarget.textContent?.trim();
+                          if (newTitle && newTitle !== timeline.source_title) {
+                            updateTimelineTitle(timeline.timeline_id, newTitle).then(() => {
+                              setTimelines((prev) =>
+                                prev.map((t) =>
+                                  t.timeline_id === timeline.timeline_id
+                                    ? { ...t, source_title: newTitle }
+                                    : t
+                                )
+                              );
+                            }).catch(() => {
+                              e.currentTarget.textContent = timeline.source_title;
+                            });
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            e.currentTarget.blur();
+                          }
+                          if (e.key === "Escape") {
+                            e.currentTarget.textContent = timeline.source_title;
+                            e.currentTarget.blur();
+                          }
+                        }}
+                      >
                         {timeline.source_title}
                       </h3>
                       {getModeBadge(timeline.mode)}
@@ -407,15 +437,18 @@ export default function Home() {
                       {formatDuration(timeline.source_duration)} · {timeline.total_segments} segments
                     </p>
                   </div>
-                  <div className="text-right flex-shrink-0">
+                  <div className="text-right flex-shrink-0 flex flex-col items-end gap-2">
                     <div className="flex gap-2 mb-1">
                       <span className="badge badge-success">{timeline.keep_count} keep</span>
                       <span className="badge badge-danger">{timeline.drop_count} drop</span>
                       <span className="badge bg-gray-700 text-gray-300">{timeline.undecided_count} pending</span>
                     </div>
-                    <div className="text-gray-400 text-sm">
-                      {Math.round(timeline.review_progress)}% reviewed
-                    </div>
+                    <Link
+                      href={`/review/${timeline.timeline_id}`}
+                      className="btn btn-primary text-sm py-1.5"
+                    >
+                      Review
+                    </Link>
                   </div>
                 </div>
                 <div className="progress-bar mt-4">
@@ -436,7 +469,7 @@ export default function Home() {
                     />
                   </div>
                 )}
-              </Link>
+              </div>
             ))}
           </div>
         )}

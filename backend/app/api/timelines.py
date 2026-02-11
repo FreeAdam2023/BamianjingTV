@@ -5,6 +5,7 @@ from typing import List, Optional
 
 from loguru import logger
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+from pydantic import BaseModel
 
 from fastapi.responses import FileResponse
 
@@ -174,6 +175,23 @@ async def get_timeline(timeline_id: str):
     if not timeline:
         raise HTTPException(status_code=404, detail="Timeline not found")
     return timeline
+
+
+class TitleUpdate(BaseModel):
+    """Request to update timeline title."""
+    title: str
+
+
+@router.patch("/{timeline_id}/title")
+async def update_timeline_title(timeline_id: str, update: TitleUpdate):
+    """Update the source title of a timeline."""
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+    timeline.source_title = update.title.strip()
+    manager.save_timeline(timeline)
+    return {"message": "Title updated", "title": timeline.source_title}
 
 
 @router.delete("/{timeline_id}")
