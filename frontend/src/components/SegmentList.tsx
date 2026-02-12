@@ -23,7 +23,7 @@ interface SegmentListProps {
   onRefreshIdioms?: (segmentId: number) => Promise<void>;
   // Card handlers (passed from parent to display cards in video area)
   onWordClick?: (word: string, options?: OpenWordCardOptions) => void | Promise<void>;
-  onEntityClick?: (entityIdOrText: string, position?: { x: number; y: number }) => void | Promise<void>;
+  onEntityClick?: (entityIdOrText: string, position?: { x: number; y: number }, forceRefresh?: boolean, annotationNote?: string | null) => void | Promise<void>;
   onIdiomClick?: (idiomText: string, position?: { x: number; y: number }) => void | Promise<void>;
   // Entity editing handlers
   onAddEntity?: (segmentId: number, segmentText: string) => void;
@@ -90,7 +90,7 @@ export default function SegmentList({
   const handleEntityClick = useCallback((entity: EntityAnnotation, position: { x: number; y: number }) => {
     // Use entity_id if available, otherwise search by text
     const entityIdOrText = entity.entity_id || entity.text;
-    onEntityClick?.(entityIdOrText, position);
+    onEntityClick?.(entityIdOrText, position, false, entity.note);
   }, [onEntityClick]);
 
   // Handle entity edit (right-click on badge)

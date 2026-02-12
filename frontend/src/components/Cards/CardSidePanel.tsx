@@ -291,9 +291,10 @@ export interface SidePanelEntityCardProps {
   onEdit?: () => void;
   pinnedNote?: string;
   onNoteChange?: (note: string) => void;
+  annotationNote?: string | null;
 }
 
-export function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin, onRefresh, refreshing, onEdit, pinnedNote, onNoteChange }: SidePanelEntityCardProps) {
+export function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin, onRefresh, refreshing, onEdit, pinnedNote, onNoteChange, annotationNote }: SidePanelEntityCardProps) {
   const typeColors: Record<string, string> = {
     person: "bg-blue-500/50",
     place: "bg-green-500/50",
@@ -303,6 +304,17 @@ export function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTog
     concept: "bg-cyan-500/50",
     product: "bg-yellow-500/50",
     other: "bg-gray-500/50",
+  };
+
+  const entityTypeLabels: Record<string, string> = {
+    person: "人物",
+    place: "地点",
+    organization: "组织",
+    event: "事件",
+    work: "作品",
+    concept: "概念",
+    product: "产品",
+    other: "其他",
   };
 
   const zhLocalization = card.localizations?.zh;
@@ -388,7 +400,7 @@ export function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTog
         </div>
 
         <span className={`absolute top-2 left-2 px-2 py-0.5 ${typeColors[card.entity_type] || typeColors.other} text-white text-xs font-medium rounded backdrop-blur-sm`}>
-          {card.entity_type}
+          {entityTypeLabels[card.entity_type] || card.entity_type}
         </span>
       </div>
 
@@ -408,6 +420,16 @@ export function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTog
         )}
         {enLocalization?.description && enLocalization.description !== card.description && zhLocalization?.description !== enLocalization.description && (
           <p className="text-white/40 text-sm mb-4">{enLocalization.description}</p>
+        )}
+
+        {/* Annotation note (from segment context) */}
+        {annotationNote && (
+          <div className="mt-3 p-2.5 bg-purple-500/10 border border-purple-500/20 rounded-lg">
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="text-[10px] font-medium text-purple-300/60 uppercase tracking-wider">备注</span>
+            </div>
+            <p className="text-sm text-purple-300/80">{annotationNote}</p>
+          </div>
         )}
 
         {/* Links */}
@@ -822,6 +844,7 @@ export default function CardSidePanel({
           onEdit={onEditEntity ? () => onEditEntity(state.entityCard!.entity_id) : undefined}
           pinnedNote={pinnedNote || undefined}
           onNoteChange={isPinned ? handleNoteChange : undefined}
+          annotationNote={state.annotationNote}
         />
       )}
 
@@ -936,6 +959,7 @@ export default function CardSidePanel({
           onEdit={onEditEntity ? () => onEditEntity(state.entityCard!.entity_id) : undefined}
           pinnedNote={pinnedNote || undefined}
           onNoteChange={isPinned ? handleNoteChange : undefined}
+          annotationNote={state.annotationNote}
         />
       )}
 

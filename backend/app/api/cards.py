@@ -743,8 +743,8 @@ async def add_manual_entity(
         entity_name = entity_card.name if entity_card else request.text
         entity_type = entity_card.entity_type if entity_card else EntityType.OTHER
 
-        # Update cached custom entity card if custom fields provided
-        if entity_id.upper().startswith("CUSTOM_") and (request.custom_name or request.custom_description):
+        # Update cached entity card if custom fields provided
+        if request.custom_name or request.custom_description:
             from app.models.card import EntityCard as EC
             from app.services.card_cache import CardCache
             cache = CardCache()
@@ -753,7 +753,11 @@ async def add_manual_entity(
                 entity_type=entity_type,
                 name=request.custom_name or entity_name,
                 description=request.custom_description or (entity_card.description if entity_card else ""),
-                source="custom",
+                source=entity_card.source if entity_card else "custom",
+                image_url=entity_card.image_url if entity_card else None,
+                wikipedia_url=entity_card.wikipedia_url if entity_card else None,
+                wikidata_url=entity_card.wikidata_url if entity_card else None,
+                localizations=entity_card.localizations if entity_card else {},
             )
             cache.set_entity_card(updated_card)
             entity_name = updated_card.name

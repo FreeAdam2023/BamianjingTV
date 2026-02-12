@@ -81,26 +81,20 @@ export default function EntityBadges({
   return (
     <div className={`flex flex-wrap gap-1 ${className}`}>
       {entities.map((entity, idx) => (
-        <div key={`${entity.text}-${idx}`} className="inline-flex flex-col gap-0.5">
-          <button
-            onClick={(e) => handleClick(e, entity)}
-            onContextMenu={(e) => handleContextMenu(e, entity)}
-            className={`
-              inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full
-              border transition-colors cursor-pointer
-              ${getEntityTypeColor(entity.entity_type)}
-            `}
-            title={`${entity.entity_type}: ${entity.text}${entity.entity_id ? ` (${entity.entity_id})` : ""}${onEditEntity ? " (右键编辑)" : ""}`}
-          >
-            <span>{getEntityTypeIcon(entity.entity_type)}</span>
-            <span className="max-w-[120px] truncate">{entity.text}</span>
-          </button>
-          {entity.note && (
-            <span className="text-[10px] text-purple-300/70 pl-1 max-w-[140px] truncate" title={entity.note}>
-              {entity.note}
-            </span>
-          )}
-        </div>
+        <button
+          key={`${entity.text}-${idx}`}
+          onClick={(e) => handleClick(e, entity)}
+          onContextMenu={(e) => handleContextMenu(e, entity)}
+          className={`
+            inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full
+            border transition-colors cursor-pointer
+            ${getEntityTypeColor(entity.entity_type)}
+          `}
+          title={`${entity.entity_type}: ${entity.text}${entity.entity_id ? ` (${entity.entity_id})` : ""}${entity.note ? ` — ${entity.note}` : ""}${onEditEntity ? " (右键编辑)" : ""}`}
+        >
+          <span>{getEntityTypeIcon(entity.entity_type)}</span>
+          <span className="max-w-[120px] truncate">{entity.text}</span>
+        </button>
       ))}
     </div>
   );

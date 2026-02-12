@@ -123,8 +123,8 @@ export default function EntityEditModal({
       setDeleteConfirm(false);
       setResolving(false);
 
-      // Fetch card data for CUSTOM_ entities to pre-populate name/description
-      if (entity?.entity_id && /^CUSTOM_/i.test(entity.entity_id)) {
+      // Fetch card data to pre-populate name/description when editing
+      if (entity?.entity_id) {
         getEntityCard(entity.entity_id).then((res) => {
           if (res.found && res.card) {
             setCustomName(res.card.name || "");

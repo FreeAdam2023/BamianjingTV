@@ -15,6 +15,7 @@ export interface CardPopupState {
   entityCard: EntityCard | null;
   idiomCard: IdiomCard | null;
   position: { x: number; y: number };
+  annotationNote?: string | null;
 }
 
 export interface OpenWordCardOptions {
@@ -25,7 +26,7 @@ export interface OpenWordCardOptions {
 interface UseCardPopupReturn {
   state: CardPopupState;
   openWordCard: (word: string, options?: OpenWordCardOptions) => Promise<void>;
-  openEntityCard: (entityIdOrText: string, position?: { x: number; y: number }, forceRefresh?: boolean) => Promise<void>;
+  openEntityCard: (entityIdOrText: string, position?: { x: number; y: number }, forceRefresh?: boolean, annotationNote?: string | null) => Promise<void>;
   openIdiomCard: (idiomText: string, position?: { x: number; y: number }, forceRefresh?: boolean) => Promise<void>;
   close: () => void;
   refresh: () => Promise<void>;
@@ -138,7 +139,7 @@ export function useCardPopup(): UseCardPopupReturn {
     }
   }, []);
 
-  const openEntityCard = useCallback(async (entityIdOrText: string, position?: { x: number; y: number }, forceRefresh?: boolean) => {
+  const openEntityCard = useCallback(async (entityIdOrText: string, position?: { x: number; y: number }, forceRefresh?: boolean, annotationNote?: string | null) => {
     // Cancel previous request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -169,6 +170,7 @@ export function useCardPopup(): UseCardPopupReturn {
         entityCard: cached,
         idiomCard: null,
         position: position || { x: 0, y: 0 },
+        annotationNote: annotationNote || null,
       });
       return;
     }
@@ -183,6 +185,7 @@ export function useCardPopup(): UseCardPopupReturn {
       entityCard: null,
       idiomCard: null,
       position: position || { x: 0, y: 0 },
+      annotationNote: annotationNote || null,
     });
 
     try {
