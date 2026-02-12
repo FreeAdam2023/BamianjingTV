@@ -70,12 +70,17 @@ WORKDIR /app
 # Install Python dependencies (BuildKit cache keeps pip downloads across rebuilds)
 COPY requirements.txt .
 COPY requirements-tts.txt .
+COPY requirements-music.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m pip install -r requirements.txt
 
 # Optional: Install TTS dependencies (comment out if not needed)
 RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m pip install -r requirements-tts.txt || echo "TTS installation skipped"
+
+# Optional: Install Music generation dependencies (audiocraft/MusicGen)
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python3 -m pip install -r requirements-music.txt || echo "Music generation installation skipped"
 
 # Copy application code
 COPY app/ ./app/
