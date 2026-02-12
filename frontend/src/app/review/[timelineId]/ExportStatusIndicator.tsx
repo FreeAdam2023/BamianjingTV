@@ -5,7 +5,7 @@
  * Can be used in header to show progress even after closing export panel
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import type { ExportStatus, ExportStatusResponse } from "@/lib/types";
 import { getExportStatus } from "@/lib/api";
 
@@ -31,6 +31,10 @@ export default function ExportStatusIndicator({
   const [polling, setPolling] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Use ref for onStatusChange to avoid recreating fetchStatus on every render
+  const onStatusChangeRef = useRef(onStatusChange);
+  onStatusChangeRef.current = onStatusChange;
+
   const fetchStatus = useCallback(async () => {
     setLoading(true);
     try {
@@ -41,7 +45,7 @@ export default function ExportStatusIndicator({
         message: result.message,
       });
       setStatus(result);
-      onStatusChange?.(result);
+      onStatusChangeRef.current?.(result);
       return result;
     } catch (err) {
       console.error("[ExportStatusIndicator] Failed to fetch status:", err);
@@ -49,7 +53,7 @@ export default function ExportStatusIndicator({
     } finally {
       setLoading(false);
     }
-  }, [timelineId, onStatusChange]);
+  }, [timelineId]);
 
   // Fetch status on mount if we have a completed/failed status (to get full details)
   useEffect(() => {
