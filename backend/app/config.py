@@ -121,7 +121,7 @@ class Settings(BaseSettings):
 
     # Video settings
     ffmpeg_nvenc: bool = True
-    max_video_duration: int = 7200  # 2 hours in seconds
+    max_video_duration: int = 14400  # 4 hours in seconds
 
     # Queue settings
     max_concurrent_jobs: int = 2  # Max concurrent job processing (adjust based on GPU memory)
