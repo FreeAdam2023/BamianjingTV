@@ -10,6 +10,53 @@ import {
 } from "@/lib/api";
 import type { MusicTrack, MusicModelSize, MusicGenerateRequest } from "@/lib/types";
 
+const MUSIC_PRESETS: { category: string; tags: { label: string; prompt: string }[] }[] = [
+  {
+    category: "风格",
+    tags: [
+      { label: "Lo-fi", prompt: "lo-fi hip hop" },
+      { label: "Electronic", prompt: "electronic" },
+      { label: "Jazz", prompt: "jazz" },
+      { label: "Classical", prompt: "classical orchestral" },
+      { label: "Ambient", prompt: "ambient" },
+      { label: "Rock", prompt: "rock" },
+      { label: "Pop", prompt: "pop" },
+      { label: "Cinematic", prompt: "cinematic film score" },
+    ],
+  },
+  {
+    category: "情绪",
+    tags: [
+      { label: "Upbeat", prompt: "upbeat energetic" },
+      { label: "Relaxing", prompt: "relaxing calm" },
+      { label: "Melancholy", prompt: "melancholy emotional" },
+      { label: "Epic", prompt: "epic dramatic" },
+      { label: "Cheerful", prompt: "cheerful happy" },
+      { label: "Dark", prompt: "dark mysterious" },
+    ],
+  },
+  {
+    category: "乐器",
+    tags: [
+      { label: "Piano", prompt: "piano" },
+      { label: "Guitar", prompt: "acoustic guitar" },
+      { label: "Synth", prompt: "synthesizer pads" },
+      { label: "Strings", prompt: "string ensemble" },
+      { label: "Drums", prompt: "soft drums" },
+    ],
+  },
+  {
+    category: "场景",
+    tags: [
+      { label: "Study", prompt: "study music background" },
+      { label: "Travel", prompt: "travel adventure" },
+      { label: "Nature", prompt: "nature sounds peaceful" },
+      { label: "Night", prompt: "late night chill" },
+      { label: "Workout", prompt: "workout high energy" },
+    ],
+  },
+];
+
 export default function MusicPage() {
   const [tracks, setTracks] = useState<MusicTrack[]>([]);
   const [loading, setLoading] = useState(true);
@@ -175,6 +222,31 @@ export default function MusicPage() {
               {/* Prompt */}
               <div>
                 <label className="block text-sm text-gray-400 mb-1">Prompt</label>
+                {/* Preset tags */}
+                <div className="flex flex-wrap gap-3 mb-2">
+                  {MUSIC_PRESETS.map((group) => (
+                    <div key={group.category} className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs text-gray-500 mr-0.5">{group.category}</span>
+                      {group.tags.map((tag) => (
+                        <button
+                          key={tag.label}
+                          type="button"
+                          onClick={() => {
+                            setPrompt((prev) =>
+                              prev ? `${prev}, ${tag.prompt}` : tag.prompt
+                            );
+                          }}
+                          disabled={generating}
+                          className="px-2.5 py-1 text-xs rounded-full bg-purple-500/15 text-purple-300
+                                     hover:bg-purple-500/30 border border-purple-500/20
+                                     transition-colors disabled:opacity-50"
+                        >
+                          {tag.label}
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                </div>
                 <textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
