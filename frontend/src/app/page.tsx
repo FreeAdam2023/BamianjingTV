@@ -46,6 +46,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [sourceLanguage, setSourceLanguage] = useState("en");
   const [targetLanguage, setTargetLanguage] = useState("zh-CN");
+  const [enableDiarization, setEnableDiarization] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -83,6 +84,7 @@ export default function Home() {
     setError(null);
     setSourceLanguage("en");
     setTargetLanguage("zh-CN");
+    setEnableDiarization(false);
     setShowModal(true);
   }
 
@@ -110,7 +112,7 @@ export default function Home() {
       const jobOptions: Partial<JobCreate> = {
         mode: videoMode,
         target_language: effectiveTargetLang,
-        skip_diarization: true,
+        skip_diarization: !enableDiarization,
       };
 
       if (inputMode === "url") {
@@ -124,7 +126,7 @@ export default function Home() {
             file: uploadFile!,
             mode: videoMode,
             target_language: effectiveTargetLang,
-            skip_diarization: true,
+            skip_diarization: !enableDiarization,
           },
           (progress) => setUploadProgress(progress)
         );
@@ -577,6 +579,23 @@ export default function Home() {
                   </div>
                 </div>
               )}
+
+              {/* Speaker Diarization */}
+              <div className="mb-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={enableDiarization}
+                    onChange={(e) => setEnableDiarization(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+                    disabled={submitting}
+                  />
+                  <div>
+                    <span className="text-sm text-white">说话人识别</span>
+                    <p className="text-xs text-gray-500">自动区分不同说话人，适合多人对话视频</p>
+                  </div>
+                </label>
+              </div>
 
               {/* Input Mode Tabs */}
               <div className="flex mb-4 border-b border-gray-700">
