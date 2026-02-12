@@ -406,20 +406,21 @@ export function SidePanelEntityCard({ card, onClose, isPinned, pinLoading, onTog
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4">
-        <h2 className="text-xl font-bold text-white mb-1">{card.name}</h2>
-        {zhLocalization?.name && zhLocalization.name !== card.name && (
-          <p className="text-yellow-300/80 text-sm mb-1">{zhLocalization.name}</p>
-        )}
-        {enLocalization?.name && enLocalization.name !== card.name && (
-          <p className="text-white/50 text-sm mb-1">{enLocalization.name}</p>
+        {zhLocalization?.name ? (
+          <>
+            <h2 className="text-xl font-bold text-white mb-1">{zhLocalization.name}</h2>
+            {zhLocalization.name !== card.name && (
+              <p className="text-white/50 text-sm mb-1">{card.name}</p>
+            )}
+          </>
+        ) : (
+          <h2 className="text-xl font-bold text-white mb-1">{card.name}</h2>
         )}
 
-        <p className="text-white/80 text-sm mb-3 mt-2">{card.description}</p>
-        {zhLocalization?.description && zhLocalization.description !== card.description && (
-          <p className="text-white/60 text-sm mb-4">{zhLocalization.description}</p>
-        )}
-        {enLocalization?.description && enLocalization.description !== card.description && zhLocalization?.description !== enLocalization.description && (
-          <p className="text-white/40 text-sm mb-4">{enLocalization.description}</p>
+        {zhLocalization?.description ? (
+          <p className="text-white/80 text-sm mb-3 mt-2">{zhLocalization.description}</p>
+        ) : (
+          <p className="text-white/80 text-sm mb-3 mt-2">{card.description}</p>
         )}
 
         {/* Annotation note (from segment context) */}
