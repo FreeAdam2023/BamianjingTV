@@ -17,7 +17,7 @@ import { useMultiTrackWaveform, TrackType } from "@/hooks/useMultiTrackWaveform"
 import { useCardPopup } from "@/hooks/useCardPopup";
 import { useCreativeConfig } from "@/hooks/useCreativeConfig";
 import { useCreativeKeyboard } from "@/hooks/useCreativeKeyboard";
-import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress, retranscribeWithProgress, splitSegment, getSegmentAnnotations, setSubtitleLanguageMode, unpinCard, analyzeTimelineEntities } from "@/lib/api";
+import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress, retranscribeWithProgress, splitSegment, getSegmentAnnotations, setSubtitleLanguageMode, unpinCard, analyzeTimelineEntities, formatDuration } from "@/lib/api";
 import type { ExportStatusResponse, SubtitleStyleOptions, SegmentAnnotations, PinnedCard } from "@/lib/types";
 import type { CreativeStyle } from "@/lib/creative-types";
 import { useToast, useConfirm } from "@/components/ui";
@@ -850,6 +850,10 @@ export default function ReviewPage() {
           {/* Entity analysis section */}
           <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700 bg-gray-800/50">
             <div className="flex items-center gap-2">
+              <span className="font-mono text-sm text-yellow-400 bg-yellow-500/10 px-2 py-0.5 rounded" title="当前播放时间戳">
+                {formatDuration(currentVideoTime, 1)}
+              </span>
+              <span className="text-gray-600">|</span>
               <svg className="w-4 h-4 text-cyan-400" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h5c.256 0 .512.098.707.293l7 7zM5 6a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
               </svg>
