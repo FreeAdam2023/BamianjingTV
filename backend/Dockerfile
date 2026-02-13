@@ -78,30 +78,29 @@ WORKDIR /app
 
 # ---------- Layer 1: PyTorch + CUDA (~2.3GB, rarely changes) ----------
 # Isolated so changes to requirements.txt don't trigger a 2GB+ re-download.
+# NOTE: Do NOT add --extra-index-url for older CUDA indexes (cu121 etc.)
+# as they pull ancient torch versions that lack sm_120 (RTX 5080) support.
+# PyPI torch 2.10+ includes CUDA 12.x with sm_120 built-in.
 COPY requirements-torch.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python3 -m pip install -r requirements-torch.txt \
-    --extra-index-url https://download.pytorch.org/whl/cu121
+    python3 -m pip install -r requirements-torch.txt
 
 # ---------- Layer 2: Other Python dependencies ----------
 COPY requirements.txt .
 COPY requirements-tts.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python3 -m pip install -r requirements.txt \
-    --extra-index-url https://download.pytorch.org/whl/cu121
+    python3 -m pip install -r requirements.txt
 
 # ---------- Layer 3: TTS dependencies (optional) ----------
 RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m pip install -r requirements-tts.txt || echo "TTS installation skipped"
 
 # ---------- Layer 4: Music generation (audiocraft/MusicGen) ----------
-# Use --no-deps for audiocraft to prevent it from downgrading torch to CPU build,
-# then install its non-torch dependencies normally.
+# Use --no-deps for audiocraft to prevent it from downgrading torch.
 COPY requirements-music.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m pip install audiocraft --no-deps \
-    && python3 -m pip install -r requirements-music.txt \
-    --extra-index-url https://download.pytorch.org/whl/cu121
+    && python3 -m pip install -r requirements-music.txt
 
 # Copy application code
 COPY app/ ./app/

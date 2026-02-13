@@ -108,15 +108,24 @@ class MusicGeneratorWorker:
 
     def _generate_sync(self, prompt: str, duration: float) -> "torch.Tensor":
         """Synchronous music generation (runs in thread pool)."""
+        import inspect
         import torch
 
-        self.model.set_generation_params(
-            duration=duration,
-            temperature=1.0,
-            top_k=250,
-            top_p=0.0,
-            cfg_coeff=3.0,
-        )
+        # Build generation params, handling parameter name changes across
+        # audiocraft versions (cfg_coeff → cfg_scale / classifier_free_guidance)
+        gen_params = {
+            "duration": duration,
+            "temperature": 1.0,
+            "top_k": 250,
+            "top_p": 0.0,
+        }
+        sig = inspect.signature(self.model.set_generation_params)
+        for cfg_name in ("cfg_coeff", "cfg_scale", "classifier_free_guidance"):
+            if cfg_name in sig.parameters:
+                gen_params[cfg_name] = 3.0
+                break
+
+        self.model.set_generation_params(**gen_params)
 
         with torch.no_grad():
             wav = self.model.generate([prompt])
