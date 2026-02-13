@@ -96,16 +96,15 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m pip install -r requirements-tts.txt || echo "TTS installation skipped"
 
 # ---------- Layer 4: Music generation (audiocraft/MusicGen) ----------
-# audiocraft's dep chain pulls xformers==0.0.22 → torch==2.1.0, which
-# breaks RTX 5080 (needs sm_120 from torch 2.10+).
+# audiocraft 1.3.0 pins torch==2.1.0 + xformers==0.0.22, breaking RTX 5080.
 # Strategy:
-#   1. Install audiocraft WITH all deps (so import works)
-#   2. Upgrade torch/torchaudio back to latest PyPI (restores sm_120)
-#   3. Remove xformers (compiled for old torch, MusicGen works without it)
+#   1. Install audiocraft WITH all deps (so all imports work)
+#   2. Upgrade torch, torchaudio, xformers to latest PyPI (sm_120 support)
+#   3. Verify import succeeds
 RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m pip install audiocraft \
-    && python3 -m pip install --upgrade torch torchaudio \
-    && python3 -m pip uninstall -y xformers
+    && python3 -m pip install --upgrade torch torchaudio xformers \
+    && python3 -c "import audiocraft; print(f'audiocraft {audiocraft.__version__} OK')"
 
 # Copy application code
 COPY app/ ./app/
