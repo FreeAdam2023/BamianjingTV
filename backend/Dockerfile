@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     python3.11 \
     python3.11-venv \
     python3.11-dev \
+    build-essential \
     ffmpeg \
     git \
     curl \
@@ -77,10 +78,10 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m pip install -r requirements-tts.txt || echo "TTS installation skipped"
 
-# Optional: Install Music generation dependencies (audiocraft/MusicGen)
+# Install Music generation dependencies (audiocraft/MusicGen)
 COPY requirements-music.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python3 -m pip install -r requirements-music.txt || echo "Music generation installation skipped"
+    python3 -m pip install -r requirements-music.txt
 
 # Copy application code
 COPY app/ ./app/
