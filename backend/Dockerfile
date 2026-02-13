@@ -96,11 +96,16 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m pip install -r requirements-tts.txt || echo "TTS installation skipped"
 
 # ---------- Layer 4: Music generation (audiocraft/MusicGen) ----------
-# Use --no-deps for audiocraft to prevent it from downgrading torch.
-COPY requirements-music.txt .
+# audiocraft's dep chain pulls xformers==0.0.22 → torch==2.1.0, which
+# breaks RTX 5080 (needs sm_120 from torch 2.10+).
+# Strategy: install audiocraft code with --no-deps, then add only the
+# runtime deps it actually needs.  xformers is excluded on purpose —
+# MusicGen falls back to standard attention without it.
 RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m pip install audiocraft --no-deps \
-    && python3 -m pip install -r requirements-music.txt
+    && python3 -m pip install \
+       encodec lameenc flashy sentencepiece \
+       hydra-core omegaconf "antlr4-python3-runtime==4.9.3" num2words
 
 # Copy application code
 COPY app/ ./app/
