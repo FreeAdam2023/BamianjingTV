@@ -766,12 +766,12 @@ export interface IdiomAnnotation {
   start_char: number;
   end_char: number;
   confidence: number;
-  category: string;  // idiom, phrasal_verb, slang
+  category: string;  // idiom, phrasal_verb, slang, colloquial, proverb, expression
 }
 
 export interface IdiomCard {
   text: string;
-  category: string;  // idiom, phrasal_verb, slang
+  category: string;  // idiom, phrasal_verb, slang, colloquial, proverb, expression
   meaning_original: string;
   meaning_localized: string;
   example_original: string;

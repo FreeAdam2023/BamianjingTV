@@ -23,6 +23,9 @@ const CATEGORY_OPTIONS = [
   { value: "idiom", label: "Idiom (惯用语)" },
   { value: "phrasal_verb", label: "Phrasal Verb (短语动词)" },
   { value: "slang", label: "Slang (俚语)" },
+  { value: "colloquial", label: "Colloquial (口语表达)" },
+  { value: "proverb", label: "Proverb (谚语)" },
+  { value: "expression", label: "Expression (常用表达/术语)" },
 ];
 
 export default function IdiomEditModal({

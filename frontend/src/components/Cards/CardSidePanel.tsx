@@ -496,12 +496,18 @@ export function SidePanelIdiomCard({ card, onClose, isPinned, pinLoading, onTogg
     idiom: "bg-amber-500/50",
     phrasal_verb: "bg-amber-600/50",
     slang: "bg-orange-500/50",
+    colloquial: "bg-yellow-500/50",
+    proverb: "bg-rose-500/50",
+    expression: "bg-teal-500/50",
   };
 
   const categoryLabels: Record<string, string> = {
     idiom: "Idiom",
     phrasal_verb: "Phrasal Verb",
     slang: "Slang",
+    colloquial: "Colloquial",
+    proverb: "Proverb",
+    expression: "Expression",
   };
 
   return (
@@ -566,25 +572,35 @@ export function SidePanelIdiomCard({ card, onClose, isPinned, pinLoading, onTogg
         <h2 className="text-xl font-bold text-amber-300">{card.text}</h2>
 
         {/* Meaning */}
-        {card.meaning_localized && (
+        {(card.meaning_original || card.meaning_localized) && (
           <div>
             <div className="flex items-center gap-2 mb-2">
               <span className="text-xs font-medium text-white/40 uppercase tracking-wider">释义</span>
               <div className="flex-1 h-px bg-white/10" />
             </div>
-            <p className="text-sm text-yellow-300/70">{card.meaning_localized}</p>
+            {card.meaning_original && (
+              <p className="text-sm text-white/70 mb-1">{card.meaning_original}</p>
+            )}
+            {card.meaning_localized && (
+              <p className="text-sm text-yellow-300/70">{card.meaning_localized}</p>
+            )}
           </div>
         )}
 
         {/* Example */}
-        {card.example_localized && (
+        {(card.example_original || card.example_localized) && (
           <div>
             <div className="flex items-center gap-2 mb-2">
               <span className="text-xs font-medium text-white/40 uppercase tracking-wider">例句</span>
               <div className="flex-1 h-px bg-white/10" />
             </div>
-            <div className="pl-3 border-l-2 border-amber-500/30">
-              <p className="text-sm text-yellow-300/70">{card.example_localized}</p>
+            <div className="pl-3 border-l-2 border-amber-500/30 space-y-1">
+              {card.example_original && (
+                <p className="text-sm text-white/80">{card.example_original}</p>
+              )}
+              {card.example_localized && (
+                <p className="text-sm text-yellow-300/70">{card.example_localized}</p>
+              )}
             </div>
           </div>
         )}

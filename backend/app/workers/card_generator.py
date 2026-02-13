@@ -544,6 +544,11 @@ class CardGeneratorWorker:
                 logger.debug(f"Entity card cache hit: {entity_id}")
                 return cached
 
+        # LLM-generated entities are only in cache; don't try external APIs
+        if entity_id.startswith("LLM_"):
+            logger.debug(f"LLM entity {entity_id} not in cache, cannot re-fetch")
+            return None
+
         # Fetch from TomTrove API
         card = await self._fetch_entity_from_tomtrove(entity_id, target_lang, force_refresh=force_refresh)
 
@@ -652,6 +657,104 @@ class CardGeneratorWorker:
 
         except Exception as e:
             logger.error(f"Error searching entity '{query}' via Wikidata: {e}")
+            return None
+
+    async def generate_entity_card_llm(self, text: str) -> Optional[EntityCard]:
+        """LLM fallback: generate an entity card for terms without Wikidata entries.
+
+        Creates a synthetic card with LLM-generated explanation for generic concepts
+        like "leader boards", "All Hands", etc. that aren't in Wikipedia/Wikidata.
+
+        Args:
+            text: The entity text to explain.
+
+        Returns:
+            EntityCard with LLM-generated content, or None on failure.
+        """
+        import hashlib
+        import json
+        import os
+
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            logger.warning("No OPENAI_API_KEY set, cannot generate LLM entity card")
+            return None
+
+        entity_id = f"LLM_{hashlib.md5(text.lower().strip().encode()).hexdigest()[:12]}"
+
+        # Check cache first
+        cached = self.cache.get_entity_card(entity_id)
+        if cached:
+            return cached
+
+        prompt = f"""Explain the term/concept "{text}" for a non-native English learner.
+
+Return ONLY valid JSON:
+{{
+  "name": "{text}",
+  "name_zh": "Chinese translation of the name",
+  "entity_type": "concept",
+  "description": "A clear 1-2 sentence English explanation of what this term means, including context where it's commonly used",
+  "description_zh": "Chinese translation of the description"
+}}
+
+If the term refers to a person, place, organization, product, event, or creative work, set entity_type accordingly (person/place/organization/product/event/work).
+Return ONLY the JSON, no other text."""
+
+        try:
+            from openai import AsyncOpenAI
+
+            client = AsyncOpenAI(api_key=api_key)
+            response = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=500,
+                temperature=0.1,
+            )
+
+            content = response.choices[0].message.content.strip()
+            # Strip markdown code block if present
+            if content.startswith("```"):
+                import re
+                content = re.sub(r"^```(?:json)?\s*", "", content)
+                content = re.sub(r"\s*```$", "", content)
+
+            data = json.loads(content)
+
+            # Map entity_type string to EntityType enum
+            type_map = {
+                "person": EntityType.PERSON,
+                "place": EntityType.PLACE,
+                "organization": EntityType.ORGANIZATION,
+                "event": EntityType.EVENT,
+                "work": EntityType.WORK,
+                "concept": EntityType.CONCEPT,
+                "product": EntityType.PRODUCT,
+            }
+            entity_type = type_map.get(data.get("entity_type", "concept"), EntityType.CONCEPT)
+
+            card = EntityCard(
+                entity_id=entity_id,
+                entity_type=entity_type,
+                name=data.get("name", text),
+                description=data.get("description", ""),
+                localizations={
+                    "zh": EntityLocalization(
+                        name=data.get("name_zh", ""),
+                        description=data.get("description_zh", ""),
+                    ),
+                },
+                source="llm",
+            )
+
+            # Cache the generated card
+            self.cache.set_entity_card(card)
+
+            logger.info(f"Generated LLM entity card for '{text}' -> {entity_id}")
+            return card
+
+        except Exception as e:
+            logger.error(f"Error generating LLM entity card for '{text}': {e}")
             return None
 
     async def _fetch_entity_from_tomtrove(

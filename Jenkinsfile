@@ -130,11 +130,20 @@ pipeline {
             steps {
                 dir("${PROJECT_DIR}") {
                     script {
-                        def skipFlag = params.UE5_SKIP_PACKAGE ? '--skip-package' : ''
-                        sh """
-                            echo "Deploying UE5 Virtual Studio..."
-                            bash deploy/deploy-ue5.sh ${skipFlag}
-                        """
+                        try {
+                            def skipFlag = params.UE5_SKIP_PACKAGE ? '--skip-package' : ''
+                            sh """
+                                echo "Deploying UE5 Virtual Studio..."
+                                bash deploy/deploy-ue5.sh ${skipFlag}
+                            """
+                        } catch (err) {
+                            if (params.DEPLOY_TARGET == 'all') {
+                                echo "WARNING: UE5 deploy failed (non-fatal when target=all): ${err.message}"
+                                unstable('UE5 deploy failed but app deploy succeeded')
+                            } else {
+                                throw err
+                            }
+                        }
                     }
                 }
             }

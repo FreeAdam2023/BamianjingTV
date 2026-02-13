@@ -1,7 +1,8 @@
 """Cards API routes for word and entity cards."""
 
-from typing import Optional
+from typing import List, Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks
+from pydantic import BaseModel
 from loguru import logger
 
 from app.models.card import (
@@ -167,6 +168,45 @@ async def get_entity_details(
         return EntityCardResponse(entity_id=entity_id, found=False, error=str(e))
 
 
+# Search endpoint — resolves text to QID, with LLM fallback
+class EntitySearchResponse(BaseModel):
+    """Response from entity text search."""
+    query: str
+    found: bool
+    entity_id: Optional[str] = None
+
+
+@router.get("/entities/search/{query}", response_model=EntitySearchResponse)
+async def search_entity_by_text(query: str, lang: str = "en"):
+    """Search for an entity by text and return its entity ID.
+
+    Tries TomTrove entity recognition first, then Wikidata search.
+    If neither finds a match, generates an LLM-based entity card as fallback.
+
+    Args:
+        query: Entity text (e.g., "leader boards", "Albert Einstein").
+        lang: Language for search.
+    """
+    generator = _get_card_generator()
+
+    try:
+        # Step 1: Try to find a real Wikidata QID
+        entity_id = await generator.search_entity(query, lang)
+        if entity_id:
+            return EntitySearchResponse(query=query, found=True, entity_id=entity_id)
+
+        # Step 2: LLM fallback — generate a synthetic card
+        card = await generator.generate_entity_card_llm(query)
+        if card:
+            return EntitySearchResponse(query=query, found=True, entity_id=card.entity_id)
+
+        return EntitySearchResponse(query=query, found=False, entity_id=None)
+
+    except Exception as e:
+        logger.error(f"Error searching entity '{query}': {e}")
+        return EntitySearchResponse(query=query, found=False, entity_id=None)
+
+
 # Keep old endpoint for backwards compatibility
 @router.get("/entities/{entity_id}", response_model=EntityCardResponse)
 async def get_entity_card(entity_id: str, force_refresh: bool = False):
@@ -174,8 +214,7 @@ async def get_entity_card(entity_id: str, force_refresh: bool = False):
     return await get_entity_details(entity_id, force_refresh)
 
 
-from pydantic import BaseModel
-from typing import List, Optional as Opt
+from typing import Optional as Opt
 
 class EntityRecognizeRequest(BaseModel):
     """Request body for entity recognition."""

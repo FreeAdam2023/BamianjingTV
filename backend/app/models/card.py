@@ -123,13 +123,13 @@ class IdiomAnnotation(BaseModel):
     start_char: int
     end_char: int
     confidence: float = 1.0
-    category: str = "idiom"  # idiom, phrasal_verb, slang
+    category: str = "idiom"  # idiom, phrasal_verb, slang, colloquial, proverb, expression
 
 
 class IdiomCard(BaseModel):
     """Idiom card with bilingual meaning, example, origin, and usage notes."""
     text: str
-    category: str = "idiom"  # idiom, phrasal_verb, slang
+    category: str = "idiom"  # idiom, phrasal_verb, slang, colloquial, proverb, expression
     meaning_original: str = ""
     meaning_localized: str = ""
     example_original: str = ""

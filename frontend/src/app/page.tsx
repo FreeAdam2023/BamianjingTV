@@ -109,7 +109,7 @@ export default function Home() {
     setUploadProgress(null);
 
     try {
-      const effectiveTargetLang = videoMode === "dubbing" ? targetLanguage : "zh-CN";
+      const effectiveTargetLang = targetLanguage;
 
       const jobOptions: Partial<JobCreate> = {
         mode: videoMode,
@@ -554,45 +554,43 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Language Selection (Dubbing mode only) */}
-              {videoMode === "dubbing" && (
-                <div className="mb-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                        原视频语言
-                      </label>
-                      <select
-                        value={sourceLanguage}
-                        onChange={(e) => setSourceLanguage(e.target.value)}
-                        className="w-full bg-gray-800 text-white text-sm px-3 py-2 rounded-lg border border-gray-600 outline-none focus:border-orange-500 transition-colors"
-                      >
-                        {SOURCE_LANGUAGES.map((lang) => (
-                          <option key={lang.value} value={lang.value}>
-                            {lang.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                        目标语言
-                      </label>
-                      <select
-                        value={targetLanguage}
-                        onChange={(e) => setTargetLanguage(e.target.value)}
-                        className="w-full bg-gray-800 text-white text-sm px-3 py-2 rounded-lg border border-gray-600 outline-none focus:border-orange-500 transition-colors"
-                      >
-                        {TARGET_LANGUAGES.filter((l) => l.value !== sourceLanguage && !(sourceLanguage === "zh" && l.value.startsWith("zh"))).map((lang) => (
-                          <option key={lang.value} value={lang.value}>
-                            {lang.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+              {/* Language Selection */}
+              <div className="mb-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                      原视频语言
+                    </label>
+                    <select
+                      value={sourceLanguage}
+                      onChange={(e) => setSourceLanguage(e.target.value)}
+                      className={`w-full bg-gray-800 text-white text-sm px-3 py-2 rounded-lg border border-gray-600 outline-none transition-colors ${videoMode === "dubbing" ? "focus:border-orange-500" : "focus:border-purple-500"}`}
+                    >
+                      {SOURCE_LANGUAGES.map((lang) => (
+                        <option key={lang.value} value={lang.value}>
+                          {lang.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                      目标语言
+                    </label>
+                    <select
+                      value={targetLanguage}
+                      onChange={(e) => setTargetLanguage(e.target.value)}
+                      className={`w-full bg-gray-800 text-white text-sm px-3 py-2 rounded-lg border border-gray-600 outline-none transition-colors ${videoMode === "dubbing" ? "focus:border-orange-500" : "focus:border-purple-500"}`}
+                    >
+                      {TARGET_LANGUAGES.filter((l) => l.value !== sourceLanguage && !(sourceLanguage === "zh" && l.value.startsWith("zh"))).map((lang) => (
+                        <option key={lang.value} value={lang.value}>
+                          {lang.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
-              )}
+              </div>
 
               {/* Whisper Model Size */}
               <div className="mb-4">

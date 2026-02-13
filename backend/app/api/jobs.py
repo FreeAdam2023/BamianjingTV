@@ -274,6 +274,25 @@ async def get_job(job_id: str):
     return job.validate_file_paths()
 
 
+class JobUpdate(BaseModel):
+    """Request body for updating job fields."""
+    title: Optional[str] = None
+
+
+@router.patch("/jobs/{job_id}", response_model=Job)
+async def update_job(job_id: str, update: JobUpdate):
+    """Update job fields (currently supports title)."""
+    job = _job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if update.title is not None:
+        job.title = update.title.strip() or job.title
+
+    _job_manager.save_job(job)
+    return job
+
+
 @router.delete("/jobs/{job_id}")
 async def delete_job(job_id: str, delete_files: bool = True):
     """Delete a job and its associated timeline."""

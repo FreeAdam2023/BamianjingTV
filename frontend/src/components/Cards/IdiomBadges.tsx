@@ -20,6 +20,9 @@ function getIdiomCategoryColor(category: string): string {
     idiom: "bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30",
     phrasal_verb: "bg-amber-600/20 text-amber-200 border-amber-600/40 hover:bg-amber-600/30",
     slang: "bg-orange-500/20 text-orange-300 border-orange-500/40 hover:bg-orange-500/30",
+    colloquial: "bg-yellow-500/20 text-yellow-300 border-yellow-500/40 hover:bg-yellow-500/30",
+    proverb: "bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30",
+    expression: "bg-teal-500/20 text-teal-300 border-teal-500/40 hover:bg-teal-500/30",
   };
   return colors[category.toLowerCase()] || colors.idiom;
 }
@@ -30,6 +33,9 @@ function getIdiomCategoryLabel(category: string): string {
     idiom: "idiom",
     phrasal_verb: "phrasal",
     slang: "slang",
+    colloquial: "colloquial",
+    proverb: "proverb",
+    expression: "expr",
   };
   return labels[category.toLowerCase()] || "idiom";
 }

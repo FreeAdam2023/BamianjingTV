@@ -581,6 +581,13 @@ export async function retryJob(jobId: string): Promise<{ message: string }> {
   });
 }
 
+export async function updateJob(jobId: string, update: { title?: string }): Promise<Job> {
+  return fetchAPI<Job>(`/jobs/${jobId}`, {
+    method: "PATCH",
+    body: JSON.stringify(update),
+  });
+}
+
 export async function deleteJob(jobId: string): Promise<{ message: string }> {
   return fetchAPI(`/jobs/${jobId}`, {
     method: "DELETE",
@@ -1125,7 +1132,7 @@ export async function deleteSegmentEntity(
 export interface ManualIdiomRequest {
   segment_id: number;
   text: string;
-  category?: string;  // idiom | phrasal_verb | slang
+  category?: string;  // idiom | phrasal_verb | slang | colloquial | proverb | expression
 }
 
 export interface ManualIdiomResponse {

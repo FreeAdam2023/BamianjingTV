@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import PageHeader from "@/components/ui/PageHeader";
-import { listJobs, createJob, createJobWithUpload, deleteJob, cancelJob, formatDuration, getVideoUrl, getExportVideoUrl } from "@/lib/api";
+import { listJobs, createJob, createJobWithUpload, deleteJob, cancelJob, updateJob, formatDuration, getVideoUrl, getExportVideoUrl } from "@/lib/api";
 import type { UploadProgress } from "@/lib/api";
 import { useToast, useConfirm } from "@/components/ui";
 import type { Job, JobCreate, JobMode } from "@/lib/types";
@@ -17,6 +17,8 @@ export default function JobsPage() {
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
+  const [editingTitleValue, setEditingTitleValue] = useState("");
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -187,6 +189,22 @@ export default function JobsPage() {
     }
   }
 
+  async function handleRenameSubmit(jobId: string) {
+    const newTitle = editingTitleValue.trim();
+    if (!newTitle) {
+      setEditingTitleId(null);
+      return;
+    }
+    try {
+      const updated = await updateJob(jobId, { title: newTitle });
+      setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, title: updated.title } : j)));
+      toast.success("标题已更新");
+    } catch {
+      toast.error("更新标题失败");
+    }
+    setEditingTitleId(null);
+  }
+
   function canCancel(status: string): boolean {
     return ["pending", "downloading", "transcribing", "diarizing", "translating"].includes(status);
   }
@@ -306,9 +324,31 @@ export default function JobsPage() {
                 <div className="flex justify-between items-start gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-1">
-                      <h3 className="text-lg font-semibold truncate">
-                        {job.title || "Processing..."}
-                      </h3>
+                      {editingTitleId === job.id ? (
+                        <input
+                          autoFocus
+                          type="text"
+                          value={editingTitleValue}
+                          onChange={(e) => setEditingTitleValue(e.target.value)}
+                          onBlur={() => handleRenameSubmit(job.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleRenameSubmit(job.id);
+                            if (e.key === "Escape") setEditingTitleId(null);
+                          }}
+                          className="text-lg font-semibold bg-gray-800 border border-blue-500 rounded px-2 py-0.5 text-white outline-none flex-1 min-w-0"
+                        />
+                      ) : (
+                        <h3
+                          className="text-lg font-semibold truncate cursor-pointer hover:text-blue-400 transition-colors"
+                          onClick={() => {
+                            setEditingTitleId(job.id);
+                            setEditingTitleValue(job.title || "");
+                          }}
+                          title="点击修改标题"
+                        >
+                          {job.title || "Processing..."}
+                        </h3>
+                      )}
                       {getModeBadge(job.mode)}
                       {getStatusBadge(job.status)}
                     </div>
