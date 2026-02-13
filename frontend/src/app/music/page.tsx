@@ -10,6 +10,65 @@ import {
 } from "@/lib/api";
 import type { MusicTrack, MusicModelSize, MusicGenerateRequest } from "@/lib/types";
 
+/** Estimate generation time in seconds based on model size and audio duration. */
+function estimateGenerationSeconds(durationSec: number, modelSize: MusicModelSize): number {
+  const multiplier = { small: 1.0, medium: 2.5, large: 5.0 }[modelSize];
+  const modelLoadOverhead = 15; // first-run model loading
+  return Math.round(durationSec * multiplier + modelLoadOverhead);
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return s > 0 ? `${m}m${s}s` : `${m}m`;
+}
+
+/** Live progress indicator for tracks being generated. */
+function GeneratingProgress({
+  createdAt,
+  durationSeconds,
+  modelSize,
+}: {
+  createdAt: string;
+  durationSeconds: number;
+  modelSize: MusicModelSize;
+}) {
+  const [elapsed, setElapsed] = useState(0);
+  const estimated = estimateGenerationSeconds(durationSeconds, modelSize);
+
+  useEffect(() => {
+    const start = new Date(createdAt).getTime();
+    const update = () => setElapsed(Math.max(0, Math.floor((Date.now() - start) / 1000)));
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [createdAt]);
+
+  const progress = Math.min(95, (elapsed / estimated) * 100); // cap at 95%
+  const remaining = Math.max(0, estimated - elapsed);
+
+  return (
+    <div className="mt-2">
+      {/* Progress bar */}
+      <div className="w-full h-1.5 bg-gray-700 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-blue-500 rounded-full transition-all duration-1000"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <div className="flex justify-between text-xs text-gray-500 mt-1">
+        <span>Elapsed {formatDuration(elapsed)}</span>
+        <span>
+          {remaining > 0
+            ? `~${formatDuration(remaining)} remaining`
+            : "Almost done..."}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 const MUSIC_PRESETS: { category: string; tags: { label: string; prompt: string }[] }[] = [
   {
     category: "风格",
@@ -326,7 +385,7 @@ export default function MusicPage() {
                     Starting generation...
                   </span>
                 ) : (
-                  "Generate Music"
+                  `Generate Music (~${formatDuration(estimateGenerationSeconds(duration, modelSize))})`
                 )}
               </button>
             </div>
@@ -382,6 +441,15 @@ export default function MusicPage() {
                       <span>{formatFileSize(track.file_size_bytes)}</span>
                       <span>{formatDate(track.created_at)}</span>
                     </div>
+
+                    {/* Generation progress */}
+                    {track.status === "generating" && (
+                      <GeneratingProgress
+                        createdAt={track.created_at}
+                        durationSeconds={track.duration_seconds}
+                        modelSize={track.model_size}
+                      />
+                    )}
 
                     {/* Error message */}
                     {track.status === "failed" && track.error && (
