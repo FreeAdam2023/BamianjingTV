@@ -98,14 +98,14 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # ---------- Layer 4: Music generation (audiocraft/MusicGen) ----------
 # audiocraft's dep chain pulls xformers==0.0.22 → torch==2.1.0, which
 # breaks RTX 5080 (needs sm_120 from torch 2.10+).
-# Strategy: install audiocraft code with --no-deps, then add only the
-# runtime deps it actually needs.  xformers is excluded on purpose —
-# MusicGen falls back to standard attention without it.
+# Strategy:
+#   1. Install audiocraft WITH all deps (so import works)
+#   2. Upgrade torch/torchaudio back to latest PyPI (restores sm_120)
+#   3. Remove xformers (compiled for old torch, MusicGen works without it)
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python3 -m pip install audiocraft --no-deps \
-    && python3 -m pip install \
-       encodec lameenc flashy sentencepiece \
-       hydra-core omegaconf "antlr4-python3-runtime==4.9.3" num2words
+    python3 -m pip install audiocraft \
+    && python3 -m pip install --upgrade torch torchaudio \
+    && python3 -m pip uninstall -y xformers
 
 # Copy application code
 COPY app/ ./app/
