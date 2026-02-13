@@ -1,0 +1,5 @@
+# PyTorch + CUDA (isolated layer for Docker cache efficiency)
+# This file is installed FIRST in the Dockerfile so the ~2.3GB torch+NVIDIA
+# layer only rebuilds when these versions change, not on every requirements.txt edit.
+torch>=2.1.0
+torchaudio>=2.1.0

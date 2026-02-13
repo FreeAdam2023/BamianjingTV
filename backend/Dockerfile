@@ -76,23 +76,31 @@ RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
 RUN useradd -m -u 1000 app
 WORKDIR /app
 
-# Install Python dependencies (BuildKit cache keeps pip downloads across rebuilds)
-# Use PyTorch CUDA 12.1 index to ensure GPU-enabled wheels on CUDA 12.2 runtime
+# ---------- Layer 1: PyTorch + CUDA (~2.3GB, rarely changes) ----------
+# Isolated so changes to requirements.txt don't trigger a 2GB+ re-download.
+COPY requirements-torch.txt .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python3 -m pip install -r requirements-torch.txt \
+    --extra-index-url https://download.pytorch.org/whl/cu121
+
+# ---------- Layer 2: Other Python dependencies ----------
 COPY requirements.txt .
 COPY requirements-tts.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m pip install -r requirements.txt \
     --extra-index-url https://download.pytorch.org/whl/cu121
 
-# Optional: Install TTS dependencies (comment out if not needed)
+# ---------- Layer 3: TTS dependencies (optional) ----------
 RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m pip install -r requirements-tts.txt || echo "TTS installation skipped"
 
-# Install Music generation dependencies (audiocraft/MusicGen)
-# --extra-index-url ensures torch stays CUDA-enabled if audiocraft re-resolves it
+# ---------- Layer 4: Music generation (audiocraft/MusicGen) ----------
+# Use --no-deps for audiocraft to prevent it from downgrading torch to CPU build,
+# then install its non-torch dependencies normally.
 COPY requirements-music.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python3 -m pip install -r requirements-music.txt \
+    python3 -m pip install audiocraft --no-deps \
+    && python3 -m pip install -r requirements-music.txt \
     --extra-index-url https://download.pytorch.org/whl/cu121
 
 # Copy application code
