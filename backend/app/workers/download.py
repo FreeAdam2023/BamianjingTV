@@ -152,14 +152,18 @@ class DownloadWorker:
 
         logger.info(f"Using locally uploaded file: {file_path}")
 
-        # Get video duration using ffprobe
-        duration = await self._get_video_duration(file_path)
+        # Get video metadata (duration + title) using ffprobe
+        metadata = await self._get_video_metadata(file_path)
+        duration = metadata["duration"]
 
         # Check duration limit
         if duration > self.max_duration:
             raise ValueError(
                 f"Video duration ({duration}s) exceeds maximum ({self.max_duration}s)"
             )
+
+        # Title priority: ffprobe metadata title → filename stem
+        title = metadata["title"] or file_path.stem
 
         # Extract audio if requested
         if extract_audio:
@@ -174,31 +178,34 @@ class DownloadWorker:
             "audio_path": str(audio_path) if extract_audio else None,
             "subtitle_path": None,
             "has_youtube_subtitles": False,
-            "title": file_path.stem,  # Use filename as title
+            "title": title,
             "duration": duration,
             "channel": None,
             "description": None,
         }
 
-    async def _get_video_duration(self, video_path: Path) -> float:
-        """Get video duration using ffprobe."""
+    async def _get_video_metadata(self, video_path: Path) -> Dict[str, Any]:
+        """Get video duration and title using ffprobe."""
         cmd = [
             "ffprobe",
             "-v", "error",
-            "-show_entries", "format=duration",
+            "-show_entries", "format=duration:format_tags=title",
             "-of", "json",
             str(video_path),
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
             logger.warning(f"ffprobe failed: {result.stderr}")
-            return 0.0
+            return {"duration": 0.0, "title": None}
 
         try:
             data = json.loads(result.stdout)
-            return float(data.get("format", {}).get("duration", 0))
+            fmt = data.get("format", {})
+            duration = float(fmt.get("duration", 0))
+            title = fmt.get("tags", {}).get("title")
+            return {"duration": duration, "title": title}
         except (json.JSONDecodeError, ValueError):
-            return 0.0
+            return {"duration": 0.0, "title": None}
 
     async def _get_video_info(self, url: str) -> Dict[str, Any]:
         """Get video metadata without downloading."""

@@ -79,6 +79,11 @@ import type {
   MusicTrack,
   MusicGenerateRequest,
   MusicGenerateResponse,
+  AmbientSound,
+  // Studio
+  StudioState,
+  StudioPresets,
+  StudioCommandResponse,
 } from "./types";
 
 // Get API URL: use env var or derive from current host with port 8001
@@ -1678,4 +1683,66 @@ export async function deleteMusicTrack(
 
 export async function getMusicStatus(): Promise<Record<string, unknown>> {
   return fetchAPI<Record<string, unknown>>("/music/status");
+}
+
+export async function listAmbientSounds(): Promise<AmbientSound[]> {
+  return fetchAPI<AmbientSound[]>("/music/ambient");
+}
+
+export function getAmbientAudioUrl(name: string): string {
+  return `${API_BASE}/music/ambient/${name}/audio`;
+}
+
+// ============ Studio API ============
+
+export async function getStudioStatus(): Promise<StudioState> {
+  return fetchAPI<StudioState>("/studio/status");
+}
+
+export async function getStudioPresets(): Promise<StudioPresets> {
+  return fetchAPI<StudioPresets>("/studio/presets");
+}
+
+export async function setStudioScene(preset: string): Promise<StudioCommandResponse> {
+  return fetchAPI<StudioCommandResponse>("/studio/scene", {
+    method: "POST",
+    body: JSON.stringify({ preset }),
+  });
+}
+
+export async function setStudioWeather(type: string, time_of_day: number): Promise<StudioCommandResponse> {
+  return fetchAPI<StudioCommandResponse>("/studio/weather", {
+    method: "POST",
+    body: JSON.stringify({ type, time_of_day }),
+  });
+}
+
+export async function setStudioPrivacy(level: number): Promise<StudioCommandResponse> {
+  return fetchAPI<StudioCommandResponse>("/studio/privacy", {
+    method: "POST",
+    body: JSON.stringify({ level }),
+  });
+}
+
+export async function setStudioLighting(params: {
+  key: number;
+  fill: number;
+  back: number;
+  temperature: number;
+  preset?: string;
+}): Promise<StudioCommandResponse> {
+  return fetchAPI<StudioCommandResponse>("/studio/lighting", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export async function setStudioCharacter(params: {
+  action?: string;
+  expression?: string;
+}): Promise<StudioCommandResponse> {
+  return fetchAPI<StudioCommandResponse>("/studio/character", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
 }

@@ -7,8 +7,16 @@ import {
   listMusicTracks,
   getMusicAudioUrl,
   deleteMusicTrack,
+  listAmbientSounds,
+  getAmbientAudioUrl,
 } from "@/lib/api";
-import type { MusicTrack, MusicModelSize, MusicGenerateRequest } from "@/lib/types";
+import type {
+  MusicTrack,
+  MusicModelSize,
+  MusicGenerateRequest,
+  AmbientSound,
+  AmbientMode,
+} from "@/lib/types";
 
 /** Estimate generation time in seconds based on model size and audio duration. */
 function estimateGenerationSeconds(durationSec: number, modelSize: MusicModelSize): number {
@@ -24,6 +32,25 @@ function formatDuration(seconds: number): string {
   return s > 0 ? `${m}分${s}秒` : `${m}分`;
 }
 
+/** Emoji for ambient sound names. */
+const AMBIENT_EMOJI: Record<string, string> = {
+  rain: "🌧",
+  thunder: "⛈",
+  ocean: "🌊",
+  stream: "🏞",
+  wind: "💨",
+  birds: "🐦",
+  cicadas: "🦗",
+  crickets: "🦗",
+  frogs: "🐸",
+  fireplace: "🔥",
+  snow: "❄",
+  forest: "🌲",
+  waterfall: "🏔",
+  waves: "🌊",
+  whale: "🐋",
+};
+
 /** Live progress indicator for tracks being generated. */
 function GeneratingProgress({
   durationSeconds,
@@ -35,7 +62,12 @@ function GeneratingProgress({
   createdAt: string;
 }) {
   const estimated = estimateGenerationSeconds(durationSeconds, modelSize);
-  const startMs = useRef(new Date(createdAt).getTime()).current;
+  // If server clock is ahead of browser clock (timezone mismatch), fall back
+  // to Date.now() so the timer actually counts up instead of being stuck at 0.
+  const serverMs = new Date(createdAt).getTime();
+  const startMs = useRef(
+    serverMs > Date.now() + 2000 ? Date.now() : serverMs
+  ).current;
   const [elapsed, setElapsed] = useState(() =>
     Math.max(0, Math.floor((Date.now() - startMs) / 1000))
   );
@@ -115,26 +147,6 @@ const MUSIC_PRESETS: { category: string; tags: { label: string; prompt: string }
       { label: "Workout", prompt: "workout high energy" },
     ],
   },
-  {
-    category: "自然声音",
-    tags: [
-      { label: "Rain", prompt: "rain falling gentle rainfall" },
-      { label: "Thunder", prompt: "thunderstorm distant thunder rain" },
-      { label: "Ocean", prompt: "ocean waves crashing on shore" },
-      { label: "Stream", prompt: "flowing stream babbling brook water" },
-      { label: "Wind", prompt: "wind blowing through trees" },
-      { label: "Birds", prompt: "birds singing birdsong morning" },
-      { label: "Cicadas", prompt: "cicadas buzzing summer night" },
-      { label: "Crickets", prompt: "crickets chirping night" },
-      { label: "Frogs", prompt: "frogs croaking pond night" },
-      { label: "Fireplace", prompt: "crackling fireplace warm fire" },
-      { label: "Snow", prompt: "gentle snowfall winter wind quiet" },
-      { label: "Forest", prompt: "forest ambience birds leaves rustling" },
-      { label: "Waterfall", prompt: "waterfall cascading water" },
-      { label: "Waves", prompt: "gentle waves lapping beach shore" },
-      { label: "Whale", prompt: "whale sounds deep ocean" },
-    ],
-  },
 ];
 
 export default function MusicPage() {
@@ -148,6 +160,14 @@ export default function MusicPage() {
   const [duration, setDuration] = useState(30);
   const [modelSize, setModelSize] = useState<MusicModelSize>("medium");
   const [title, setTitle] = useState("");
+
+  // Ambient state
+  const [ambientSounds, setAmbientSounds] = useState<AmbientSound[]>([]);
+  const [selectedAmbient, setSelectedAmbient] = useState<string[]>([]);
+  const [ambientMode, setAmbientMode] = useState<AmbientMode>("mix");
+  const [ambientVolume, setAmbientVolume] = useState(0.3);
+  const [previewingAmbient, setPreviewingAmbient] = useState<string | null>(null);
+  const ambientAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Delete confirmation
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -173,6 +193,10 @@ export default function MusicPage() {
 
   useEffect(() => {
     loadTracks();
+    // Load ambient sounds
+    listAmbientSounds()
+      .then(setAmbientSounds)
+      .catch((err) => console.error("Failed to load ambient sounds:", err));
   }, [loadTracks]);
 
   // Auto-refresh while any track is generating
@@ -183,6 +207,26 @@ export default function MusicPage() {
     const interval = setInterval(loadTracks, 5000);
     return () => clearInterval(interval);
   }, [tracks, loadTracks]);
+
+  function toggleAmbient(name: string) {
+    setSelectedAmbient((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
+    );
+  }
+
+  function previewAmbient(name: string) {
+    if (previewingAmbient === name) {
+      ambientAudioRef.current?.pause();
+      setPreviewingAmbient(null);
+      return;
+    }
+    ambientAudioRef.current?.pause();
+    const audio = new Audio(getAmbientAudioUrl(name));
+    audio.onended = () => setPreviewingAmbient(null);
+    audio.play();
+    ambientAudioRef.current = audio;
+    setPreviewingAmbient(name);
+  }
 
   async function handleGenerate(e: React.FormEvent) {
     e.preventDefault();
@@ -197,10 +241,14 @@ export default function MusicPage() {
         duration_seconds: duration,
         model_size: modelSize,
         title: title.trim() || undefined,
+        ambient_sounds: selectedAmbient.length > 0 ? selectedAmbient : undefined,
+        ambient_mode: selectedAmbient.length > 0 ? ambientMode : undefined,
+        ambient_volume: selectedAmbient.length > 0 ? ambientVolume : undefined,
       };
       await generateMusic(request);
       setPrompt("");
       setTitle("");
+      setSelectedAmbient([]);
       await loadTracks();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Generation failed";
@@ -408,6 +456,93 @@ export default function MusicPage() {
                   disabled={generating}
                   rows={3}
                 />
+              </div>
+
+              {/* Ambient Sounds */}
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">
+                  自然声音叠加 <span className="text-gray-600">（选中后将混合真实环境音到 AI 音乐中）</span>
+                </label>
+                <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                  {ambientSounds.map((sound) => {
+                    const isSelected = selectedAmbient.includes(sound.name);
+                    const isPreviewing = previewingAmbient === sound.name;
+                    return (
+                      <div key={sound.name} className="flex items-center gap-0.5">
+                        <button
+                          type="button"
+                          onClick={() => sound.available && toggleAmbient(sound.name)}
+                          disabled={generating || !sound.available}
+                          className={`px-2.5 py-1 text-xs rounded-full border transition-colors
+                            ${!sound.available
+                              ? "opacity-30 cursor-not-allowed bg-gray-800 text-gray-500 border-gray-700"
+                              : isSelected
+                                ? "bg-emerald-500/25 text-emerald-300 border-emerald-500/40"
+                                : "bg-gray-800/50 text-gray-400 hover:bg-gray-700 border-gray-700"
+                            }`}
+                          title={sound.available
+                            ? `${sound.label_zh} (${sound.label})${sound.duration_seconds ? ` · ${Math.round(sound.duration_seconds)}s` : ""}`
+                            : `${sound.label_zh} - 文件未找到，请放入 data/ambient/${sound.name}.wav`
+                          }
+                        >
+                          {AMBIENT_EMOJI[sound.name] || ""} {sound.label}
+                        </button>
+                        {sound.available && (
+                          <button
+                            type="button"
+                            onClick={() => previewAmbient(sound.name)}
+                            className={`p-0.5 rounded transition-colors ${
+                              isPreviewing
+                                ? "text-emerald-400"
+                                : "text-gray-600 hover:text-gray-400"
+                            }`}
+                            title="试听"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                              {isPreviewing ? (
+                                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                              ) : (
+                                <path d="M8 5v14l11-7z" />
+                              )}
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Ambient controls (shown when sounds selected) */}
+                {selectedAmbient.length > 0 && (
+                  <div className="flex items-center gap-6 p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-lg">
+                    <div className="flex items-center gap-3 flex-1">
+                      <label className="text-xs text-gray-400 whitespace-nowrap">
+                        音量: {Math.round(ambientVolume * 100)}%
+                      </label>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={5}
+                        value={Math.round(ambientVolume * 100)}
+                        onChange={(e) => setAmbientVolume(Number(e.target.value) / 100)}
+                        className="flex-1 accent-emerald-500"
+                        disabled={generating}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-gray-400">模式:</label>
+                      <button
+                        type="button"
+                        onClick={() => setAmbientMode(ambientMode === "mix" ? "sequence" : "mix")}
+                        disabled={generating}
+                        className="px-2 py-1 text-xs rounded bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors"
+                      >
+                        {ambientMode === "mix" ? "同时叠加" : "顺序循环"}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Duration + Model Size */}
@@ -628,6 +763,26 @@ export default function MusicPage() {
                       </span>
                     </div>
                     <p className="text-gray-400 text-sm truncate">{track.prompt}</p>
+
+                    {/* Ambient badges */}
+                    {track.ambient_sounds && track.ambient_sounds.length > 0 && (
+                      <div className="flex items-center gap-1.5 mt-1">
+                        {track.ambient_sounds.map((name) => (
+                          <span
+                            key={name}
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
+                          >
+                            {AMBIENT_EMOJI[name] || ""} {name}
+                          </span>
+                        ))}
+                        {track.ambient_mode && (
+                          <span className="text-xs text-gray-500">
+                            ({track.ambient_mode === "mix" ? "叠加" : "循环"})
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
                       <span>{track.duration_seconds}s</span>
                       <span>{formatFileSize(track.file_size_bytes)}</span>

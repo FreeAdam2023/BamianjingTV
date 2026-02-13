@@ -89,6 +89,10 @@ from app.api import (
     music_router,
     set_music_manager,
     set_music_generator,
+    set_ambient_library,
+    # Studio setup functions
+    studio_router,
+    set_studio_manager,
 )
 
 
@@ -227,21 +231,39 @@ async def lifespan(app: FastAPI):
 
     logger.info("Initialized Creative mode config generator")
 
-    # ========== Music: Initialize music manager and generator ==========
+    # ========== Music: Initialize music manager, ambient library, and generator ==========
     from app.services.music_manager import MusicManager
+    from app.services.ambient_library import AmbientLibrary
     from app.workers.music_generator import MusicGeneratorWorker, AUDIOCRAFT_AVAILABLE
 
     music_manager = MusicManager()
     set_music_manager(music_manager)
 
-    music_generator = MusicGeneratorWorker(music_manager=music_manager)
+    ambient_library = AmbientLibrary(settings.ambient_dir)
+    set_ambient_library(ambient_library)
+
+    music_generator = MusicGeneratorWorker(music_manager=music_manager, ambient_library=ambient_library)
     set_music_generator(music_generator)
 
+    ambient_count = sum(1 for s in ambient_library.list_sounds() if s["available"])
     music_features = []
     if AUDIOCRAFT_AVAILABLE:
         music_features.append("musicgen")
     music_features.append(f"device={music_generator.device}")
+    music_features.append(f"ambient={ambient_count}/15")
     logger.info(f"Initialized Music: {len(music_manager.list_tracks())} tracks, features={music_features}")
+
+    # ========== Studio: Initialize virtual studio manager ==========
+    from app.services.studio_manager import StudioManager
+
+    studio_manager = StudioManager(
+        ue_base_url=settings.studio_ue_url,
+        pixel_streaming_url=settings.studio_pixel_streaming_url,
+        state_file=settings.data_dir / "studio_state.json",
+    )
+    set_studio_manager(studio_manager)
+
+    logger.info("Initialized Virtual Studio manager")
 
     # v2: Get WebSocket connection manager
     ws_manager = get_connection_manager()
@@ -324,6 +346,7 @@ async def lifespan(app: FastAPI):
     await webhook_service.close()
     await card_generator.close()
     await creative_config_generator.close()
+    await studio_manager.close()
     logger.info("Shutting down SceneMind")
 
 
@@ -365,6 +388,7 @@ app.include_router(memory_books_router)
 app.include_router(dubbing_router)
 app.include_router(creative_router)
 app.include_router(music_router)
+app.include_router(studio_router)
 
 
 # ============ Root Endpoints ============

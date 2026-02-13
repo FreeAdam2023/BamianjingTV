@@ -12,6 +12,7 @@ from app.models.music import (
     MusicTrack,
     MusicTrackStatus,
 )
+from app.services.ambient_library import AmbientLibrary
 from app.services.music_manager import MusicManager
 from app.workers.music_generator import MusicGeneratorWorker
 
@@ -20,6 +21,7 @@ router = APIRouter(prefix="/music", tags=["music"])
 # Module-level dependencies (set via init functions)
 _music_manager: Optional[MusicManager] = None
 _music_generator: Optional[MusicGeneratorWorker] = None
+_ambient_library: Optional[AmbientLibrary] = None
 
 
 def set_music_manager(manager: MusicManager) -> None:
@@ -34,6 +36,12 @@ def set_music_generator(generator: MusicGeneratorWorker) -> None:
     _music_generator = generator
 
 
+def set_ambient_library(library: AmbientLibrary) -> None:
+    """Set the ambient library instance."""
+    global _ambient_library
+    _ambient_library = library
+
+
 def _get_manager() -> MusicManager:
     """Get the music manager, raising if not initialized."""
     if _music_manager is None:
@@ -46,6 +54,40 @@ def _get_generator() -> MusicGeneratorWorker:
     if _music_generator is None:
         raise HTTPException(status_code=503, detail="Music generator not initialized")
     return _music_generator
+
+
+def _get_ambient_library() -> AmbientLibrary:
+    """Get the ambient library, raising if not initialized."""
+    if _ambient_library is None:
+        raise HTTPException(status_code=503, detail="Ambient library not initialized")
+    return _ambient_library
+
+
+# ============ Ambient Sound Endpoints ============
+
+
+@router.get("/ambient")
+async def list_ambient_sounds():
+    """List available ambient sounds."""
+    library = _get_ambient_library()
+    return library.list_sounds()
+
+
+@router.get("/ambient/{name}/audio")
+async def get_ambient_audio(name: str):
+    """Stream an ambient sound file for preview."""
+    library = _get_ambient_library()
+    path = library.get_sound_path(name)
+    if not path:
+        raise HTTPException(status_code=404, detail="Ambient sound not found or file missing")
+    return FileResponse(
+        path=str(path),
+        media_type="audio/wav",
+        filename=f"{name}{path.suffix}",
+    )
+
+
+# ============ Music Generation Endpoints ============
 
 
 @router.post("/generate", response_model=MusicGenerateResponse)
@@ -71,6 +113,8 @@ async def generate_music(
         duration_seconds=request.duration_seconds,
         model_size=request.model_size,
         status=MusicTrackStatus.GENERATING,
+        ambient_sounds=request.ambient_sounds,
+        ambient_mode=request.ambient_mode if request.ambient_sounds else None,
     )
     manager.create_track(track)
 
@@ -81,9 +125,13 @@ async def generate_music(
         request.prompt,
         request.duration_seconds,
         request.model_size,
+        request.ambient_sounds or None,
+        request.ambient_mode,
+        request.ambient_volume,
     )
 
-    logger.info(f"Started music generation: {track.id} ({request.duration_seconds}s, {request.model_size.value})")
+    ambient_info = f", ambient={request.ambient_sounds}" if request.ambient_sounds else ""
+    logger.info(f"Started music generation: {track.id} ({request.duration_seconds}s, {request.model_size.value}{ambient_info})")
 
     return MusicGenerateResponse(track=track, message="Music generation started")
 

@@ -61,6 +61,11 @@ from .music import (
     router as music_router,
     set_music_manager,
     set_music_generator,
+    set_ambient_library,
+)
+from .studio import (
+    router as studio_router,
+    set_studio_manager,
 )
 
 __all__ = [
@@ -129,4 +134,8 @@ __all__ = [
     "music_router",
     "set_music_manager",
     "set_music_generator",
+    "set_ambient_library",
+    # Studio Router and Setup functions
+    "studio_router",
+    "set_studio_manager",
 ]

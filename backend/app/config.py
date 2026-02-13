@@ -69,8 +69,17 @@ class Settings(BaseSettings):
         """Path to music directory."""
         return self.data_dir / "music"
 
+    @property
+    def ambient_dir(self) -> Path:
+        """Path to ambient sounds directory."""
+        return self.data_dir / "ambient"
+
     # Music generation settings
     music_device: str = "cuda"
+
+    # Virtual Studio settings
+    studio_ue_url: str = "http://192.168.1.200:30010"  # UE5 Remote Control API
+    studio_pixel_streaming_url: str = "http://192.168.1.200:80"  # Pixel Streaming Signalling Server
 
     # Upload settings
     max_upload_size_mb: int = 4096  # 4GB max upload
@@ -190,3 +199,4 @@ settings.scenemind_sessions_dir.mkdir(parents=True, exist_ok=True)
 settings.scenemind_frames_dir.mkdir(parents=True, exist_ok=True)
 settings.scenemind_videos_dir.mkdir(parents=True, exist_ok=True)
 settings.music_dir.mkdir(parents=True, exist_ok=True)
+settings.ambient_dir.mkdir(parents=True, exist_ok=True)

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import List, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -27,6 +27,12 @@ class MusicTrackStatus(str, Enum):
     FAILED = "failed"
 
 
+class AmbientMode(str, Enum):
+    """Ambient sound mixing mode."""
+    MIX = "mix"            # All ambient sounds play simultaneously
+    SEQUENCE = "sequence"  # Ambient sounds play in random sequence
+
+
 class MusicTrack(BaseModel):
     """A generated music track."""
     id: str = Field(default_factory=lambda: uuid4().hex[:12])
@@ -39,6 +45,8 @@ class MusicTrack(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     file_size_bytes: Optional[int] = None
     error: Optional[str] = None
+    ambient_sounds: List[str] = []
+    ambient_mode: Optional[AmbientMode] = None
 
 
 class MusicGenerateRequest(BaseModel):
@@ -47,6 +55,9 @@ class MusicGenerateRequest(BaseModel):
     duration_seconds: float = Field(default=30.0, ge=5.0, le=300.0)
     model_size: MusicModelSize = MusicModelSize.MEDIUM
     title: Optional[str] = None
+    ambient_sounds: List[str] = []
+    ambient_mode: AmbientMode = AmbientMode.MIX
+    ambient_volume: float = Field(default=0.3, ge=0.0, le=1.0)
 
 
 class MusicGenerateResponse(BaseModel):

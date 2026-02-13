@@ -841,6 +841,7 @@ export interface PinnedCardCheckResponse {
 
 export type MusicTrackStatus = "generating" | "ready" | "failed";
 export type MusicModelSize = "small" | "medium" | "large";
+export type AmbientMode = "mix" | "sequence";
 
 export interface MusicTrack {
   id: string;
@@ -853,6 +854,8 @@ export interface MusicTrack {
   created_at: string;
   file_size_bytes: number | null;
   error: string | null;
+  ambient_sounds: string[];
+  ambient_mode: AmbientMode | null;
 }
 
 export interface MusicGenerateRequest {
@@ -860,9 +863,59 @@ export interface MusicGenerateRequest {
   duration_seconds?: number;
   model_size?: MusicModelSize;
   title?: string;
+  ambient_sounds?: string[];
+  ambient_mode?: AmbientMode;
+  ambient_volume?: number;
 }
 
 export interface MusicGenerateResponse {
   track: MusicTrack;
   message: string;
+}
+
+export interface AmbientSound {
+  name: string;
+  label: string;
+  label_zh: string;
+  available: boolean;
+  duration_seconds: number | null;
+}
+
+// ============ Studio Types ============
+
+export type ScenePreset = "modern_office" | "news_desk" | "podcast_studio" | "classroom";
+export type WeatherType = "clear" | "cloudy" | "rain" | "snow" | "night";
+export type CharacterAction = "idle" | "talking" | "nodding" | "thinking" | "waving" | "writing";
+export type CharacterExpression = "neutral" | "smile" | "serious" | "surprised";
+export type LightingPreset = "interview" | "dramatic" | "soft" | "natural";
+
+export interface StudioState {
+  scene: ScenePreset;
+  weather: WeatherType;
+  time_of_day: number;
+  privacy_level: number;
+  lighting_key: number;
+  lighting_fill: number;
+  lighting_back: number;
+  lighting_temperature: number;
+  character_action: CharacterAction;
+  character_expression: CharacterExpression;
+  ue_connected: boolean;
+  ue_fps: number | null;
+  ue_gpu_usage: number | null;
+  pixel_streaming_url: string;
+}
+
+export interface StudioPresets {
+  scenes: string[];
+  weather_types: string[];
+  character_actions: string[];
+  character_expressions: string[];
+  lighting_presets: string[];
+}
+
+export interface StudioCommandResponse {
+  success: boolean;
+  message: string;
+  state: StudioState;
 }

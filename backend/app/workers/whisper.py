@@ -3,11 +3,11 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 from loguru import logger
 
 from app.config import settings
-from app.models.transcript import Segment, Transcript
+from app.models.transcript import Transcript
 
 # Dedicated thread pool for CPU-bound model operations
 _model_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="whisper")
@@ -116,16 +116,10 @@ class WhisperWorker:
         detected_language = info.language
         logger.info(f"Detected language: {detected_language}")
 
-        # Convert to our segment format
-        segments: List[Segment] = []
-        for segment in segments_list:
-            segments.append(
-                Segment(
-                    start=segment.start,
-                    end=segment.end,
-                    text=segment.text.strip().replace(">>", "").strip(),
-                )
-            )
+        # Re-segment at sentence boundaries using word-level timestamps
+        from app.workers.resegment import resegment_words
+
+        segments = resegment_words(segments_list)
 
         logger.info(f"Transcribed {len(segments)} segments")
 
