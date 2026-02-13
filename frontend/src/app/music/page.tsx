@@ -26,24 +26,24 @@ function formatDuration(seconds: number): string {
 
 /** Live progress indicator for tracks being generated. */
 function GeneratingProgress({
-  createdAt,
   durationSeconds,
   modelSize,
 }: {
-  createdAt: string;
   durationSeconds: number;
   modelSize: MusicModelSize;
 }) {
   const [elapsed, setElapsed] = useState(0);
+  const startRef = useRef(Date.now());
   const estimated = estimateGenerationSeconds(durationSeconds, modelSize);
 
   useEffect(() => {
-    const start = new Date(createdAt).getTime();
-    const update = () => setElapsed(Math.max(0, Math.floor((Date.now() - start) / 1000)));
-    update();
-    const interval = setInterval(update, 1000);
+    // Use local clock — server created_at can be in a different timezone
+    startRef.current = Date.now();
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
+    }, 1000);
     return () => clearInterval(interval);
-  }, [createdAt]);
+  }, []);
 
   const progress = Math.min(95, (elapsed / estimated) * 100); // cap at 95%
   const remaining = Math.max(0, estimated - elapsed);
@@ -445,7 +445,6 @@ export default function MusicPage() {
                     {/* Generation progress */}
                     {track.status === "generating" && (
                       <GeneratingProgress
-                        createdAt={track.created_at}
                         durationSeconds={track.duration_seconds}
                         modelSize={track.model_size}
                       />
