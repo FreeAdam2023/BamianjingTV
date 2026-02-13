@@ -13,7 +13,15 @@ RUN apt-get update && apt-get install -y \
     python3.11-venv \
     python3.11-dev \
     build-essential \
+    pkg-config \
     ffmpeg \
+    libavformat-dev \
+    libavcodec-dev \
+    libavdevice-dev \
+    libavutil-dev \
+    libswscale-dev \
+    libswresample-dev \
+    libavfilter-dev \
     git \
     curl \
     unzip \
