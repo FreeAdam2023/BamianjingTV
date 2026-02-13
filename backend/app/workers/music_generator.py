@@ -13,6 +13,13 @@ from app.services.music_manager import MusicManager
 # Dedicated thread pool for GPU-bound model operations
 _model_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="musicgen")
 
+# CUDA errors that indicate GPU architecture incompatibility (auto-fallback to CPU)
+_CUDA_FALLBACK_ERRORS = (
+    "no kernel image is available",
+    "CUDA error",
+    "CUDA out of memory",
+)
+
 # Check if audiocraft is available
 try:
     import audiocraft  # noqa: F401
@@ -20,6 +27,21 @@ try:
 except ImportError:
     AUDIOCRAFT_AVAILABLE = False
     logger.warning("audiocraft not installed - music generation disabled")
+
+
+def _log_cuda_diagnostics():
+    """Log GPU and CUDA info for debugging device compatibility issues."""
+    try:
+        import torch
+        logger.info(f"PyTorch {torch.__version__}, CUDA compiled: {torch.version.cuda}")
+        if torch.cuda.is_available():
+            name = torch.cuda.get_device_name(0)
+            cap = torch.cuda.get_device_capability(0)
+            logger.info(f"GPU: {name}, compute capability: sm_{cap[0]}{cap[1]}")
+        else:
+            logger.warning("CUDA not available")
+    except Exception as e:
+        logger.warning(f"Could not read CUDA diagnostics: {e}")
 
 
 class MusicGeneratorWorker:
@@ -31,6 +53,7 @@ class MusicGeneratorWorker:
         self.current_model_size: Optional[MusicModelSize] = None
         self.device = getattr(settings, "music_device", "cuda")
         self._load_lock: Optional[asyncio.Lock] = None
+        self._cuda_fallback_logged = False
 
     def _get_lock(self) -> asyncio.Lock:
         """Get or create the async lock (must be created in async context)."""
@@ -100,6 +123,21 @@ class MusicGeneratorWorker:
 
         return wav
 
+    def _is_cuda_compat_error(self, error: Exception) -> bool:
+        """Check if error is a CUDA compatibility issue that can be solved by CPU fallback."""
+        msg = str(error)
+        return any(pattern in msg for pattern in _CUDA_FALLBACK_ERRORS)
+
+    def _fallback_to_cpu(self, reason: str):
+        """Switch device to CPU after a CUDA failure."""
+        if not self._cuda_fallback_logged:
+            _log_cuda_diagnostics()
+            self._cuda_fallback_logged = True
+        logger.warning(f"Falling back to CPU for MusicGen: {reason}")
+        self.device = "cpu"
+        self.model = None
+        self.current_model_size = None
+
     async def generate_music(
         self,
         track_id: str,
@@ -117,18 +155,33 @@ class MusicGeneratorWorker:
             return
 
         try:
-            # Load model if needed
-            await self._ensure_model_loaded(model_size)
+            wav = await self._try_generate(track_id, prompt, duration, model_size)
+        except Exception as e:
+            # Auto-fallback: if CUDA fails, retry on CPU
+            if self.device == "cuda" and self._is_cuda_compat_error(e):
+                self._fallback_to_cpu(str(e))
+                try:
+                    wav = await self._try_generate(track_id, prompt, duration, model_size)
+                except Exception as retry_err:
+                    logger.error(f"Music generation failed on CPU fallback for {track_id}: {retry_err}")
+                    self.music_manager.update_track(
+                        track_id,
+                        status=MusicTrackStatus.FAILED,
+                        error=f"CPU fallback also failed: {retry_err}",
+                    )
+                    return
+            else:
+                logger.error(f"Music generation failed for {track_id}: {e}")
+                self.music_manager.update_track(
+                    track_id,
+                    status=MusicTrackStatus.FAILED,
+                    error=str(e),
+                )
+                return
 
-            # Generate audio in thread pool
-            loop = asyncio.get_event_loop()
-            wav = await loop.run_in_executor(
-                _model_executor, self._generate_sync, prompt, duration
-            )
-
-            # Save audio file
+        # Save audio file
+        try:
             import torchaudio
-            from pathlib import Path
 
             audio_dir = self.music_manager._track_dir(track_id)
             audio_dir.mkdir(parents=True, exist_ok=True)
@@ -140,9 +193,10 @@ class MusicGeneratorWorker:
             torchaudio.save(str(audio_path), audio_data, sample_rate)
 
             file_size = audio_path.stat().st_size
+            device_info = f" [device={self.device}]" if self.device == "cpu" else ""
             logger.info(
                 f"Generated music track {track_id}: {duration}s, "
-                f"{file_size / 1024:.1f}KB, sr={sample_rate}"
+                f"{file_size / 1024:.1f}KB, sr={sample_rate}{device_info}"
             )
 
             self.music_manager.update_track(
@@ -151,14 +205,27 @@ class MusicGeneratorWorker:
                 file_path=str(audio_path),
                 file_size_bytes=file_size,
             )
-
         except Exception as e:
-            logger.error(f"Music generation failed for {track_id}: {e}")
+            logger.error(f"Failed to save audio for {track_id}: {e}")
             self.music_manager.update_track(
                 track_id,
                 status=MusicTrackStatus.FAILED,
                 error=str(e),
             )
+
+    async def _try_generate(
+        self,
+        track_id: str,
+        prompt: str,
+        duration: float,
+        model_size: MusicModelSize,
+    ):
+        """Attempt to load model and generate audio. Raises on failure."""
+        await self._ensure_model_loaded(model_size)
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            _model_executor, self._generate_sync, prompt, duration
+        )
 
     def get_status(self) -> dict:
         """Get worker status info."""
@@ -167,12 +234,17 @@ class MusicGeneratorWorker:
             "device": self.device,
             "model_loaded": self.model is not None,
             "current_model_size": self.current_model_size.value if self.current_model_size else None,
+            "cuda_fallback_active": self._cuda_fallback_logged,
         }
-        if self.device == "cuda" and AUDIOCRAFT_AVAILABLE:
+        if AUDIOCRAFT_AVAILABLE:
             try:
                 import torch
+                status["torch_version"] = torch.__version__
+                status["torch_cuda_version"] = torch.version.cuda
                 if torch.cuda.is_available():
                     status["gpu_name"] = torch.cuda.get_device_name(0)
+                    cap = torch.cuda.get_device_capability(0)
+                    status["gpu_compute_capability"] = f"sm_{cap[0]}{cap[1]}"
                     mem = torch.cuda.mem_get_info(0)
                     status["gpu_memory_free_gb"] = round(mem[0] / 1024**3, 2)
                     status["gpu_memory_total_gb"] = round(mem[1] / 1024**3, 2)
