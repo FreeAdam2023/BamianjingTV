@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import { listTimelines, listJobs, getStats, formatDuration, createJob, createJobWithUpload, updateTimelineTitle } from "@/lib/api";
-import type { TimelineSummary, Job, JobCreate } from "@/lib/types";
+import type { TimelineSummary, Job, JobCreate, WhisperModel } from "@/lib/types";
 import type { UploadProgress } from "@/lib/api";
 
 type VideoMode = "watching" | "dubbing";
@@ -47,6 +47,7 @@ export default function Home() {
   const [sourceLanguage, setSourceLanguage] = useState("en");
   const [targetLanguage, setTargetLanguage] = useState("zh-CN");
   const [enableDiarization, setEnableDiarization] = useState(false);
+  const [whisperModel, setWhisperModel] = useState<WhisperModel>("large-v3");
 
   const loadData = useCallback(async () => {
     try {
@@ -85,6 +86,7 @@ export default function Home() {
     setSourceLanguage("en");
     setTargetLanguage("zh-CN");
     setEnableDiarization(false);
+    setWhisperModel("large-v3");
     setShowModal(true);
   }
 
@@ -113,6 +115,7 @@ export default function Home() {
         mode: videoMode,
         target_language: effectiveTargetLang,
         skip_diarization: !enableDiarization,
+        whisper_model: whisperModel,
       };
 
       if (inputMode === "url") {
@@ -127,6 +130,7 @@ export default function Home() {
             mode: videoMode,
             target_language: effectiveTargetLang,
             skip_diarization: !enableDiarization,
+            whisper_model: whisperModel,
           },
           (progress) => setUploadProgress(progress)
         );
@@ -579,6 +583,35 @@ export default function Home() {
                   </div>
                 </div>
               )}
+
+              {/* Whisper Model Size */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  转录模型
+                </label>
+                <div className="flex gap-2">
+                  {([
+                    { value: "small", label: "Small", desc: "快速" },
+                    { value: "medium", label: "Medium", desc: "均衡" },
+                    { value: "large-v3", label: "Large v3", desc: "最准确" },
+                  ] as const).map((m) => (
+                    <button
+                      key={m.value}
+                      type="button"
+                      onClick={() => setWhisperModel(m.value)}
+                      disabled={submitting}
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        whisperModel === m.value
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                      }`}
+                    >
+                      {m.label}
+                      <span className="block text-[10px] opacity-70 font-normal">{m.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               {/* Speaker Diarization */}
               <div className="mb-4">

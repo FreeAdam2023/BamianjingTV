@@ -108,6 +108,7 @@ async def process_job(
             await job_manager.update_status(job, JobStatus.TRANSCRIBING, 0.30)
             transcript = await whisper_worker.transcribe(
                 audio_path=Path(job.source_audio),
+                model_name=getattr(job, "whisper_model", None),
             )
             await whisper_worker.save_transcript(transcript, raw_path)
 

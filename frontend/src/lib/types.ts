@@ -286,12 +286,15 @@ export interface Job {
   total_cost_usd?: number | null;
 }
 
+export type WhisperModel = "tiny" | "base" | "small" | "medium" | "large-v3";
+
 export interface JobCreate {
   url: string;
   mode?: JobMode;
   target_language?: string;
   use_traditional_chinese?: boolean;
   skip_diarization?: boolean;
+  whisper_model?: WhisperModel;
   learning_config?: Partial<LearningConfig>;
   watching_config?: Partial<WatchingConfig>;
   dubbing_config?: Partial<DubbingConfig>;

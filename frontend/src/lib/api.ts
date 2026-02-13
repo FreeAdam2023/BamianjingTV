@@ -509,6 +509,7 @@ export interface JobUploadOptions {
   mode?: string;
   target_language?: string;
   skip_diarization?: boolean;
+  whisper_model?: string;
   title?: string;
 }
 
@@ -527,6 +528,7 @@ export async function createJobWithUpload(
   formData.append("mode", options.mode || "learning");
   formData.append("target_language", options.target_language || "zh-CN");
   formData.append("skip_diarization", String(options.skip_diarization ?? true));
+  formData.append("whisper_model", options.whisper_model || "large-v3");
   if (options.title) {
     formData.append("title", options.title);
   }

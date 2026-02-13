@@ -19,6 +19,7 @@ class WhisperWorker:
     def __init__(self):
         self.model = None
         self.model_name = settings.whisper_model
+        self._loaded_model_name: Optional[str] = None
         self.device = settings.whisper_device
         self.compute_type = settings.whisper_compute_type
         self._load_lock: Optional[asyncio.Lock] = None
@@ -42,19 +43,28 @@ class WhisperWorker:
         logger.info("Whisper model loaded")
         return model
 
-    async def _ensure_model_loaded(self):
-        """Ensure model is loaded, with proper locking to prevent race conditions."""
-        if self.model is not None:
+    async def _ensure_model_loaded(self, model_name: Optional[str] = None):
+        """Ensure model is loaded, with proper locking to prevent race conditions.
+
+        If model_name differs from the currently loaded model, reload.
+        """
+        requested = model_name or self.model_name
+        if self.model is not None and self._loaded_model_name == requested:
             return
 
         async with self._get_lock():
-            # Double-check after acquiring lock
-            if self.model is not None:
+            if self.model is not None and self._loaded_model_name == requested:
                 return
 
+            if self.model is not None and self._loaded_model_name != requested:
+                logger.info(f"Switching Whisper model from {self._loaded_model_name} to {requested}")
+                self.model = None
+
+            self.model_name = requested
             logger.info("Waiting for Whisper model to load...")
             loop = asyncio.get_event_loop()
             self.model = await loop.run_in_executor(_model_executor, self._load_model_sync)
+            self._loaded_model_name = requested
 
     def _transcribe_sync(self, audio_path: str, language: Optional[str]) -> tuple:
         """Synchronous transcription (runs in thread pool)."""
@@ -72,6 +82,7 @@ class WhisperWorker:
         self,
         audio_path: Path,
         language: Optional[str] = None,
+        model_name: Optional[str] = None,
     ) -> Transcript:
         """
         Transcribe audio file.
@@ -79,12 +90,13 @@ class WhisperWorker:
         Args:
             audio_path: Path to audio file (WAV recommended)
             language: Source language code (auto-detect if None)
+            model_name: Whisper model to use (e.g. "small", "medium", "large-v3")
 
         Returns:
             Transcript with timestamped segments
         """
         # Ensure model is loaded (with lock to prevent race conditions)
-        await self._ensure_model_loaded()
+        await self._ensure_model_loaded(model_name)
 
         audio_path = Path(audio_path)
         if not audio_path.exists():

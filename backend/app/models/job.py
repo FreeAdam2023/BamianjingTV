@@ -109,6 +109,9 @@ class JobCreate(BaseModel):
     skip_diarization: bool = Field(
         default=False, description="Skip speaker diarization step"
     )
+    whisper_model: str = Field(
+        default="large-v3", description="Whisper model size (tiny, base, small, medium, large-v3)"
+    )
 
     # Mode-specific configurations
     learning_config: Optional[LearningConfig] = None
@@ -235,6 +238,9 @@ class Job(BaseModel):
     )
     skip_diarization: bool = Field(
         default=False, description="Skip speaker diarization step"
+    )
+    whisper_model: str = Field(
+        default="large-v3", description="Whisper model size"
     )
     used_youtube_subtitles: bool = Field(
         default=False, description="Whether YouTube subtitles were used instead of Whisper"

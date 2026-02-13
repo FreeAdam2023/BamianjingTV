@@ -117,6 +117,7 @@ async def create_job(
     # SceneMind options
     job.use_traditional_chinese = job_create.use_traditional_chinese
     job.skip_diarization = job_create.skip_diarization
+    job.whisper_model = job_create.whisper_model
     _job_manager.save_job(job)
 
     # Register webhook if provided
@@ -137,6 +138,7 @@ async def create_job_with_upload(
     mode: str = Form("learning"),
     target_language: str = Form("zh-TW"),
     skip_diarization: bool = Form(True),
+    whisper_model: str = Form("large-v3"),
     title: Optional[str] = Form(None),
     background_tasks: BackgroundTasks = None,
 ):
@@ -205,6 +207,7 @@ async def create_job_with_upload(
     # Set mode and options
     job.mode = JobMode(mode)
     job.skip_diarization = skip_diarization
+    job.whisper_model = whisper_model
     job.use_traditional_chinese = target_language.startswith("zh-TW")
 
     # Set title from form or filename
