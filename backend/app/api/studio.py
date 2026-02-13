@@ -9,6 +9,7 @@ from app.models.studio import (
     LightingRequest,
     PrivacyRequest,
     SceneRequest,
+    ScreenContentRequest,
     StudioCommandResponse,
     StudioPresets,
     StudioState,
@@ -103,5 +104,17 @@ async def set_character(request: CharacterRequest):
     return StudioCommandResponse(
         success=ok,
         message="Character updated" if ok else UE_OFFLINE_MSG,
+        state=manager.get_state(),
+    )
+
+
+@router.post("/screen", response_model=StudioCommandResponse)
+async def set_screen_content(request: ScreenContentRequest):
+    """Change monitor screen content source."""
+    manager = _get_manager()
+    ok = await manager.set_screen_content(request)
+    return StudioCommandResponse(
+        success=ok,
+        message=f"Screen content: {request.content_type.value}" if ok else UE_OFFLINE_MSG,
         state=manager.get_state(),
     )

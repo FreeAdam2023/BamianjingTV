@@ -15,6 +15,8 @@ from app.models.studio import (
     PrivacyRequest,
     ScenePreset,
     SceneRequest,
+    ScreenContentRequest,
+    ScreenContentType,
     StudioPresets,
     StudioState,
     WeatherRequest,
@@ -102,6 +104,7 @@ class StudioManager:
             character_actions=[e.value for e in CharacterAction],
             character_expressions=[e.value for e in CharacterExpression],
             lighting_presets=["interview", "dramatic", "soft", "natural"],
+            screen_content_types=[e.value for e in ScreenContentType],
         )
 
     # ---- Control commands ----
@@ -168,6 +171,22 @@ class StudioManager:
                 self._state.character_action = req.action
             if req.expression:
                 self._state.character_expression = req.expression
+            self._save_state()
+        self._state.ue_connected = ok
+        return ok
+
+    async def set_screen_content(self, req: ScreenContentRequest) -> bool:
+        payload: dict = {
+            "content_type": req.content_type.value,
+            "brightness": req.brightness,
+        }
+        if req.url:
+            payload["url"] = req.url
+        ok = await self._forward_to_ue("/set_screen_content", payload)
+        if ok:
+            self._state.screen_content_type = req.content_type
+            self._state.screen_url = req.url
+            self._state.screen_brightness = req.brightness
             self._save_state()
         self._state.ue_connected = ok
         return ok

@@ -9,6 +9,7 @@ import {
   setStudioPrivacy,
   setStudioLighting,
   setStudioCharacter,
+  setStudioScreenContent,
 } from "@/lib/api";
 import type {
   StudioState,
@@ -16,6 +17,7 @@ import type {
   WeatherType,
   CharacterAction,
   CharacterExpression,
+  ScreenContentType,
 } from "@/lib/types";
 
 const SCENE_LABELS: Record<ScenePreset, { label: string; icon: string }> = {
@@ -23,6 +25,7 @@ const SCENE_LABELS: Record<ScenePreset, { label: string; icon: string }> = {
   news_desk: { label: "新闻演播台", icon: "📺" },
   podcast_studio: { label: "播客录音室", icon: "🎙" },
   classroom: { label: "教室", icon: "📚" },
+  home_study: { label: "书房", icon: "🪑" },
 };
 
 const WEATHER_LABELS: Record<WeatherType, { label: string; icon: string }> = {
@@ -48,6 +51,15 @@ const EXPRESSION_LABELS: Record<CharacterExpression, string> = {
   serious: "严肃",
   surprised: "惊讶",
 };
+
+const SCREEN_CONTENT_LABELS: Record<ScreenContentType, { label: string; icon: string }> = {
+  screen_capture: { label: "屏幕采集", icon: "🖥" },
+  web_url: { label: "网页", icon: "🌐" },
+  custom_image: { label: "自定义图片", icon: "🖼" },
+  off: { label: "关闭", icon: "⬛" },
+};
+
+const SCENES_WITH_MONITOR: ScenePreset[] = ["modern_office", "home_study", "news_desk"];
 
 /** Debounce helper: always calls the latest callback after `delay` ms of inactivity. */
 function useDebouncedCallback<T extends (...args: never[]) => void>(callback: T, delay: number) {
@@ -77,6 +89,8 @@ export default function StudioPage() {
   const [localFill, setLocalFill] = useState(0.4);
   const [localBack, setLocalBack] = useState(0.6);
   const [localTemp, setLocalTemp] = useState(5500);
+  const [localScreenBrightness, setLocalScreenBrightness] = useState(1.0);
+  const [screenUrl, setScreenUrl] = useState("");
 
   // Refs for latest slider values (avoids stale closures in onChange handlers)
   const lightingRef = useRef({ key: localKey, fill: localFill, back: localBack, temp: localTemp });
@@ -107,6 +121,8 @@ export default function StudioPage() {
       setLocalFill(s.lighting_fill);
       setLocalBack(s.lighting_back);
       setLocalTemp(s.lighting_temperature);
+      setLocalScreenBrightness(s.screen_brightness);
+      setScreenUrl(s.screen_url || "");
     }
   }, []);
 
@@ -245,6 +261,66 @@ export default function StudioPage() {
     }
   }
 
+  async function handleScreenContent(contentType: string) {
+    setSending(true);
+    try {
+      const res = await setStudioScreenContent({
+        content_type: contentType,
+        url: screenUrl || undefined,
+        brightness: localScreenBrightness,
+      });
+      setState(res.state);
+      syncLocals(res.state);
+      if (res.success) {
+        setLastSuccess("显示器内容已更新");
+      } else {
+        setError(res.message);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function handleScreenUrlSubmit() {
+    if (!state) return;
+    setSending(true);
+    try {
+      const res = await setStudioScreenContent({
+        content_type: state.screen_content_type,
+        url: screenUrl || undefined,
+        brightness: localScreenBrightness,
+      });
+      setState(res.state);
+      syncLocals(res.state);
+      if (res.success) {
+        setLastSuccess("URL 已更新");
+      } else {
+        setError(res.message);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const commitScreenBrightness = useDebouncedCallback(
+    async (value: number) => {
+      dragging.current = false;
+      try {
+        const res = await setStudioScreenContent({
+          content_type: state?.screen_content_type || "off",
+          url: screenUrl || undefined,
+          brightness: value,
+        });
+        setState(res.state);
+      } catch { /* ignore */ }
+    },
+    300,
+  );
+
   function formatTime(hour: number): string {
     const h = Math.floor(hour);
     const m = Math.round((hour - h) * 60);
@@ -378,6 +454,19 @@ export default function StudioPage() {
                   label="表情"
                   value={EXPRESSION_LABELS[state?.character_expression || "neutral"]}
                 />
+                {state && SCENES_WITH_MONITOR.includes(state.scene) && (
+                  <>
+                    <div className="border-t border-gray-700 my-2" />
+                    <StatusRow
+                      label="显示器"
+                      value={SCREEN_CONTENT_LABELS[state.screen_content_type || "off"].label}
+                    />
+                    <StatusRow
+                      label="屏幕亮度"
+                      value={`${Math.round((state.screen_brightness ?? 1) * 100)}%`}
+                    />
+                  </>
+                )}
               </div>
             </div>
 
@@ -648,6 +737,91 @@ export default function StudioPage() {
                 </div>
               </div>
             </div>
+
+            {/* Screen Content — only shown for scenes with monitors */}
+            {state && SCENES_WITH_MONITOR.includes(state.scene) && (
+              <div className="card animate-fade-in" style={{ animationDelay: "300ms" }}>
+                <h2 className="text-lg font-semibold mb-4">显示器内容</h2>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">内容源</label>
+                    <div className="flex flex-wrap gap-2" role="group" aria-label="显示器内容源">
+                      {(Object.entries(SCREEN_CONTENT_LABELS) as [ScreenContentType, { label: string; icon: string }][]).map(
+                        ([type, { label, icon }]) => (
+                          <button
+                            key={type}
+                            onClick={() => handleScreenContent(type)}
+                            disabled={sending}
+                            aria-pressed={state?.screen_content_type === type}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+                              state?.screen_content_type === type
+                                ? "bg-cyan-600 text-white"
+                                : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                            }`}
+                          >
+                            {icon} {label}
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </div>
+
+                  {(state.screen_content_type === "web_url" || state.screen_content_type === "custom_image") && (
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1" htmlFor="screen-url">
+                        {state.screen_content_type === "web_url" ? "网页 URL" : "图片 URL"}
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          id="screen-url"
+                          type="url"
+                          value={screenUrl}
+                          onChange={(e) => setScreenUrl(e.target.value)}
+                          placeholder={state.screen_content_type === "web_url" ? "https://example.com" : "https://example.com/image.png"}
+                          className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:border-cyan-500 focus:outline-none"
+                        />
+                        <button
+                          onClick={handleScreenUrlSubmit}
+                          disabled={sending || !screenUrl}
+                          className="px-4 py-2 bg-cyan-600 text-white rounded-lg text-sm font-medium hover:bg-cyan-500 disabled:opacity-50 transition-colors"
+                        >
+                          应用
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">
+                      亮度：{Math.round(localScreenBrightness * 100)}%
+                    </label>
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={localScreenBrightness}
+                      aria-label={`显示器亮度 ${Math.round(localScreenBrightness * 100)}%`}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={Math.round(localScreenBrightness * 100)}
+                      aria-valuetext={`${Math.round(localScreenBrightness * 100)}%`}
+                      onChange={(e) => {
+                        dragging.current = true;
+                        const v = Number(e.target.value);
+                        setLocalScreenBrightness(v);
+                        commitScreenBrightness(v);
+                      }}
+                      className="w-full accent-cyan-500"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>关闭</span>
+                      <span>最亮</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

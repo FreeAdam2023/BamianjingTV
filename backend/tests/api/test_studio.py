@@ -224,6 +224,46 @@ class TestManagerNotInitialized:
         assert resp.status_code == 503
 
 
+class TestSetScreenContent:
+    def test_success(self, client, studio_manager):
+        with patch.object(studio_manager, "_forward_to_ue", new_callable=AsyncMock, return_value=True):
+            resp = client.post("/studio/screen", json={
+                "content_type": "web_url",
+                "url": "https://example.com",
+                "brightness": 0.8,
+            })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert "web_url" in data["message"]
+        assert data["state"]["screen_content_type"] == "web_url"
+        assert data["state"]["screen_url"] == "https://example.com"
+        assert data["state"]["screen_brightness"] == 0.8
+
+    def test_ue_offline(self, client, studio_manager):
+        with patch.object(studio_manager, "_forward_to_ue", new_callable=AsyncMock, return_value=False):
+            resp = client.post("/studio/screen", json={"content_type": "screen_capture"})
+        data = resp.json()
+        assert data["success"] is False
+        assert "unreachable" in data["message"]
+        assert data["state"]["screen_content_type"] == "off"  # default unchanged
+
+    def test_invalid_content_type(self, client):
+        resp = client.post("/studio/screen", json={"content_type": "invalid"})
+        assert resp.status_code == 422
+
+    def test_off_type(self, client, studio_manager):
+        with patch.object(studio_manager, "_forward_to_ue", new_callable=AsyncMock, return_value=True):
+            resp = client.post("/studio/screen", json={"content_type": "off"})
+        data = resp.json()
+        assert data["success"] is True
+        assert data["state"]["screen_content_type"] == "off"
+
+    def test_brightness_validation(self, client):
+        resp = client.post("/studio/screen", json={"content_type": "off", "brightness": 1.5})
+        assert resp.status_code == 422
+
+
 class TestResponseStructure:
     """Verify all expected fields are present in responses."""
 
@@ -234,6 +274,7 @@ class TestResponseStructure:
             "scene", "weather", "time_of_day", "privacy_level",
             "lighting_key", "lighting_fill", "lighting_back", "lighting_temperature",
             "character_action", "character_expression",
+            "screen_content_type", "screen_url", "screen_brightness",
             "ue_connected", "ue_fps", "ue_gpu_usage", "pixel_streaming_url",
         }
         assert expected_fields == set(data.keys())
@@ -244,6 +285,7 @@ class TestResponseStructure:
         expected_fields = {
             "scenes", "weather_types", "character_actions",
             "character_expressions", "lighting_presets",
+            "screen_content_types",
         }
         assert expected_fields == set(data.keys())
 

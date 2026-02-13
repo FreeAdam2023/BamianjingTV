@@ -17,6 +17,8 @@ from app.models.studio import (
     PrivacyRequest,
     ScenePreset,
     SceneRequest,
+    ScreenContentRequest,
+    ScreenContentType,
     StudioState,
     WeatherRequest,
     WeatherType,
@@ -108,6 +110,8 @@ class TestGetPresets:
         assert len(presets.character_actions) == len(CharacterAction)
         assert len(presets.character_expressions) == len(CharacterExpression)
         assert "interview" in presets.lighting_presets
+        assert len(presets.screen_content_types) == len(ScreenContentType)
+        assert "screen_capture" in presets.screen_content_types
 
 
 class TestSetScene:
@@ -251,6 +255,77 @@ class TestSetCharacter:
             ok = await manager.set_character(req)
         assert ok is False
         assert manager.get_state().character_action == CharacterAction.IDLE
+
+
+class TestSetScreenContent:
+    @pytest.mark.asyncio
+    async def test_success(self, manager):
+        req = ScreenContentRequest(
+            content_type=ScreenContentType.WEB_URL,
+            url="https://example.com",
+            brightness=0.8,
+        )
+        with patch.object(manager, "_forward_to_ue", new_callable=AsyncMock, return_value=True):
+            ok = await manager.set_screen_content(req)
+        assert ok is True
+        state = manager.get_state()
+        assert state.screen_content_type == ScreenContentType.WEB_URL
+        assert state.screen_url == "https://example.com"
+        assert state.screen_brightness == 0.8
+
+    @pytest.mark.asyncio
+    async def test_failure_keeps_old_state(self, manager):
+        req = ScreenContentRequest(content_type=ScreenContentType.SCREEN_CAPTURE)
+        with patch.object(manager, "_forward_to_ue", new_callable=AsyncMock, return_value=False):
+            ok = await manager.set_screen_content(req)
+        assert ok is False
+        state = manager.get_state()
+        assert state.screen_content_type == ScreenContentType.OFF  # default unchanged
+
+    @pytest.mark.asyncio
+    async def test_off_clears_url(self, manager):
+        # First set a URL
+        with patch.object(manager, "_forward_to_ue", new_callable=AsyncMock, return_value=True):
+            await manager.set_screen_content(ScreenContentRequest(
+                content_type=ScreenContentType.WEB_URL,
+                url="https://example.com",
+            ))
+        assert manager.get_state().screen_url == "https://example.com"
+
+        # Now turn off — url should be None
+        with patch.object(manager, "_forward_to_ue", new_callable=AsyncMock, return_value=True):
+            await manager.set_screen_content(ScreenContentRequest(
+                content_type=ScreenContentType.OFF,
+            ))
+        state = manager.get_state()
+        assert state.screen_content_type == ScreenContentType.OFF
+        assert state.screen_url is None
+
+    @pytest.mark.asyncio
+    async def test_payload_sent_to_ue(self, manager):
+        req = ScreenContentRequest(
+            content_type=ScreenContentType.CUSTOM_IMAGE,
+            url="https://example.com/img.png",
+            brightness=0.5,
+        )
+        with patch.object(manager, "_forward_to_ue", new_callable=AsyncMock, return_value=True) as mock:
+            await manager.set_screen_content(req)
+        call_payload = mock.call_args[0][1]
+        assert call_payload["content_type"] == "custom_image"
+        assert call_payload["url"] == "https://example.com/img.png"
+        assert call_payload["brightness"] == 0.5
+
+    @pytest.mark.asyncio
+    async def test_persists_on_success(self, manager, temp_state_file):
+        with patch.object(manager, "_forward_to_ue", new_callable=AsyncMock, return_value=True):
+            await manager.set_screen_content(ScreenContentRequest(
+                content_type=ScreenContentType.SCREEN_CAPTURE,
+                brightness=0.6,
+            ))
+        assert temp_state_file.exists()
+        data = json.loads(temp_state_file.read_text(encoding="utf-8"))
+        assert data["screen_content_type"] == "screen_capture"
+        assert data["screen_brightness"] == 0.6
 
 
 class TestForwardToUE:

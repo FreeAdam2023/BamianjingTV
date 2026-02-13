@@ -12,6 +12,7 @@ class ScenePreset(str, Enum):
     NEWS_DESK = "news_desk"
     PODCAST_STUDIO = "podcast_studio"
     CLASSROOM = "classroom"
+    HOME_STUDY = "home_study"
 
 
 class WeatherType(str, Enum):
@@ -49,6 +50,14 @@ class LightingPreset(str, Enum):
     NATURAL = "natural"
 
 
+class ScreenContentType(str, Enum):
+    """Content types for in-scene monitors."""
+    SCREEN_CAPTURE = "screen_capture"
+    WEB_URL = "web_url"
+    CUSTOM_IMAGE = "custom_image"
+    OFF = "off"
+
+
 # ============ Request Models ============
 
 
@@ -83,6 +92,13 @@ class CharacterRequest(BaseModel):
     expression: Optional[CharacterExpression] = None
 
 
+class ScreenContentRequest(BaseModel):
+    """Request to change monitor screen content."""
+    content_type: ScreenContentType = ScreenContentType.SCREEN_CAPTURE
+    url: Optional[str] = Field(default=None, description="URL for web_url or custom_image types")
+    brightness: float = Field(default=1.0, ge=0.0, le=1.0, description="Screen brightness (0=off, 1=full)")
+
+
 # ============ State / Response Models ============
 
 
@@ -98,6 +114,9 @@ class StudioState(BaseModel):
     lighting_temperature: float = 5500.0
     character_action: CharacterAction = CharacterAction.IDLE
     character_expression: CharacterExpression = CharacterExpression.NEUTRAL
+    screen_content_type: ScreenContentType = ScreenContentType.OFF
+    screen_url: Optional[str] = None
+    screen_brightness: float = 1.0
     ue_connected: bool = False
     ue_fps: Optional[float] = None
     ue_gpu_usage: Optional[float] = None
@@ -111,6 +130,7 @@ class StudioPresets(BaseModel):
     character_actions: list[str]
     character_expressions: list[str]
     lighting_presets: list[str]
+    screen_content_types: list[str]
 
 
 class StudioCommandResponse(BaseModel):

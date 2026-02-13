@@ -543,6 +543,64 @@ ffmpeg -f x11grab -s 1920x1080 -r 60 -i :1 \
   -f mpegts "srt://192.168.1.100:9001?mode=caller"
 ```
 
+### 3.8 Home Study 书房场景搭建
+
+书房场景（`home_study`）中的电脑显示器需要显示真实屏幕内容，通过 `/studio/screen` API 控制。
+
+#### 显示器内容源类型
+
+| content_type | 说明 | UE5 实现 |
+|-------------|------|---------|
+| `screen_capture` | OBS 桌面采集（NDI/SRT） | Media Texture 接收视频流 |
+| `web_url` | 网页内容 | Web Browser Widget 或截图 |
+| `custom_image` | 自定义图片 | Texture2D 动态加载 |
+| `off` | 关闭显示器 | 黑色材质 + 亮度 0 |
+
+#### UE5 Blueprint 配置
+
+在 `BP_ScreenManager` 中添加：
+
+```
+变量：
+  - ContentType: EScreenContentType (screen_capture, web_url, custom_image, off)
+  - ScreenURL: FString
+  - ScreenBrightness: Float (0.0-1.0)
+
+函数：
+  - SetScreenContent(Type, URL, Brightness) → 切换内容源
+    - screen_capture: 激活 MediaPlayer，连接 NDI/RTSP 源
+    - web_url: 加载 Web Browser Widget 到 Render Target
+    - custom_image: 从 URL 下载图片并创建 Texture2D
+    - off: 设置材质发光为黑色
+  - SetScreenBrightness(Value) → 调节 Emissive 乘数
+```
+
+#### 材质设置
+
+```
+Material: M_MonitorScreen (基于 M_ScreenDisplay)
+├── Switch 节点 (ContentType)
+│   ├── Case 0 (screen_capture): MediaTexture → Emissive
+│   ├── Case 1 (web_url): RenderTarget → Emissive
+│   ├── Case 2 (custom_image): Texture2D → Emissive
+│   └── Case 3 (off): Constant(0,0,0) → Emissive
+└── ScalarParameter: "Brightness" (0.0-1.0)
+    └── Multiply → Emissive Color
+```
+
+#### HTTP 端点（Remote Control API 暴露）
+
+```
+POST /set_screen_content
+Body: {
+  "content_type": "screen_capture",
+  "url": null,
+  "brightness": 1.0
+}
+```
+
+SceneMind API 的 `POST /studio/screen` 会转发到此端点。
+
 ---
 
 ## 四、SRT 流媒体配置
@@ -694,6 +752,7 @@ Web 控制台集成到 SceneMind 项目中。
 | `POST` | `/studio/privacy` | 设置隐私雾化 | `{"level": 0.5}` |
 | `POST` | `/studio/lighting` | 调节灯光 | `{"key": 0.8, "fill": 0.4, "back": 0.6, "temperature": 5500}` |
 | `POST` | `/studio/character` | 切换角色动作 | `{"action": "talking", "expression": "smile"}` |
+| `POST` | `/studio/screen` | 切换显示器内容 | `{"content_type": "screen_capture", "url": null, "brightness": 1.0}` |
 | `GET` | `/studio/status` | 获取当前状态 | — |
 | `GET` | `/studio/presets` | 获取可用预设 | — |
 

@@ -1,0 +1,32 @@
+# /etc/systemd/system/virtual-studio.service
+# Install: sudo cp deploy/virtual-studio.service /etc/systemd/system/
+#          sudo systemctl daemon-reload && sudo systemctl enable virtual-studio
+
+[Unit]
+Description=Virtual Studio UE5 Renderer
+After=network.target graphical.target
+Requires=graphical.target
+
+[Service]
+Type=simple
+User=studio
+Group=studio
+WorkingDirectory=/opt/virtual-studio
+Environment="DISPLAY=:0"
+Environment="SDL_VIDEODRIVER=x11"
+ExecStart=/opt/virtual-studio/VirtualStudio.sh \
+  -RenderOffscreen \
+  -Res=1920x1080 \
+  -FPS=60 \
+  -PixelStreamingIP=0.0.0.0 \
+  -PixelStreamingPort=8888 \
+  -AudioMixer \
+  -nosplash \
+  -nosound \
+  -log
+Restart=on-failure
+RestartSec=10
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

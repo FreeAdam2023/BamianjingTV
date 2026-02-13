@@ -883,11 +883,12 @@ export interface AmbientSound {
 
 // ============ Studio Types ============
 
-export type ScenePreset = "modern_office" | "news_desk" | "podcast_studio" | "classroom";
+export type ScenePreset = "modern_office" | "news_desk" | "podcast_studio" | "classroom" | "home_study";
 export type WeatherType = "clear" | "cloudy" | "rain" | "snow" | "night";
 export type CharacterAction = "idle" | "talking" | "nodding" | "thinking" | "waving" | "writing";
 export type CharacterExpression = "neutral" | "smile" | "serious" | "surprised";
 export type LightingPreset = "interview" | "dramatic" | "soft" | "natural";
+export type ScreenContentType = "screen_capture" | "web_url" | "custom_image" | "off";
 
 export interface StudioState {
   scene: ScenePreset;
@@ -900,6 +901,9 @@ export interface StudioState {
   lighting_temperature: number;
   character_action: CharacterAction;
   character_expression: CharacterExpression;
+  screen_content_type: ScreenContentType;
+  screen_url: string | null;
+  screen_brightness: number;
   ue_connected: boolean;
   ue_fps: number | null;
   ue_gpu_usage: number | null;
@@ -912,6 +916,7 @@ export interface StudioPresets {
   character_actions: string[];
   character_expressions: string[];
   lighting_presets: string[];
+  screen_content_types: string[];
 }
 
 export interface StudioCommandResponse {

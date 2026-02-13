@@ -1,4 +1,4 @@
-.PHONY: help install dev test lint clean docker-build docker-up docker-down frontend-install frontend-dev
+.PHONY: help install dev test lint clean docker-build docker-up docker-down frontend-install frontend-dev ue5-deploy ue5-status ue5-stop ue5-logs
 
 # Default target
 help:
@@ -113,6 +113,23 @@ docker-dev:
 
 docker-dev-down:
 	docker compose -f docker-compose.dev.yml down
+
+# ============ UE5 Virtual Studio ============
+
+ue5-deploy:
+	bash deploy/deploy-ue5.sh --skip-package
+
+ue5-deploy-full:
+	bash deploy/deploy-ue5.sh
+
+ue5-status:
+	systemctl status virtual-studio
+
+ue5-stop:
+	sudo systemctl stop virtual-studio
+
+ue5-logs:
+	sudo journalctl -u virtual-studio -f
 
 # ============ Utilities ============
 

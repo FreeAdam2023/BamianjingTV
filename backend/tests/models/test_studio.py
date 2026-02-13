@@ -12,6 +12,8 @@ from app.models.studio import (
     PrivacyRequest,
     ScenePreset,
     SceneRequest,
+    ScreenContentRequest,
+    ScreenContentType,
     StudioCommandResponse,
     StudioPresets,
     StudioState,
@@ -26,7 +28,8 @@ class TestEnums:
     def test_scene_presets(self):
         assert ScenePreset.MODERN_OFFICE == "modern_office"
         assert ScenePreset.NEWS_DESK == "news_desk"
-        assert len(ScenePreset) == 4
+        assert ScenePreset.HOME_STUDY == "home_study"
+        assert len(ScenePreset) == 5
 
     def test_weather_types(self):
         assert WeatherType.CLEAR == "clear"
@@ -44,6 +47,13 @@ class TestEnums:
     def test_lighting_presets(self):
         assert LightingPreset.INTERVIEW == "interview"
         assert len(LightingPreset) == 4
+
+    def test_screen_content_types(self):
+        assert ScreenContentType.SCREEN_CAPTURE == "screen_capture"
+        assert ScreenContentType.WEB_URL == "web_url"
+        assert ScreenContentType.CUSTOM_IMAGE == "custom_image"
+        assert ScreenContentType.OFF == "off"
+        assert len(ScreenContentType) == 4
 
 
 class TestSceneRequest:
@@ -161,6 +171,38 @@ class TestCharacterRequest:
             CharacterRequest(expression="angry")
 
 
+class TestScreenContentRequest:
+    def test_defaults(self):
+        req = ScreenContentRequest()
+        assert req.content_type == ScreenContentType.SCREEN_CAPTURE
+        assert req.url is None
+        assert req.brightness == 1.0
+
+    def test_with_url(self):
+        req = ScreenContentRequest(
+            content_type=ScreenContentType.WEB_URL,
+            url="https://example.com",
+        )
+        assert req.content_type == ScreenContentType.WEB_URL
+        assert req.url == "https://example.com"
+
+    def test_from_string(self):
+        req = ScreenContentRequest(content_type="custom_image")
+        assert req.content_type == ScreenContentType.CUSTOM_IMAGE
+
+    def test_invalid_content_type(self):
+        with pytest.raises(ValidationError):
+            ScreenContentRequest(content_type="invalid")
+
+    def test_brightness_bounds(self):
+        ScreenContentRequest(brightness=0.0)
+        ScreenContentRequest(brightness=1.0)
+        with pytest.raises(ValidationError):
+            ScreenContentRequest(brightness=-0.1)
+        with pytest.raises(ValidationError):
+            ScreenContentRequest(brightness=1.1)
+
+
 class TestStudioState:
     def test_defaults(self):
         state = StudioState()
@@ -168,6 +210,9 @@ class TestStudioState:
         assert state.weather == WeatherType.CLEAR
         assert state.time_of_day == 14.0
         assert state.privacy_level == 0.0
+        assert state.screen_content_type == ScreenContentType.OFF
+        assert state.screen_url is None
+        assert state.screen_brightness == 1.0
         assert state.ue_connected is False
         assert state.pixel_streaming_url == ""
 
@@ -195,8 +240,10 @@ class TestStudioPresets:
             character_actions=["c"],
             character_expressions=["d"],
             lighting_presets=["e"],
+            screen_content_types=["f"],
         )
         assert presets.scenes == ["a"]
+        assert presets.screen_content_types == ["f"]
 
 
 class TestStudioCommandResponse:

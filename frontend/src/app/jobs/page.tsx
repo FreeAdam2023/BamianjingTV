@@ -23,6 +23,7 @@ export default function JobsPage() {
   const [inputMode, setInputMode] = useState<"url" | "upload">("url");
   const [newUrl, setNewUrl] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadTitle, setUploadTitle] = useState("");
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [jobOptions, setJobOptions] = useState<Partial<JobCreate>>({
@@ -80,6 +81,7 @@ export default function JobsPage() {
     setInputMode("url");
     setNewUrl("");
     setUploadFile(null);
+    setUploadTitle("");
     setUploadProgress(null);
     setJobOptions({
       mode: "learning",          // Default to Learning mode
@@ -95,6 +97,7 @@ export default function JobsPage() {
     setInputMode("url");
     setNewUrl("");
     setUploadFile(null);
+    setUploadTitle("");
     setUploadProgress(null);
     setError(null);
   }
@@ -123,6 +126,7 @@ export default function JobsPage() {
             mode: jobOptions.mode,
             target_language: jobOptions.target_language,
             skip_diarization: jobOptions.skip_diarization,
+            title: uploadTitle.trim() || undefined,
           },
           (progress) => setUploadProgress(progress)
         );
@@ -540,6 +544,11 @@ export default function JobsPage() {
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         setUploadFile(file || null);
+                        if (file && !uploadTitle) {
+                          // Auto-fill title from filename (without extension)
+                          const stem = file.name.replace(/\.[^.]+$/, "");
+                          setUploadTitle(stem);
+                        }
                       }}
                       className="hidden"
                       id="job-video-upload"
@@ -573,6 +582,22 @@ export default function JobsPage() {
                       )}
                     </label>
                   </div>
+                  {uploadFile && (
+                    <div className="mt-3">
+                      <label className="block text-sm font-medium text-gray-300 mb-1" htmlFor="upload-title">
+                        标题
+                      </label>
+                      <input
+                        id="upload-title"
+                        type="text"
+                        value={uploadTitle}
+                        onChange={(e) => setUploadTitle(e.target.value)}
+                        placeholder="输入视频标题..."
+                        className="input"
+                        disabled={submitting}
+                      />
+                    </div>
+                  )}
                   {uploadProgress && (
                     <div className="mt-3">
                       <div className="flex justify-between text-xs text-gray-400 mb-1">

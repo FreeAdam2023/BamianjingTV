@@ -1746,3 +1746,14 @@ export async function setStudioCharacter(params: {
     body: JSON.stringify(params),
   });
 }
+
+export async function setStudioScreenContent(params: {
+  content_type: string;
+  url?: string;
+  brightness?: number;
+}): Promise<StudioCommandResponse> {
+  return fetchAPI<StudioCommandResponse>("/studio/screen", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
