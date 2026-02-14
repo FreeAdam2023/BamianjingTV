@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { ExportProfile, ExportRequest, Timeline, TitleCandidate, MetadataDraft, SubtitleStyleOptions } from "@/lib/types";
-import { generateThumbnail, generateUnifiedMetadata, getMetadataDraft, saveMetadataDraft, formatDuration } from "@/lib/api";
+import { generateThumbnail, generateUnifiedMetadata, getMetadataDraft, saveMetadataDraft, formatDuration, setShowCardPanel, setCardDisplayDuration } from "@/lib/api";
 import { useToast } from "@/components/ui";
 
 interface ExportPanelProps {
@@ -17,6 +17,7 @@ interface ExportPanelProps {
   onClose: () => void;
   onExport: (request: ExportRequest) => Promise<unknown>;
   onExportStarted?: () => void;
+  onRefresh?: () => void;
 }
 
 export default function ExportPanel({
@@ -27,6 +28,7 @@ export default function ExportPanel({
   onClose,
   onExport,
   onExportStarted,
+  onRefresh,
 }: ExportPanelProps) {
   const toast = useToast();
   const [exportProfile, setExportProfile] = useState<ExportProfile>("full");
@@ -57,6 +59,10 @@ export default function ExportPanel({
   const [generatingThumbnail, setGeneratingThumbnail] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
   const [showCardInfo, setShowCardInfo] = useState(false);
+
+  // Card panel toggle + duration slider
+  const [showCardPanel, setShowCardPanelState] = useState(timeline.show_card_panel ?? true);
+  const [cardDuration, setCardDuration] = useState(timeline.card_display_duration ?? 7);
 
   // Compute pinned card counts by type
   const cardCounts = useMemo(() => {
@@ -165,11 +171,13 @@ export default function ExportPanel({
   }, [onClose]);
 
   const handleExport = async (testSeconds?: number) => {
-    console.log("[ExportPanel] Starting export...", { profile: exportProfile, subtitleStyle, testSeconds });
+    console.log("[ExportPanel] Starting export...", { profile: exportProfile, subtitleStyle, testSeconds, showCardPanel });
     const request: ExportRequest = {
       profile: exportProfile,
       use_traditional_chinese: useTraditional,
       subtitle_style: subtitleStyle,
+      subtitle_style_mode: timeline.subtitle_style_mode,
+      show_card_panel: showCardPanel,
       upload_to_youtube: false, // Don't upload yet, user will preview first
     };
     if (testSeconds) {
@@ -335,16 +343,38 @@ export default function ExportPanel({
                 {cardCounts.total > 0 ? (
                   <>
                     <span className="text-blue-300 font-medium">{cardCounts.total} 张卡片</span>
-                    <span className="text-gray-400"> 将嵌入视频</span>
+                    <span className="text-gray-400">{showCardPanel ? " 将嵌入视频" : " (面板已关闭)"}</span>
                   </>
                 ) : (
                   <span className="text-gray-500">暂无 pin 卡片</span>
                 )}
               </span>
+              {/* Card panel toggle */}
+              <button
+                onClick={async () => {
+                  const next = !showCardPanel;
+                  setShowCardPanelState(next);
+                  try {
+                    await setShowCardPanel(timeline.timeline_id, next);
+                  } catch (err) {
+                    console.error("Failed to toggle card panel:", err);
+                  }
+                }}
+                className={`ml-auto relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+                  showCardPanel ? "bg-blue-500" : "bg-gray-600"
+                }`}
+                title={showCardPanel ? "关闭卡片面板（导出为全宽视频）" : "开启卡片面板"}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ${
+                    showCardPanel ? "translate-x-4" : "translate-x-0"
+                  }`}
+                />
+              </button>
               {cardCounts.total > 0 && (
                 <button
                   onClick={() => setShowCardInfo(!showCardInfo)}
-                  className="ml-auto text-gray-400 hover:text-gray-200 transition-colors"
+                  className="text-gray-400 hover:text-gray-200 transition-colors"
                   title="查看卡片详情"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -353,11 +383,49 @@ export default function ExportPanel({
                 </button>
               )}
             </div>
+
+            {/* Card duration slider (only when panel is on and has pinned cards) */}
+            {showCardPanel && cardCounts.total > 0 && (
+              <div className="mt-2 px-3 py-2 bg-gray-700/30 rounded-lg">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-gray-400">卡片显示时长</span>
+                  <span className="text-xs text-blue-300 font-mono">{cardDuration.toFixed(1)}s</span>
+                </div>
+                <input
+                  type="range"
+                  min={3}
+                  max={15}
+                  step={0.5}
+                  value={cardDuration}
+                  onChange={(e) => setCardDuration(parseFloat(e.target.value))}
+                  onMouseUp={async () => {
+                    try {
+                      await setCardDisplayDuration(timeline.timeline_id, cardDuration);
+                      onRefresh?.();
+                    } catch (err) {
+                      console.error("Failed to set card duration:", err);
+                    }
+                  }}
+                  onTouchEnd={async () => {
+                    try {
+                      await setCardDisplayDuration(timeline.timeline_id, cardDuration);
+                      onRefresh?.();
+                    } catch (err) {
+                      console.error("Failed to set card duration:", err);
+                    }
+                  }}
+                  className="w-full h-1.5 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                />
+              </div>
+            )}
+
             {/* Info popup */}
             {showCardInfo && cardCounts.total > 0 && (
               <div className="absolute left-0 right-0 top-full mt-1 z-10 p-3 bg-gray-900 border border-gray-600 rounded-lg shadow-xl text-sm">
                 <p className="text-gray-300 mb-2">
-                  完整视频导出时，Pin 的卡片会以浮层形式渲染到视频右侧，在对应时间段自动显示和隐藏。
+                  {showCardPanel
+                    ? "完整视频导出时，Pin 的卡片会以浮层形式渲染到视频右侧，在对应时间段自动显示和隐藏。"
+                    : "卡片面板已关闭，导出视频为全宽画面 + 底部字幕，不包含右侧卡片区。"}
                 </p>
                 <div className="space-y-1">
                   {cardCounts.word > 0 && (

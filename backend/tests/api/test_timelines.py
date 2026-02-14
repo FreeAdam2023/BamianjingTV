@@ -487,3 +487,41 @@ class TestDropByTime:
         """Test drop-after for non-existent timeline."""
         response = client.post("/timelines/nonexistent/segments/drop-after?time=5.0")
         assert response.status_code == 404
+
+
+class TestShowCardPanel:
+    """Tests for POST /timelines/{id}/show-card-panel endpoint."""
+
+    def test_set_show_card_panel_true(self, client, sample_timeline):
+        """Test enabling card panel."""
+        response = client.post(
+            f"/timelines/{sample_timeline.timeline_id}/show-card-panel?show=true"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["show_card_panel"] is True
+
+    def test_set_show_card_panel_false(self, client, sample_timeline):
+        """Test disabling card panel."""
+        response = client.post(
+            f"/timelines/{sample_timeline.timeline_id}/show-card-panel?show=false"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["show_card_panel"] is False
+
+        # Verify persisted
+        get_response = client.get(f"/timelines/{sample_timeline.timeline_id}")
+        assert get_response.json()["show_card_panel"] is False
+
+    def test_show_card_panel_not_found(self, client):
+        """Test setting card panel for non-existent timeline."""
+        response = client.post("/timelines/nonexistent/show-card-panel?show=true")
+        assert response.status_code == 404
+
+    def test_show_card_panel_default_in_response(self, client, sample_timeline):
+        """Test that show_card_panel appears in timeline response with default True."""
+        response = client.get(f"/timelines/{sample_timeline.timeline_id}")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["show_card_panel"] is True

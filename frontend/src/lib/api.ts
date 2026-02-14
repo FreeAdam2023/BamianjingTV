@@ -1640,6 +1640,15 @@ export async function setCardDisplayDuration(
   });
 }
 
+export async function setShowCardPanel(
+  timelineId: string,
+  show: boolean
+): Promise<{ timeline_id: string; show_card_panel: boolean; message: string }> {
+  return fetchAPI(`/timelines/${timelineId}/show-card-panel?show=${show}`, {
+    method: "POST",
+  });
+}
+
 export interface PinnedCardsDescriptionResponse {
   timeline_id: string;
   description: string;

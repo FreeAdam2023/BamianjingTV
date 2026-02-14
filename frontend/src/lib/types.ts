@@ -80,6 +80,7 @@ export interface Timeline {
   // Pinned cards for export
   pinned_cards: PinnedCard[];
   card_display_duration: number;  // Default display duration in seconds
+  show_card_panel: boolean;  // Whether to show card panel in export
   // Export progress tracking
   export_status: ExportStatus;
   export_progress: number;
@@ -143,6 +144,7 @@ export interface ExportRequest {
   use_traditional_chinese: boolean;
   subtitle_style_mode?: SubtitleStyleMode;  // half_screen, floating, none
   subtitle_style?: SubtitleStyleOptions;
+  show_card_panel?: boolean;  // Whether to show card panel in export
   test_seconds?: number;  // Quick test: limit export to first N seconds
   upload_to_youtube?: boolean;
   youtube_title?: string;

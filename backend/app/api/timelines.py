@@ -857,6 +857,30 @@ async def check_card_pinned(
     return manager.is_card_pinned(timeline_id, card_type, card_id, segment_id)
 
 
+@router.post("/{timeline_id}/show-card-panel")
+async def set_show_card_panel(
+    timeline_id: str,
+    show: bool = Query(..., description="Whether to show card panel in export"),
+):
+    """Toggle card panel visibility for export.
+
+    When show=false, exported video will be full-width without card panel.
+    """
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    timeline.show_card_panel = show
+    manager.save_timeline(timeline)
+
+    return {
+        "timeline_id": timeline_id,
+        "show_card_panel": show,
+        "message": f"Card panel {'shown' if show else 'hidden'} in export",
+    }
+
+
 class CardDisplayDurationUpdate(BaseModel):
     """Request model for updating card display duration."""
     duration: float = Query(..., ge=3.0, le=15.0, description="Display duration in seconds")

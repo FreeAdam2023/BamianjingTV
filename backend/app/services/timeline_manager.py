@@ -752,13 +752,55 @@ class TimelineManager:
 
         # Clamp to reasonable range
         timeline.card_display_duration = max(3.0, min(15.0, duration))
+
+        # Recalculate timings for all pinned cards with new duration
+        self._recalculate_card_timings(timeline)
+
         self._save_timeline(timeline)
         logger.info(
             f"Set card display duration for timeline {timeline_id}: "
-            f"{timeline.card_display_duration}s"
+            f"{timeline.card_display_duration}s (recalculated {len(timeline.pinned_cards)} cards)"
         )
 
         return True
+
+    def _recalculate_card_timings(self, timeline: "Timeline") -> None:
+        """Recalculate display_start/display_end for all pinned cards.
+
+        Groups cards by segment_id and redistributes them evenly within
+        each segment's display window using the current card_display_duration.
+        """
+        if not timeline.pinned_cards:
+            return
+
+        from collections import defaultdict
+
+        duration = timeline.card_display_duration
+
+        # Group cards by segment_id, preserving original order
+        by_segment: dict[int, list] = defaultdict(list)
+        for card in timeline.pinned_cards:
+            by_segment[card.segment_id].append(card)
+
+        for segment_id, cards in by_segment.items():
+            # Find the owning segment's boundaries
+            segment = next((s for s in timeline.segments if s.id == segment_id), None)
+            if not segment:
+                continue
+
+            seg_start = segment.start
+            seg_end = segment.end
+
+            n_cards = len(cards)
+            max_window = (seg_end - seg_start) + duration
+            per_card = max(3.0, max_window / n_cards)
+
+            # Sort by display_start to maintain order
+            cards.sort(key=lambda c: c.display_start)
+
+            for i, card in enumerate(cards):
+                card.display_start = seg_start + i * per_card
+                card.display_end = card.display_start + per_card
 
     def update_pinned_card_note(
         self,

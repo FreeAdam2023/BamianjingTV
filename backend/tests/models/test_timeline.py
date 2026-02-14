@@ -244,6 +244,59 @@ class TestSegmentUpdate:
         assert update.zh == "新中文"
 
 
+class TestShowCardPanel:
+    """Tests for show_card_panel field."""
+
+    def test_default_value(self):
+        """Test show_card_panel defaults to True."""
+        timeline = Timeline(
+            job_id="test",
+            source_url="test",
+            source_title="Test",
+            source_duration=10.0,
+            segments=[],
+        )
+        assert timeline.show_card_panel is True
+
+    def test_set_to_false(self):
+        """Test show_card_panel can be set to False."""
+        timeline = Timeline(
+            job_id="test",
+            source_url="test",
+            source_title="Test",
+            source_duration=10.0,
+            segments=[],
+            show_card_panel=False,
+        )
+        assert timeline.show_card_panel is False
+
+    def test_backward_compat_missing_field(self):
+        """Test old JSON without show_card_panel loads with default True."""
+        data = {
+            "job_id": "test",
+            "source_url": "test",
+            "source_title": "Test",
+            "source_duration": 10.0,
+            "segments": [],
+        }
+        timeline = Timeline.model_validate(data)
+        assert timeline.show_card_panel is True
+
+    def test_serialization(self):
+        """Test show_card_panel is serialized to JSON."""
+        timeline = Timeline(
+            job_id="test",
+            source_url="test",
+            source_title="Test",
+            source_duration=10.0,
+            segments=[],
+            show_card_panel=False,
+        )
+        data = timeline.model_dump(mode="json")
+        assert "show_card_panel" in data
+        assert data["show_card_panel"] is False
+
+
 class TestTimelineSummary:
     """Tests for TimelineSummary model."""
 

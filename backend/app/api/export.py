@@ -96,6 +96,11 @@ async def trigger_export(
         timeline.subtitle_style_mode = request.subtitle_style_mode
         manager.save_timeline(timeline)
 
+    # Update card panel visibility if specified in request
+    if request.show_card_panel is not None:
+        timeline.show_card_panel = request.show_card_panel
+        manager.save_timeline(timeline)
+
     # Get video path from job
     jobs_dir = _get_jobs_dir()
     if jobs_dir is None:

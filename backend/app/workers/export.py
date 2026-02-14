@@ -257,18 +257,28 @@ class ExportWorker:
         video_duration: float,
         fallback_subtitles: Optional[List[Tuple[float, float, str, str]]] = None,
         placeholder_image: Optional[Path] = None,
+        show_card_panel: bool = True,
     ) -> Tuple[str, List[str], str]:
         """Build FFmpeg filter_complex for WYSIWYG 65/35 side-by-side layout.
 
-        Layout:
+        Layout (show_card_panel=True):
         +---- Left 1248px (65%) ----+--- Right 672px (35%) ---+
         |  Video (blurred bg fill +  |  Full Card Detail Panel  |
         |  sharp center, any ratio)  |  bg: #1a2744             |
-        |  Height: 756px             |  Height: 756px           |
+        |  Height: 723px             |  Height: 723px           |
         +----------------------------+--------------------------+
         | Subtitle Area (1920px full width, bg: #1a2744)        |
-        | Height: 324px  (subtitle video track overlay)         |
+        | Height: 357px  (subtitle video track overlay)         |
         +-------------------------------------------------------+
+
+        Layout (show_card_panel=False):
+        +------------ 1920px (100%) ---------------+
+        |  Video (blurred bg fill + sharp center)   |
+        |  Height: 723px                            |
+        +-------------------------------------------+
+        | Subtitle Area (1920px full width)          |
+        | Height: 357px                              |
+        +-------------------------------------------+
 
         Args:
             cards: List of (image_path, start_time, end_time) tuples
@@ -276,13 +286,18 @@ class ExportWorker:
             video_duration: Total video duration for canvas
             fallback_subtitles: Optional list of (start, end, en, zh) for drawtext
                 fallback when Remotion subtitle rendering fails
+            show_card_panel: Whether to show card panel (False = full-width video)
 
         Returns:
             Tuple of (filter_complex string, input arguments, final output label)
         """
-        left_width = int(OUTPUT_WIDTH * VIDEO_AREA_RATIO)  # 1248
-        right_width = OUTPUT_WIDTH - left_width  # 672
-        video_area_height = int(OUTPUT_HEIGHT * (1 - SUBTITLE_AREA_RATIO))  # 756
+        # When card panel is hidden, video takes full width
+        if show_card_panel:
+            left_width = int(OUTPUT_WIDTH * VIDEO_AREA_RATIO)  # 1248
+        else:
+            left_width = OUTPUT_WIDTH  # 1920 — full width
+        right_width = OUTPUT_WIDTH - left_width  # 672 or 0
+        video_area_height = int(OUTPUT_HEIGHT * (1 - SUBTITLE_AREA_RATIO))  # 723
 
         input_args = []
         filters = []
@@ -322,92 +337,100 @@ class ExportWorker:
             f"[canvas][video_panel]overlay=0:0[with_video]"
         )
 
-        # Step 4: Overlay card placeholder on right panel (behind active cards)
-        if placeholder_image and placeholder_image.exists():
-            input_args.extend(["-loop", "1", "-i", str(placeholder_image)])
-            # Placeholder is input index 1 (after source video at 0)
+        # Steps 4-6: Card panel and dividers (only when show_card_panel=True)
+        placeholder_input_offset = 0
+        input_idx = 1
+        prev_label = "with_video"
+
+        if show_card_panel:
+            # Step 4: Overlay card placeholder on right panel (behind active cards)
+            if placeholder_image and placeholder_image.exists():
+                input_args.extend(["-loop", "1", "-i", str(placeholder_image)])
+                # Placeholder is input index 1 (after source video at 0)
+                filters.append(
+                    f"[with_video][1:v]overlay="
+                    f"x={left_width}:y=0:"
+                    f"shortest=1:"
+                    f"format=auto"
+                    f"[with_placeholder]"
+                )
+                # Shift card/subtitle input indices since placeholder took index 1
+                placeholder_input_offset = 1
+            else:
+                # Fallback: simple drawtext placeholder
+                placeholder_cx = left_width + right_width // 2
+                placeholder_cy = video_area_height // 2
+                noto_cjk = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+                filters.append(
+                    f"[with_video]drawtext="
+                    f"text='学习卡片':"
+                    f"fontfile={noto_cjk}:"
+                    f"fontcolor=0xFFFFFF@0.15:"
+                    f"fontsize=28:"
+                    f"x={placeholder_cx}-tw/2:y={placeholder_cy}-20"
+                    f"[ph1]"
+                )
+                filters.append(
+                    f"[ph1]drawtext="
+                    f"text='SceneMind':"
+                    f"fontcolor=0xFFFFFF@0.08:"
+                    f"fontsize=14:"
+                    f"x={placeholder_cx}-tw/2:y={placeholder_cy}+20"
+                    f"[with_placeholder]"
+                )
+
+            # Step 5: Overlay card PNGs in right panel area with animation
+            # Track input index: 0 = source video, 1 = placeholder (if PNG), 2+ = cards
+            input_idx = 1 + placeholder_input_offset
+            prev_label = "with_placeholder"
+            for i, (card_path, start, end) in enumerate(cards):
+                input_args.extend(["-i", str(card_path)])
+
+                # Animation parameters
+                fade_in_duration = CARD_ANIMATION_DURATION
+                slide_distance = 24  # Subtle slide matching React animation
+
+                t_start = start
+                t_fade_in_end = start + fade_in_duration
+                t_end = end
+
+                # Full panel cards fill the right panel area exactly
+                card_x = left_width
+                card_y = 0
+
+                # X position expression: slide in from right (24px offset)
+                x_expr = (
+                    f"if(lt(t,{t_start}),{left_width}+{right_width},"
+                    f"if(lt(t,{t_fade_in_end}),"
+                    f"{card_x}+{slide_distance}*(1-(t-{t_start})/{fade_in_duration}),"
+                    f"{card_x}))"
+                )
+
+                enable_expr = f"between(t,{t_start},{t_end})"
+
+                out_label = f"card{i}"
+                filters.append(
+                    f"[{prev_label}][{input_idx}:v]overlay="
+                    f"x='{x_expr}':y='{card_y}':"
+                    f"enable='{enable_expr}':"
+                    f"format=auto"
+                    f"[{out_label}]"
+                )
+                prev_label = out_label
+                input_idx += 1
+
+            # Step 6a: Vertical divider between video and card panel
             filters.append(
-                f"[with_video][1:v]overlay="
-                f"x={left_width}:y=0:"
-                f"shortest=1:"
-                f"format=auto"
-                f"[with_placeholder]"
+                f"[{prev_label}]drawbox="
+                f"x={left_width}:y=0:w=2:h={video_area_height}:"
+                f"color=0xFFFFFF@0.2:t=fill"
+                f"[div1]"
             )
-            # Shift card/subtitle input indices since placeholder took index 1
-            placeholder_input_offset = 1
-        else:
-            # Fallback: simple drawtext placeholder
-            placeholder_cx = left_width + right_width // 2
-            placeholder_cy = video_area_height // 2
-            noto_cjk = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
-            filters.append(
-                f"[with_video]drawtext="
-                f"text='学习卡片':"
-                f"fontfile={noto_cjk}:"
-                f"fontcolor=0xFFFFFF@0.15:"
-                f"fontsize=28:"
-                f"x={placeholder_cx}-tw/2:y={placeholder_cy}-20"
-                f"[ph1]"
-            )
-            filters.append(
-                f"[ph1]drawtext="
-                f"text='SceneMind':"
-                f"fontcolor=0xFFFFFF@0.08:"
-                f"fontsize=14:"
-                f"x={placeholder_cx}-tw/2:y={placeholder_cy}+20"
-                f"[with_placeholder]"
-            )
-            placeholder_input_offset = 0
+            prev_label = "div1"
 
-        # Step 5: Overlay card PNGs in right panel area with animation
-        # Track input index: 0 = source video, 1 = placeholder (if PNG), 2+ = cards
-        input_idx = 1 + placeholder_input_offset
-        prev_label = "with_placeholder"
-        for i, (card_path, start, end) in enumerate(cards):
-            input_args.extend(["-i", str(card_path)])
-
-            # Animation parameters
-            fade_in_duration = CARD_ANIMATION_DURATION
-            slide_distance = 24  # Subtle slide matching React animation
-
-            t_start = start
-            t_fade_in_end = start + fade_in_duration
-            t_end = end
-
-            # Full panel cards fill the right panel area exactly
-            card_x = left_width
-            card_y = 0
-
-            # X position expression: slide in from right (24px offset)
-            x_expr = (
-                f"if(lt(t,{t_start}),{left_width}+{right_width},"
-                f"if(lt(t,{t_fade_in_end}),"
-                f"{card_x}+{slide_distance}*(1-(t-{t_start})/{fade_in_duration}),"
-                f"{card_x}))"
-            )
-
-            enable_expr = f"between(t,{t_start},{t_end})"
-
-            out_label = f"card{i}"
-            filters.append(
-                f"[{prev_label}][{input_idx}:v]overlay="
-                f"x='{x_expr}':y='{card_y}':"
-                f"enable='{enable_expr}':"
-                f"format=auto"
-                f"[{out_label}]"
-            )
-            prev_label = out_label
-            input_idx += 1
-
-        # Step 6: Draw divider lines between areas (2px, 20% white)
+        # Step 6b: Horizontal divider between video area and subtitle area
         filters.append(
             f"[{prev_label}]drawbox="
-            f"x={left_width}:y=0:w=2:h={video_area_height}:"
-            f"color=0xFFFFFF@0.2:t=fill"
-            f"[div1]"
-        )
-        filters.append(
-            f"[div1]drawbox="
             f"x=0:y={video_area_height}:w={OUTPUT_WIDTH}:h=2:"
             f"color=0xFFFFFF@0.2:t=fill"
             f"[with_dividers]"
@@ -778,7 +801,7 @@ class ExportWorker:
         use_traditional: bool = True,
         time_offset: float = 0.0,
         video_height: int = 1080,
-        subtitle_area_ratio: float = 0.3,
+        subtitle_area_ratio: float = 0.33,
         subtitle_style=None,
         subtitle_style_mode: SubtitleStyleMode = SubtitleStyleMode.HALF_SCREEN,
         subtitle_language_mode: SubtitleLanguageMode = SubtitleLanguageMode.BOTH,
@@ -1406,7 +1429,7 @@ class ExportWorker:
 
         # Card panel dimensions (matches WYSIWYG 35% right panel)
         panel_width = OUTPUT_WIDTH - int(OUTPUT_WIDTH * VIDEO_AREA_RATIO)  # 672
-        panel_height = int(OUTPUT_HEIGHT * (1 - SUBTITLE_AREA_RATIO))  # 756
+        panel_height = int(OUTPUT_HEIGHT * (1 - SUBTITLE_AREA_RATIO))  # 723
 
         cmd = ["node", str(render_script)]
         if cards_file:
@@ -1543,7 +1566,7 @@ class ExportWorker:
                 # Log every card PNG with its size
                 file_size = card_path.stat().st_size
                 logger.info(f"Card PNG: {card_id}.png — {file_size} bytes, {display_start:.1f}-{display_end:.1f}s")
-                if file_size < 5000:  # <5KB is likely blank for 672x756 PNG
+                if file_size < 5000:  # <5KB is likely blank for 672x723 PNG
                     small_cards.append((card_id, file_size))
             else:
                 missing_cards.append(card_id)
@@ -1604,6 +1627,7 @@ class ExportWorker:
         subtitle_language_mode: SubtitleLanguageMode = SubtitleLanguageMode.BOTH,
         progress_callback: Optional[Callable[[float, str], None]] = None,
         timeline_id: Optional[str] = None,
+        show_card_panel: bool = True,
     ) -> Path:
         """Hybrid Remotion renderStill + FFmpeg export pipeline.
 
@@ -1743,6 +1767,7 @@ class ExportWorker:
             video_duration=video_duration,
             fallback_subtitles=fallback_subtitles,
             placeholder_image=placeholder_image,
+            show_card_panel=show_card_panel,
         )
 
         cmd = ["ffmpeg", "-i", str(video_path)]
@@ -1952,12 +1977,22 @@ class ExportWorker:
             ]
             time_offset = 0.0
 
+        # Read card panel visibility setting
+        show_card_panel = getattr(timeline, 'show_card_panel', True)
+        if show_card_panel is None:
+            show_card_panel = True
+
         # Render pinned cards (skip cards on dropped segments)
         dropped_seg_ids = {seg.id for seg in timeline.segments if seg.state == SegmentState.DROP}
         pinned_cards = [
             c for c in (getattr(timeline, 'pinned_cards', []) or [])
             if c.segment_id not in dropped_seg_ids
         ]
+
+        # When card panel is hidden, don't render any cards
+        if not show_card_panel:
+            pinned_cards = []
+
         cards_dir = output_path.parent / "cards"
 
         # WYSIWYG mode: HALF_SCREEN uses Remotion for pixel-perfect React rendering
@@ -1993,6 +2028,7 @@ class ExportWorker:
                 subtitle_language_mode=subtitle_language_mode,
                 progress_callback=progress_callback,
                 timeline_id=timeline_id,
+                show_card_panel=show_card_panel,
             )
         else:
             # FLOATING / NONE modes: existing behavior (full-width video)
@@ -2409,7 +2445,7 @@ class ExportWorker:
         output_path: Path,
         use_traditional: bool = True,
         video_height: int = 1080,
-        subtitle_area_ratio: float = 0.3,
+        subtitle_area_ratio: float = 0.33,
         subtitle_style=None,
         subtitle_style_mode: SubtitleStyleMode = SubtitleStyleMode.HALF_SCREEN,
         subtitle_language_mode: SubtitleLanguageMode = SubtitleLanguageMode.BOTH,

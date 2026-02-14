@@ -327,6 +327,102 @@ class TestTimelineManagerStats:
         assert stats["pending"] == 1
 
 
+class TestCardDisplayDurationRecalculation:
+    """Tests for card display duration recalculation."""
+
+    def test_duration_change_recalculates_timings(
+        self, timeline_manager, sample_transcript
+    ):
+        """Changing card_display_duration should recalculate pinned card timings."""
+        from app.models.timeline import PinnedCardCreate, PinnedCardType
+
+        timeline = timeline_manager.create_from_transcript(
+            job_id="test_recalc",
+            source_url="test",
+            source_title="Test",
+            source_duration=15.0,
+            translated_transcript=sample_transcript,
+        )
+        tid = timeline.timeline_id
+
+        # Pin a card to segment 0 (0s-5s)
+        create = PinnedCardCreate(
+            card_type=PinnedCardType.WORD,
+            card_id="hello",
+            segment_id=0,
+            timestamp=2.0,
+            card_data={"word": "hello"},
+        )
+        pinned = timeline_manager.add_pinned_card(tid, create)
+        old_end = pinned.display_end
+
+        # Change duration from 7 to 10
+        timeline_manager.set_card_display_duration(tid, 10.0)
+
+        reloaded = timeline_manager.get_timeline(tid)
+        card = reloaded.pinned_cards[0]
+        # With duration=10, window = (5-0)+10 = 15, per_card = max(3, 15/1) = 15
+        assert card.display_end > old_end
+
+    def test_duration_clamps_to_range(self, timeline_manager, sample_transcript):
+        """Duration should be clamped to 3-15 range."""
+        timeline = timeline_manager.create_from_transcript(
+            job_id="test_clamp",
+            source_url="test",
+            source_title="Test",
+            source_duration=15.0,
+            translated_transcript=sample_transcript,
+        )
+
+        # Below minimum
+        timeline_manager.set_card_display_duration(timeline.timeline_id, 1.0)
+        reloaded = timeline_manager.get_timeline(timeline.timeline_id)
+        assert reloaded.card_display_duration == 3.0
+
+        # Above maximum
+        timeline_manager.set_card_display_duration(timeline.timeline_id, 20.0)
+        reloaded = timeline_manager.get_timeline(timeline.timeline_id)
+        assert reloaded.card_display_duration == 15.0
+
+    def test_recalculate_multiple_cards_per_segment(
+        self, timeline_manager, sample_transcript
+    ):
+        """Multiple cards on same segment should share window evenly after recalculation."""
+        from app.models.timeline import PinnedCardCreate, PinnedCardType
+
+        timeline = timeline_manager.create_from_transcript(
+            job_id="test_multi",
+            source_url="test",
+            source_title="Test",
+            source_duration=15.0,
+            translated_transcript=sample_transcript,
+        )
+        tid = timeline.timeline_id
+
+        # Pin 2 cards to segment 0 (0s-5s)
+        for word in ["hello", "world"]:
+            timeline_manager.add_pinned_card(tid, PinnedCardCreate(
+                card_type=PinnedCardType.WORD,
+                card_id=word,
+                segment_id=0,
+                timestamp=2.0,
+                card_data={"word": word},
+            ))
+
+        # Change duration to 5
+        timeline_manager.set_card_display_duration(tid, 5.0)
+
+        reloaded = timeline_manager.get_timeline(tid)
+        cards = sorted(reloaded.pinned_cards, key=lambda c: c.display_start)
+        assert len(cards) == 2
+
+        # Window = (5-0)+5 = 10, per_card = max(3, 10/2) = 5
+        assert cards[0].display_start == 0.0
+        assert abs(cards[0].display_end - 5.0) < 0.01
+        assert abs(cards[1].display_start - 5.0) < 0.01
+        assert abs(cards[1].display_end - 10.0) < 0.01
+
+
 class TestTimelineManagerMigration:
     """Tests for timeline migration logic."""
 

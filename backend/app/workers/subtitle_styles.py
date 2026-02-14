@@ -54,7 +54,7 @@ def _hex_to_ass_color(hex_color: str, opacity: int = 0) -> str:
 
 def generate_half_screen_ass_header(
     video_height: int = 1080,
-    subtitle_area_ratio: float = 0.3,
+    subtitle_area_ratio: float = 0.33,
     config: Optional[SubtitleStyleConfig] = None,
 ) -> str:
     """Generate ASS header for half_screen mode (Learning).
@@ -239,7 +239,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 def generate_ass_header(
     mode: SubtitleStyleMode,
     video_height: int = 1080,
-    subtitle_area_ratio: float = 0.3,
+    subtitle_area_ratio: float = 0.33,
     config: Optional[SubtitleStyleConfig] = None,
 ) -> str:
     """Generate ASS header based on subtitle mode.

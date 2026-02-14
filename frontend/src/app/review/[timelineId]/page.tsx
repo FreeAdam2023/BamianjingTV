@@ -977,6 +977,7 @@ export default function ReviewPage() {
             setExportJustStarted(true); // Force polling to start
             refresh(); // Refresh to update export_status
           }}
+          onRefresh={refresh}
         />
       )}
 

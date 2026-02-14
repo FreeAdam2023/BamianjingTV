@@ -270,6 +270,7 @@ class Timeline(BaseModel):
     # Pinned cards for export
     pinned_cards: List[PinnedCard] = Field(default_factory=list)
     card_display_duration: float = 7.0  # Default display duration in seconds (5-10 range)
+    show_card_panel: bool = True  # Whether to show card panel in export (False = full-width video)
 
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.now)
@@ -626,6 +627,9 @@ class TimelineExportRequest(BaseModel):
 
     # Subtitle style options
     subtitle_style: Optional[SubtitleStyleOptions] = None
+
+    # Card panel visibility override (None = use timeline's setting)
+    show_card_panel: Optional[bool] = None
 
     # Quick test: limit export to first N seconds (overrides video_trim_end)
     test_seconds: Optional[float] = None
