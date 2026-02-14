@@ -21,14 +21,14 @@ export default function ClickableSubtitle({
 }: ClickableSubtitleProps) {
   const containerRef = useRef<HTMLSpanElement>(null);
 
-  // Extract clean word from token (remove punctuation)
+  // Extract clean word from token (remove punctuation, keep accented letters)
   const extractWord = (token: string): string => {
-    return token.replace(/^[^\w]+|[^\w]+$/g, "").toLowerCase();
+    return token.replace(/^[^\p{L}\d]+|[^\p{L}\d]+$/gu, "").toLowerCase();
   };
 
-  // Check if token contains a word (not just punctuation)
+  // Check if token contains a word (not just punctuation) — supports accented chars
   const hasWord = (token: string): boolean => {
-    return /[a-zA-Z]/.test(token);
+    return /\p{L}/u.test(token);
   };
 
   const handleWordClick = useCallback(

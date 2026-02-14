@@ -14,7 +14,7 @@ import { useTimeline } from "@/hooks/useTimeline";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useTimelineKeyboard } from "@/hooks/useTimelineKeyboard";
 import { useMultiTrackWaveform, TrackType } from "@/hooks/useMultiTrackWaveform";
-import { useCardPopup } from "@/hooks/useCardPopup";
+import { useCardPopup, type OpenWordCardOptions } from "@/hooks/useCardPopup";
 import { useCreativeConfig } from "@/hooks/useCreativeConfig";
 import { useCreativeKeyboard } from "@/hooks/useCreativeKeyboard";
 import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress, retranscribeWithProgress, splitSegment, getSegmentAnnotations, setSubtitleLanguageMode, unpinCard, analyzeTimelineEntities, formatDuration } from "@/lib/api";
@@ -105,7 +105,18 @@ export default function ReviewPage() {
   } | null>(null);
 
   // Card popup state (shared between video and segment list)
-  const { state: cardState, openWordCard, openEntityCard, openIdiomCard, close: closeCard, refresh: refreshCard, refreshing: cardRefreshing } = useCardPopup();
+  const { state: cardState, openWordCard: rawOpenWordCard, openEntityCard, openIdiomCard, close: closeCard, refresh: refreshCard, refreshing: cardRefreshing } = useCardPopup();
+
+  // Wrap openWordCard to inject source language from timeline (e.g., "fr" for French)
+  const openWordCard = useCallback(
+    (word: string, options?: OpenWordCardOptions & { forceRefresh?: boolean }) => {
+      const sourceLang = timeline?.source_language;
+      // Only inject lang if it's not English (default) — avoids breaking existing cache keys
+      const lang = sourceLang && sourceLang !== "en" ? sourceLang : options?.lang;
+      return rawOpenWordCard(word, { ...options, lang });
+    },
+    [rawOpenWordCard, timeline?.source_language]
+  );
 
   // Creative mode state
   const [isCreativeMode, setIsCreativeMode] = useState(false);

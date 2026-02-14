@@ -212,6 +212,8 @@ class Timeline(BaseModel):
     timeline_id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
     job_id: str
     mode: str = "learning"  # JobMode: learning, watching, dubbing
+    source_language: str = "en"  # Source language code (e.g., "en", "fr", "de")
+    target_language: str = "zh"  # Target language code (e.g., "zh", "ja")
     source_url: str
     source_title: str
     source_duration: float  # Total video duration in seconds

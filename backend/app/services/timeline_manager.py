@@ -120,6 +120,8 @@ class TimelineManager:
         timeline = Timeline(
             job_id=job_id,
             mode=mode,
+            source_language=translated_transcript.source_language,
+            target_language=translated_transcript.target_language,
             source_url=source_url,
             source_title=source_title,
             source_duration=source_duration,

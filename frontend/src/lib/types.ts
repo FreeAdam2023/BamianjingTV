@@ -53,6 +53,8 @@ export interface Timeline {
   timeline_id: string;
   job_id: string;
   mode: JobMode;
+  source_language: string;  // e.g., "en", "fr", "de"
+  target_language: string;  // e.g., "zh", "ja"
   source_url: string;
   source_title: string;
   source_duration: number;
