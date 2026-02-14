@@ -456,7 +456,7 @@ export default function SegmentList({
               {/* Idiom row — label + badges + refresh + add */}
               {((segmentAnnotations?.get(segment.id)?.idioms?.length ?? 0) > 0 || (segment.id === currentSegmentId && onAddIdiom)) && (
                 <div className="flex items-center gap-1 mt-1">
-                  <span className="text-[10px] text-amber-400/70 font-medium shrink-0">俚语</span>
+                  <span className="text-[10px] text-amber-400/70 font-medium shrink-0">表达</span>
                   {(segmentAnnotations?.get(segment.id)?.idioms?.length ?? 0) > 0 ? (
                     <IdiomBadges
                       idioms={segmentAnnotations!.get(segment.id)!.idioms!}
@@ -476,7 +476,7 @@ export default function SegmentList({
                       }}
                       disabled={refreshingIdioms === segment.id}
                       className="p-0.5 text-amber-400/60 hover:text-amber-300 hover:bg-amber-500/20 rounded transition-colors disabled:opacity-50"
-                      title="刷新俚语识别"
+                      title="刷新表达识别"
                     >
                       {refreshingIdioms === segment.id ? (
                         <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -497,7 +497,7 @@ export default function SegmentList({
                         onAddIdiom(segment.id, segment.en);
                       }}
                       className="p-0.5 text-gray-400 hover:text-amber-400 hover:bg-amber-500/20 rounded transition-colors"
-                      title="添加俚语"
+                      title="添加表达"
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

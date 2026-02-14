@@ -56,7 +56,19 @@ class TimelineManager:
         """Load a timeline from a JSON file."""
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        return Timeline.model_validate(data)
+        timeline = Timeline.model_validate(data)
+        # Migration: watching mode should use HALF_SCREEN, not FLOATING
+        if (
+            timeline.mode == "watching"
+            and timeline.subtitle_style_mode == SubtitleStyleMode.FLOATING
+        ):
+            logger.info(
+                f"Migrating timeline {timeline.timeline_id}: "
+                f"watching mode FLOATING → HALF_SCREEN"
+            )
+            timeline.subtitle_style_mode = SubtitleStyleMode.HALF_SCREEN
+            self._save_timeline(timeline)
+        return timeline
 
     def _save_timeline(self, timeline: Timeline) -> None:
         """Save a timeline to disk."""
@@ -102,7 +114,6 @@ class TimelineManager:
 
         style_map = {
             "dubbing": SubtitleStyleMode.FLOATING,
-            "watching": SubtitleStyleMode.FLOATING,
         }
         subtitle_style = style_map.get(mode, SubtitleStyleMode.HALF_SCREEN)
 

@@ -22,7 +22,7 @@ interface IdiomEditModalProps {
 const CATEGORY_OPTIONS = [
   { value: "idiom", label: "Idiom (惯用语)" },
   { value: "phrasal_verb", label: "Phrasal Verb (短语动词)" },
-  { value: "slang", label: "Slang (俚语)" },
+  { value: "slang", label: "Slang (口语/俚语)" },
   { value: "colloquial", label: "Colloquial (口语表达)" },
   { value: "proverb", label: "Proverb (谚语)" },
   { value: "expression", label: "Expression (常用表达/术语)" },
@@ -57,7 +57,7 @@ export default function IdiomEditModal({
 
   const handleSave = async () => {
     if (!text.trim()) {
-      setError("请输入俚语/短语文本");
+      setError("请输入表达/短语文本");
       return;
     }
 
@@ -121,7 +121,7 @@ export default function IdiomEditModal({
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-medium text-white">
-            {isEditing ? "编辑俚语" : "添加俚语"}
+            {isEditing ? "编辑表达" : "添加表达"}
           </h3>
           <button
             onClick={onClose}
@@ -143,7 +143,7 @@ export default function IdiomEditModal({
           {/* Idiom text */}
           <div>
             <label className="block text-sm text-gray-400 mb-1">
-              俚语/短语文本 <span className="text-red-400">*</span>
+              表达/短语文本 <span className="text-red-400">*</span>
             </label>
             <input
               type="text"

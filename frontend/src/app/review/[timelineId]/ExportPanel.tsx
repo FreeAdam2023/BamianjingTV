@@ -377,7 +377,7 @@ export default function ExportPanel({
                   {cardCounts.idiom > 0 && (
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-amber-400" />
-                      <span className="text-gray-400">俚语卡片</span>
+                      <span className="text-gray-400">表达卡片</span>
                       <span className="ml-auto text-amber-300">{cardCounts.idiom}</span>
                     </div>
                   )}

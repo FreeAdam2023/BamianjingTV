@@ -17,7 +17,7 @@ export interface LearningConfig {
 }
 
 export interface WatchingConfig {
-  subtitle_style: string;  // floating, none
+  subtitle_style: string;  // half_screen, floating, none
   enable_observations: boolean;
 }
 

@@ -1,5 +1,6 @@
 """Tests for TimelineManager service."""
 
+import json
 import pytest
 import tempfile
 from pathlib import Path
@@ -8,6 +9,7 @@ from app.models.timeline import (
     SegmentState,
     ExportProfile,
     SegmentUpdate,
+    SubtitleStyleMode,
     Timeline,
 )
 from app.models.transcript import TranslatedSegment, TranslatedTranscript
@@ -323,3 +325,56 @@ class TestTimelineManagerStats:
         assert stats["total"] == 2
         assert stats["reviewed"] == 1
         assert stats["pending"] == 1
+
+
+class TestTimelineManagerMigration:
+    """Tests for timeline migration logic."""
+
+    def test_watching_floating_migrated_to_half_screen(
+        self, timeline_manager, sample_transcript, temp_timelines_dir
+    ):
+        """Existing watching timelines with FLOATING should migrate to HALF_SCREEN."""
+        # Create a watching-mode timeline (defaults to HALF_SCREEN now)
+        timeline = timeline_manager.create_from_transcript(
+            job_id="watch_job",
+            source_url="test",
+            source_title="Watch Video",
+            source_duration=15.0,
+            translated_transcript=sample_transcript,
+            mode="watching",
+        )
+        tid = timeline.timeline_id
+        assert timeline.subtitle_style_mode == SubtitleStyleMode.HALF_SCREEN
+
+        # Simulate old data: manually write FLOATING to the JSON file
+        file_path = temp_timelines_dir / f"{tid}.json"
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        data["subtitle_style_mode"] = "floating"
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+
+        # Reload all timelines — migration should kick in
+        new_manager = TimelineManager(timelines_dir=temp_timelines_dir)
+        reloaded = new_manager.get_timeline(tid)
+        assert reloaded.subtitle_style_mode == SubtitleStyleMode.HALF_SCREEN
+
+    def test_dubbing_floating_not_migrated(
+        self, timeline_manager, sample_transcript, temp_timelines_dir
+    ):
+        """Dubbing timelines with FLOATING should NOT be migrated."""
+        timeline = timeline_manager.create_from_transcript(
+            job_id="dub_job",
+            source_url="test",
+            source_title="Dub Video",
+            source_duration=15.0,
+            translated_transcript=sample_transcript,
+            mode="dubbing",
+        )
+        tid = timeline.timeline_id
+        assert timeline.subtitle_style_mode == SubtitleStyleMode.FLOATING
+
+        # Reload — should stay FLOATING
+        new_manager = TimelineManager(timelines_dir=temp_timelines_dir)
+        reloaded = new_manager.get_timeline(tid)
+        assert reloaded.subtitle_style_mode == SubtitleStyleMode.FLOATING

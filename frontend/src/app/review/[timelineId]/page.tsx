@@ -348,7 +348,7 @@ export default function ReviewPage() {
         newMap.set(segmentId, annotation);
         return newMap;
       });
-      toast.success("俚语识别已刷新");
+      toast.success("表达识别已刷新");
     } catch (err) {
       console.error("Failed to refresh segment idioms:", err);
       toast.error("刷新失败");
@@ -431,7 +431,7 @@ export default function ReviewPage() {
         });
       }
     }
-    toast.success("俚语已更新");
+    toast.success("表达已更新");
   }, [idiomEditModal, timeline, toast]);
 
   // Handle entity edit success
