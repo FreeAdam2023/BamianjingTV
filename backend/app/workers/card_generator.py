@@ -298,7 +298,13 @@ class CardGeneratorWorker:
             data = response.json()
 
             # Parse TomTrove response into WordCard
-            return self._parse_tomtrove_word_response(word, data, target_lang)
+            card = self._parse_tomtrove_word_response(word, data, target_lang)
+            if card:
+                return card
+
+            # TomTrove returned 200 but no usable translations — fall back
+            logger.info(f"TomTrove returned no translations for {word}, falling back to free dictionary")
+            return await self._fetch_word_from_free_dictionary(word)
 
         except httpx.TimeoutException:
             logger.warning(f"TomTrove timeout for {word}, falling back to free dictionary")
