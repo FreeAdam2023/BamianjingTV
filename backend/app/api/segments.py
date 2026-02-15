@@ -186,8 +186,8 @@ async def split_segment(
         raise HTTPException(status_code=404, detail="Segment not found")
 
     # Validate split indices
-    en_text = segment.text or ""
-    zh_text = segment.translation or ""
+    en_text = segment.en or ""
+    zh_text = segment.zh or ""
 
     if request.en_split_index <= 0 or request.en_split_index >= len(en_text):
         raise HTTPException(
@@ -221,8 +221,8 @@ async def split_segment(
         id=new_id_1,
         start=segment.start,
         end=split_time,
-        text=en_part1,
-        translation=zh_part1,
+        en=en_part1,
+        zh=zh_part1,
         speaker=segment.speaker,
         state=segment.state,
     )
@@ -231,8 +231,8 @@ async def split_segment(
         id=new_id_2,
         start=split_time,
         end=segment.end,
-        text=en_part2,
-        translation=zh_part2,
+        en=en_part2,
+        zh=zh_part2,
         speaker=segment.speaker,
         state=segment.state,
     )
