@@ -18,7 +18,7 @@ import { useCardPopup, type OpenWordCardOptions } from "@/hooks/useCardPopup";
 import { useCreativeConfig } from "@/hooks/useCreativeConfig";
 import { useCreativeKeyboard } from "@/hooks/useCreativeKeyboard";
 import { captureCoverFrame, getCoverFrameUrl, convertChineseSubtitles, deleteJob, regenerateTranslationWithProgress, retranscribeWithProgress, splitSegment, getSegmentAnnotations, setSubtitleLanguageMode, unpinCard, analyzeTimelineEntities, formatDuration } from "@/lib/api";
-import type { ExportStatusResponse, SubtitleStyleOptions, SegmentAnnotations, PinnedCard } from "@/lib/types";
+import type { ExportStatus, ExportStatusResponse, SubtitleStyleOptions, SegmentAnnotations, PinnedCard } from "@/lib/types";
 import type { CreativeStyle } from "@/lib/creative-types";
 import { useToast, useConfirm } from "@/components/ui";
 import ReviewHeader from "./ReviewHeader";
@@ -76,6 +76,7 @@ export default function ReviewPage() {
   const [showPreviewPanel, setShowPreviewPanel] = useState(false);
   const [exportStatusForPreview, setExportStatusForPreview] = useState<ExportStatusResponse | null>(null);
   const [exportJustStarted, setExportJustStarted] = useState(false);
+  const [liveExportStatus, setLiveExportStatus] = useState<ExportStatus | null>(null);
   const [currentVideoTime, setCurrentVideoTime] = useState(0);
   const [coverFrameTime, setCoverFrameTime] = useState<number | null>(null);
   const [coverFrameUrl, setCoverFrameUrl] = useState<string | null>(null);
@@ -726,7 +727,7 @@ export default function ReviewPage() {
         timelineId={timeline.timeline_id}
         jobId={timeline.job_id}
         mode={timeline.mode}
-        exportStatus={timeline.export_status}
+        exportStatus={liveExportStatus ?? timeline.export_status}
         onExportClick={() => setShowExportPanel(true)}
         onDelete={handleDelete}
         onShowPreview={(status) => {
@@ -735,7 +736,8 @@ export default function ReviewPage() {
         }}
         forcePolling={exportJustStarted}
         onExportStatusChange={(status) => {
-          // Reset forcePolling when export completes or fails
+          // Track live export status so the indicator stays visible after completion
+          setLiveExportStatus(status.status as ExportStatus);
           if (status.status === "completed" || status.status === "failed" || status.status === "idle") {
             setExportJustStarted(false);
           }

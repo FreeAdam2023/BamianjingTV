@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
+import { useJobUpdates } from "@/hooks/useJobUpdates";
 import PageHeader from "@/components/ui/PageHeader";
 import { listJobs, createJob, createJobWithUpload, deleteJob, cancelJob, updateJob, formatDuration, getVideoUrl, getExportVideoUrl } from "@/lib/api";
 import type { UploadProgress } from "@/lib/api";
@@ -75,9 +76,10 @@ export default function JobsPage() {
 
   useEffect(() => {
     loadJobs(true);
-    const interval = setInterval(() => loadJobs(false), 5000);
-    return () => clearInterval(interval);
   }, [loadJobs]);
+
+  // Real-time job updates via WebSocket (falls back to 5s polling)
+  useJobUpdates(useCallback(() => loadJobs(false), [loadJobs]));
 
   function openModal() {
     setInputMode("url");

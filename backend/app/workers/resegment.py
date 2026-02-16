@@ -276,8 +276,10 @@ def _merge_short_segments(groups: List[_WordGroup]) -> List[_WordGroup]:
 
 
 def _clean_text(text: str) -> str:
-    """Clean segment text: remove >> artifacts and normalize whitespace."""
+    """Clean segment text: remove >> artifacts, quotes, and normalize whitespace."""
     text = text.replace(">>", "").strip()
+    # Remove leading/trailing quotation marks added by Whisper
+    text = text.strip('"\u201c\u201d\u2018\u2019\'')
     # Collapse multiple spaces
     text = re.sub(r"\s+", " ", text)
     return text
