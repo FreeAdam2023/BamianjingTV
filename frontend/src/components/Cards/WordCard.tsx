@@ -23,10 +23,14 @@ export default function WordCard({
   sourceSegmentText,
 }: WordCardProps) {
   const [playingAudio, setPlayingAudio] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Get primary pronunciation
   const primaryPronunciation = card.pronunciations.find((p) => p.region === "us") || card.pronunciations[0];
+
+  // Get first image
+  const primaryImage = card.images?.[0];
 
   const playPronunciation = () => {
     if (audioRef.current) {
@@ -61,8 +65,21 @@ export default function WordCard({
 
   return (
     <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl w-[420px] max-h-[600px] overflow-hidden flex flex-col">
+      {/* Image Header */}
+      {primaryImage && !imageError && (
+        <div className="relative h-32 w-full overflow-hidden bg-gray-800">
+          <img
+            src={primaryImage}
+            alt={card.word}
+            className="w-full h-full object-cover"
+            onError={() => setImageError(true)}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[var(--card)] via-transparent to-transparent" />
+        </div>
+      )}
+
       {/* Header */}
-      <div className="p-4 flex items-start justify-between">
+      <div className={`p-4 ${primaryImage && !imageError ? '-mt-10 relative z-10' : ''} flex items-start justify-between`}>
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <h2 className="text-2xl font-bold text-white">{card.word}</h2>
