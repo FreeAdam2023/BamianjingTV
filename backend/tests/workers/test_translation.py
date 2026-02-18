@@ -116,12 +116,15 @@ class TestTranslationWorkerWithMocks:
     @pytest.fixture
     def mock_settings(self):
         """Mock settings for testing."""
-        with patch("app.workers.translation.settings") as mock:
-            mock.llm_api_key = "test-key"
-            mock.llm_base_url = "https://api.test.com/v1"
-            mock.llm_model = "gpt-4o"
-            mock.is_azure = False
-            yield mock
+        with patch("app.workers.translation.settings") as mock_s, \
+             patch("app.workers.translation.azure_translator") as mock_az:
+            mock_s.llm_api_key = "test-key"
+            mock_s.llm_base_url = "https://api.test.com/v1"
+            mock_s.llm_model = "gpt-4o"
+            mock_s.is_azure = False
+            # Mock Azure Translator as unavailable so LLM path is tested
+            mock_az.is_available.return_value = False
+            yield mock_s
 
     @pytest.fixture
     def mock_openai_client(self):
