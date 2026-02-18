@@ -288,6 +288,9 @@ interface VideoControlsProps {
   hasExportFull?: boolean;
   hasExportEssence?: boolean;
   onPreviewExport?: (type: "full" | "essence") => void;
+  // Segment navigation
+  onPrevSegment?: () => void;
+  onNextSegment?: () => void;
   // Handlers
   onTogglePlay: () => void;
   onSeek: (time: number) => void;
@@ -325,6 +328,8 @@ export default function VideoControls({
   hasExportFull = false,
   hasExportEssence = false,
   onPreviewExport,
+  onPrevSegment,
+  onNextSegment,
   onTogglePlay,
   onSeek,
   onVolumeChange,
@@ -406,6 +411,20 @@ export default function VideoControls({
       {/* Control buttons */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
+          {/* Previous segment */}
+          {onPrevSegment && (
+            <button
+              onClick={onPrevSegment}
+              className="text-white hover:text-blue-400 p-1"
+              title="上一句"
+              aria-label="上一句"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
+              </svg>
+            </button>
+          )}
+
           {/* Rewind 5s - constrained to trim range */}
           <button
             onClick={() => onSeek(Math.max(trimStart, currentTime - 5))}
@@ -449,6 +468,20 @@ export default function VideoControls({
               <text x="12" y="15" textAnchor="middle" fontSize="7" fill="currentColor">5</text>
             </svg>
           </button>
+
+          {/* Next segment */}
+          {onNextSegment && (
+            <button
+              onClick={onNextSegment}
+              className="text-white hover:text-blue-400 p-1"
+              title="下一句"
+              aria-label="下一句"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+              </svg>
+            </button>
+          )}
 
           {/* Time display - shows trimmed time if trim is active */}
           <span className="text-white text-sm ml-2">

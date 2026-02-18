@@ -16,11 +16,13 @@ export interface CardPopupState {
   idiomCard: IdiomCard | null;
   position: { x: number; y: number };
   annotationNote?: string | null;
+  sourceSegmentId?: number;  // Locked at card-open time for pinning
 }
 
 export interface OpenWordCardOptions {
   position?: { x: number; y: number };
   lang?: string; // "zh-TW" for Traditional Chinese, "zh-CN" for Simplified Chinese
+  segmentId?: number;  // Capture segment ID at click time
 }
 
 interface UseCardPopupReturn {
@@ -42,6 +44,7 @@ const initialState: CardPopupState = {
   entityCard: null,
   idiomCard: null,
   position: { x: 0, y: 0 },
+  sourceSegmentId: undefined,
 };
 
 // Simple in-memory cache for cards
@@ -69,6 +72,7 @@ export function useCardPopup(): UseCardPopupReturn {
     const normalizedWord = word.toLowerCase().trim();
     const position = options?.position;
     const lang = options?.lang;
+    const segmentId = options?.segmentId;
     const forceRefresh = options?.forceRefresh ?? false;
 
     // Include language in cache key for different translations
@@ -95,6 +99,7 @@ export function useCardPopup(): UseCardPopupReturn {
         entityCard: null,
         idiomCard: null,
         position: position || { x: 0, y: 0 },
+        sourceSegmentId: segmentId,
       });
       return;
     }
@@ -114,6 +119,7 @@ export function useCardPopup(): UseCardPopupReturn {
       entityCard: null,
       idiomCard: null,
       position: position || { x: 0, y: 0 },
+      sourceSegmentId: segmentId,
     });
 
     try {

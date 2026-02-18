@@ -21,10 +21,13 @@ import {
   SidePanelEntityCard,
   SidePanelIdiomCard,
 } from "@/components/Cards/CardSidePanel";
+import { unpinCard } from "@/lib/api";
 
 interface PinnedCardOverlayProps {
   pinnedCards: PinnedCard[];
   currentTime: number;
+  timelineId?: string;
+  onPinChange?: () => void;
 }
 
 /** Max cards visible at once */
@@ -44,10 +47,17 @@ function NoteDisplay({ note }: { note: string }) {
 }
 
 /** Renders a full card based on type — same style as CardSidePanel */
-function FullCard({ pinnedCard }: { pinnedCard: PinnedCard }) {
+function FullCard({ pinnedCard, onUnpin, onDismiss, pinLoading }: {
+  pinnedCard: PinnedCard;
+  onUnpin?: (pinId: string) => void;
+  onDismiss?: (pinId: string) => void;
+  pinLoading?: boolean;
+}) {
   const data = pinnedCard.card_data;
   const note = pinnedCard.note;
-  const noop = () => {};
+  const canPin = !!onUnpin;
+  const handleClose = onDismiss ? () => onDismiss(pinnedCard.id) : () => {};
+  const handleTogglePin = onUnpin ? () => onUnpin(pinnedCard.id) : undefined;
 
   if (!data) {
     return (
@@ -62,8 +72,11 @@ function FullCard({ pinnedCard }: { pinnedCard: PinnedCard }) {
       <>
         <SidePanelWordCard
           card={data as WordCard}
-          onClose={noop}
-          canPin={false}
+          onClose={handleClose}
+          canPin={canPin}
+          isPinned={true}
+          pinLoading={pinLoading}
+          onTogglePin={handleTogglePin}
         />
         {note && <NoteDisplay note={note} />}
       </>
@@ -75,8 +88,11 @@ function FullCard({ pinnedCard }: { pinnedCard: PinnedCard }) {
       <>
         <SidePanelEntityCard
           card={data as EntityCard}
-          onClose={noop}
-          canPin={false}
+          onClose={handleClose}
+          canPin={canPin}
+          isPinned={true}
+          pinLoading={pinLoading}
+          onTogglePin={handleTogglePin}
         />
         {note && <NoteDisplay note={note} />}
       </>
@@ -88,8 +104,11 @@ function FullCard({ pinnedCard }: { pinnedCard: PinnedCard }) {
       <>
         <SidePanelIdiomCard
           card={data as IdiomCard}
-          onClose={noop}
-          canPin={false}
+          onClose={handleClose}
+          canPin={canPin}
+          isPinned={true}
+          pinLoading={pinLoading}
+          onTogglePin={handleTogglePin}
         />
         {note && <NoteDisplay note={note} />}
       </>
@@ -116,7 +135,12 @@ function FullCard({ pinnedCard }: { pinnedCard: PinnedCard }) {
 }
 
 /** Slides in from right on mount */
-function EnteringCard({ pinnedCard }: { pinnedCard: PinnedCard }) {
+function EnteringCard({ pinnedCard, onUnpin, onDismiss, pinLoading }: {
+  pinnedCard: PinnedCard;
+  onUnpin?: (pinId: string) => void;
+  onDismiss?: (pinId: string) => void;
+  pinLoading?: boolean;
+}) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -132,7 +156,7 @@ function EnteringCard({ pinnedCard }: { pinnedCard: PinnedCard }) {
         transform: visible ? "translateX(0)" : "translateX(24px)",
       }}
     >
-      <FullCard pinnedCard={pinnedCard} />
+      <FullCard pinnedCard={pinnedCard} onUnpin={onUnpin} onDismiss={onDismiss} pinLoading={pinLoading} />
     </div>
   );
 }
@@ -160,7 +184,11 @@ function ExitingCard({ pinnedCard, onDone }: { pinnedCard: PinnedCard; onDone: (
   );
 }
 
-export default function PinnedCardOverlay({ pinnedCards, currentTime }: PinnedCardOverlayProps) {
+export default function PinnedCardOverlay({ pinnedCards, currentTime, timelineId, onPinChange }: PinnedCardOverlayProps) {
+  const [pinLoading, setPinLoading] = useState(false);
+  // Temporarily dismissed cards (hidden until they leave the time window)
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+
   // All time-active cards, sorted by display_start ascending (oldest first = top)
   const allActive = useMemo(
     () => pinnedCards
@@ -169,12 +197,28 @@ export default function PinnedCardOverlay({ pinnedCards, currentTime }: PinnedCa
     [pinnedCards, currentTime]
   );
 
+  // Clear dismissed IDs when cards leave the time window
+  useEffect(() => {
+    const activeIds = new Set(allActive.map((c) => c.id));
+    setDismissedIds((prev) => {
+      const next = new Set<string>();
+      prev.forEach((id) => { if (activeIds.has(id)) next.add(id); });
+      return next.size !== prev.size ? next : prev;
+    });
+  }, [allActive]);
+
+  // Filter out dismissed cards
+  const activeNotDismissed = useMemo(
+    () => allActive.filter((c) => !dismissedIds.has(c.id)),
+    [allActive, dismissedIds]
+  );
+
   // Cap: keep only the newest MAX_VISIBLE (tail of the sorted array)
   const visibleCards = useMemo(
-    () => allActive.length > MAX_VISIBLE
-      ? allActive.slice(allActive.length - MAX_VISIBLE)
-      : allActive,
-    [allActive]
+    () => activeNotDismissed.length > MAX_VISIBLE
+      ? activeNotDismissed.slice(activeNotDismissed.length - MAX_VISIBLE)
+      : activeNotDismissed,
+    [activeNotDismissed]
   );
 
   // Detect cards leaving the visible set (expired naturally OR bumped by newer cards)
@@ -205,6 +249,25 @@ export default function PinnedCardOverlay({ pinnedCards, currentTime }: PinnedCa
     setExitingCards((prev) => prev.filter((c) => c.id !== id));
   }, []);
 
+  // Unpin a card
+  const handleUnpin = useCallback(async (pinId: string) => {
+    if (!timelineId || pinLoading) return;
+    setPinLoading(true);
+    try {
+      await unpinCard(timelineId, pinId);
+      onPinChange?.();
+    } catch (err) {
+      console.error("Failed to unpin card:", err);
+    } finally {
+      setPinLoading(false);
+    }
+  }, [timelineId, pinLoading, onPinChange]);
+
+  // Dismiss a card temporarily (until it leaves the time window)
+  const handleDismiss = useCallback((pinId: string) => {
+    setDismissedIds((prev) => new Set(prev).add(pinId));
+  }, []);
+
   const hasContent = visibleCards.length > 0 || exitingCards.length > 0;
 
   return (
@@ -215,7 +278,13 @@ export default function PinnedCardOverlay({ pinnedCards, currentTime }: PinnedCa
             <ExitingCard key={`exit-${card.id}`} pinnedCard={card} onDone={handleExitDone} />
           ))}
           {visibleCards.map((card) => (
-            <EnteringCard key={card.id} pinnedCard={card} />
+            <EnteringCard
+              key={card.id}
+              pinnedCard={card}
+              onUnpin={timelineId ? handleUnpin : undefined}
+              onDismiss={handleDismiss}
+              pinLoading={pinLoading}
+            />
           ))}
         </>
       ) : null}

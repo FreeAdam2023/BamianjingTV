@@ -9,6 +9,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import type { CardPopupState } from "@/hooks/useCardPopup";
 import type { WordCard, EntityCard, IdiomCard, PinnedCard, PinnedCardType } from "@/lib/types";
 import { pinCard, unpinCard, updatePinnedCardNote } from "@/lib/api";
+import { playWordAudio } from "@/lib/audio";
 
 interface CardSidePanelProps {
   state: CardPopupState;
@@ -66,7 +67,6 @@ export interface SidePanelWordCardProps {
 }
 
 export function SidePanelWordCard({ card, onClose, isPinned, pinLoading, onTogglePin, canPin, onRefresh, refreshing, pinnedNote, onNoteChange }: SidePanelWordCardProps) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [imageError, setImageError] = useState(false);
 
   const pronunciations = card.pronunciations || [];
@@ -75,10 +75,7 @@ export function SidePanelWordCard({ card, onClose, isPinned, pinLoading, onToggl
   const primaryImage = card.images?.[0];
 
   const playPronunciation = () => {
-    if (!primaryPronunciation?.audio_url) return;
-    if (audioRef.current) audioRef.current.pause();
-    audioRef.current = new Audio(primaryPronunciation.audio_url);
-    audioRef.current.play().catch(() => {});
+    playWordAudio(card.word, primaryPronunciation?.audio_url);
   };
 
   const sensesByPos = senses.reduce((acc, sense) => {
@@ -112,21 +109,20 @@ export function SidePanelWordCard({ card, onClose, isPinned, pinLoading, onToggl
               <span className="text-sm text-white/50">({card.lemma})</span>
             )}
           </div>
-          {primaryPronunciation && (
-            <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-2 mt-1">
+            {primaryPronunciation?.ipa && (
               <span className="text-blue-300 font-mono text-sm">{primaryPronunciation.ipa}</span>
-              {primaryPronunciation.audio_url && (
-                <button
-                  onClick={playPronunciation}
-                  className="p-1 rounded hover:bg-white/10 text-white/60 hover:text-white transition"
-                >
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          )}
+            )}
+            <button
+              onClick={playPronunciation}
+              className="p-1 rounded hover:bg-white/10 text-white/60 hover:text-white transition"
+              title="播放发音"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
+              </svg>
+            </button>
+          </div>
           {card.cefr_level && (
             <span className="inline-block mt-2 px-2 py-0.5 bg-purple-500/30 text-purple-300 text-xs rounded">
               {card.cefr_level}
