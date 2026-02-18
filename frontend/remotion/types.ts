@@ -66,8 +66,8 @@ export interface LearningVideoProps {
   pinnedCards: PinnedCardInput[];
   subtitles: SubtitleInput[];
   layout: {
-    videoRatio: number; // 0.65
-    subtitleRatio: number; // 0.33
+    videoRatio: number; // 0.70
+    subtitleRatio: number; // 0.25
     bgColor: string; // "#1a2744"
   };
   subtitleStyle: {

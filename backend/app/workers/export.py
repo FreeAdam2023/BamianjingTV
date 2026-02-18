@@ -26,12 +26,12 @@ from app.workers.subtitle_styles import (
 CARD_PANEL_WIDTH = 400  # Width of card panel on right side
 CARD_ANIMATION_DURATION = 0.3  # Slide/fade duration in seconds
 
-# WYSIWYG export constants (matches UI 65/35 split)
+# WYSIWYG export constants (matches UI 70/30 split)
 OUTPUT_WIDTH = 1920
 OUTPUT_HEIGHT = 1080
-VIDEO_AREA_RATIO = 0.65  # Left 65% for video
-CARD_PANEL_RATIO = 0.35  # Right 35% for card panel
-SUBTITLE_AREA_RATIO = 0.33  # Bottom 33% for subtitles
+VIDEO_AREA_RATIO = 0.70  # Left 70% for video
+CARD_PANEL_RATIO = 0.30  # Right 30% for card panel
+SUBTITLE_AREA_RATIO = 0.25  # Bottom 25% for subtitles
 PANEL_BG_COLOR = "0x1a2744"
 
 
@@ -262,7 +262,7 @@ class ExportWorker:
         """Build FFmpeg filter_complex for WYSIWYG 65/35 side-by-side layout.
 
         Layout (show_card_panel=True):
-        +---- Left 1248px (65%) ----+--- Right 672px (35%) ---+
+        +---- Left 1344px (70%) ----+--- Right 576px (30%) ---+
         |  Video (blurred bg fill +  |  Full Card Detail Panel  |
         |  sharp center, any ratio)  |  bg: #1a2744             |
         |  Height: 723px             |  Height: 723px           |

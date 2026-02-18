@@ -2,7 +2,7 @@
  * LearningVideoComposition — Remotion composition for WYSIWYG video export.
  *
  * Layout (1920x1080):
- * +---- Left 65% (1248px) ------+--- Right 35% (672px) --+
+ * +---- Left 70% (1344px) ------+--- Right 30% (576px) --+
  * |  <OffthreadVideo>            |  Actual React card      |
  * |  blurred bg fill + sharp     |  components from        |
  * |  video centered, any ratio   |  CardSidePanel.tsx      |
@@ -148,7 +148,7 @@ export const CardStillComposition: React.FC<{ card: PinnedCardInput }> = ({ card
 // ---- SubtitleStillComposition: static subtitle for renderStill (WYSIWYG match) ----
 
 // Replicates SubtitleOverlay.tsx split-mode styling exactly:
-// - SUBTITLE_HEIGHT_RATIO = 0.33, fontScale = 0.33 / 0.5 = 0.66
+// - SUBTITLE_HEIGHT_RATIO = 0.25, fontScale = 0.25 / 0.5 = 0.50
 // - Adaptive text-length scaling (sqrt-based)
 // - leading-relaxed (line-height: 1.625)
 // - fontWeight: 500
@@ -160,7 +160,7 @@ const SUB_MIN_ZH_FONT_SIZE = 20;
 const SUB_EN_CHARS_PER_LINE = 60;
 const SUB_ZH_CHARS_PER_LINE = 30;
 const SUB_MAX_LINES = 4;
-const SUB_FONT_SCALE = 0.33 / 0.5; // 0.66 — matches split-mode fontScale
+const SUB_FONT_SCALE = 0.25 / 0.5; // 0.50 — matches split-mode fontScale
 
 function computeAdaptiveFontSize(
   baseSize: number,

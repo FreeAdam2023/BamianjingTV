@@ -63,8 +63,8 @@ export const RemotionRoot: React.FC = () => {
           pinnedCards: [],
           subtitles: [],
           layout: {
-            videoRatio: 0.65,
-            subtitleRatio: 0.33,
+            videoRatio: 0.70,
+            subtitleRatio: 0.25,
             bgColor: "#1a2744",
           },
           subtitleStyle: {

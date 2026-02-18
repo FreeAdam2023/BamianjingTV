@@ -143,13 +143,13 @@ export const CardPlaceholderComposition: React.FC = () => {
 // ---- SubtitleStillComposition ----
 
 // Scale factor: UI subtitle area ~1408px wide, export is 1920px → 1.36×
-// UI split-mode fontScale = 0.33/0.5 = 0.66, export = 0.66 × 1.36 = 0.9
+// UI split-mode fontScale = 0.25/0.5 = 0.50, export = 0.50 × 1.36 = 0.68
 const SUB_MIN_EN_FONT_SIZE = 24;  // UI 18 × 1.36
 const SUB_MIN_ZH_FONT_SIZE = 27;  // UI 20 × 1.36
 const SUB_EN_CHARS_PER_LINE = 60;
 const SUB_ZH_CHARS_PER_LINE = 30;
 const SUB_MAX_LINES = 4;
-const SUB_FONT_SCALE = 0.9; // UI 0.66 × 1.36 — matches fullscreen perception
+const SUB_FONT_SCALE = 0.68; // UI 0.50 × 1.36 — matches fullscreen perception
 
 function computeAdaptiveFontSize(
   baseSize: number,

@@ -13,8 +13,8 @@ export function useVideoState() {
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
 
-  // Subtitle area height ratio (fixed 33%, not adjustable)
-  const subtitleHeightRatio = 0.33;
+  // Subtitle area height ratio (fixed 25%, not adjustable)
+  const subtitleHeightRatio = 0.25;
 
   // Watermark
   const [watermarkUrl, setWatermarkUrl] = useState<string | null>(null);

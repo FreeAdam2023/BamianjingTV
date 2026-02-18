@@ -62,7 +62,7 @@ export interface Timeline {
   is_reviewed: boolean;
   export_profile: ExportProfile;
   use_traditional_chinese: boolean;
-  subtitle_area_ratio: number;  // fixed 0.33
+  subtitle_area_ratio: number;  // fixed 0.25
   subtitle_style_mode: SubtitleStyleMode;  // half_screen, floating, none
   subtitle_language_mode: SubtitleLanguageMode;  // both, en, zh, none
   // Video-level trim (independent of subtitle segments)

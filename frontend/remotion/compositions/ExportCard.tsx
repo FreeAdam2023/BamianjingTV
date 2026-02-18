@@ -7,8 +7,8 @@
  *
  * Visually mirrors SidePanelWordCard / SidePanelEntityCard / SidePanelIdiomCard.
  *
- * Scale factor: The export card panel is 672px (35% of 1920) while the
- * review UI card panel is ~493px (35% of ~1408px). To achieve identical
+ * Scale factor: The export card panel is 576px (30% of 1920) while the
+ * review UI card panel is ~422px (30% of ~1408px). To achieve identical
  * visual perception at fullscreen, all sizes are multiplied by 1.36×.
  * UI text-xs (12) → 16, text-sm (14) → 19, text-base (16) → 22,
  * text-xl (20) → 27, text-2xl (24) → 33, p-4 (16) → 22.
