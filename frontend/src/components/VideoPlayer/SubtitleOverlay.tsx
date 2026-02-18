@@ -24,8 +24,8 @@ const EN_CHARS_PER_LINE = 60;
 const ZH_CHARS_PER_LINE = 30;
 const MAX_LINES = 4; // Max lines we want to display
 
-// Fixed subtitle area ratio (33% of screen height, not adjustable)
-const SUBTITLE_HEIGHT_RATIO = 0.33;
+// Fixed subtitle area ratio (25% of screen height, not adjustable)
+const SUBTITLE_HEIGHT_RATIO = 0.25;
 
 export default function SubtitleOverlay({
   segment,

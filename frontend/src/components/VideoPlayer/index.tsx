@@ -349,6 +349,41 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     [segments, seekTo, onSegmentChange, play]
   );
 
+  // Segment navigation: previous / next (skip dropped segments)
+  const goToPrevSegment = useCallback(() => {
+    const sorted = [...segments].sort((a, b) => a.start - b.start);
+    const curIdx = currentSegmentId !== null
+      ? sorted.findIndex((s) => s.id === currentSegmentId)
+      : sorted.findIndex((s) => currentTime >= s.start && currentTime < s.end);
+
+    // Search backward for a non-dropped segment
+    for (let i = (curIdx > 0 ? curIdx - 1 : sorted.length - 1); i >= 0; i--) {
+      const seg = sorted[i];
+      if (seg.state !== "drop") {
+        seekTo(seg.start);
+        onSegmentChange?.(seg.id);
+        return;
+      }
+    }
+  }, [segments, currentSegmentId, currentTime, seekTo, onSegmentChange]);
+
+  const goToNextSegment = useCallback(() => {
+    const sorted = [...segments].sort((a, b) => a.start - b.start);
+    const curIdx = currentSegmentId !== null
+      ? sorted.findIndex((s) => s.id === currentSegmentId)
+      : sorted.findIndex((s) => currentTime >= s.start && currentTime < s.end);
+
+    // Search forward for a non-dropped segment
+    for (let i = (curIdx >= 0 ? curIdx + 1 : 0); i < sorted.length; i++) {
+      const seg = sorted[i];
+      if (seg.state !== "drop") {
+        seekTo(seg.start);
+        onSegmentChange?.(seg.id);
+        return;
+      }
+    }
+  }, [segments, currentSegmentId, currentTime, seekTo, onSegmentChange]);
+
   // Volume controls
   const handleVolumeChange = useCallback((newVolume: number) => {
     setVolume(newVolume);
@@ -466,7 +501,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         }}
       >
         {/* Video area with blurred background fill */}
-        <div className={`${showCardPanel ? "w-[65%]" : "w-full"} relative overflow-hidden`}>
+        <div className={`${showCardPanel ? "w-[70%]" : "w-full"} relative overflow-hidden`}>
           {/* Blurred background: covers area, zoomed in */}
           <video
             src={videoUrl}
@@ -526,7 +561,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         {/* Card panel (next to video only) — matches export card area */}
         {showCardPanel && (
         <div
-          className="w-[35%] flex-shrink-0 border-l border-white/20 relative overflow-hidden"
+          className="w-[30%] flex-shrink-0 border-l border-white/20 relative overflow-hidden"
           style={{ backgroundColor: containerBgColor }}
         >
           {/* Layer 1: Placeholder (visible when nothing else is showing) */}
@@ -562,6 +597,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
             <PinnedCardOverlay
               pinnedCards={pinnedCards}
               currentTime={currentTime}
+              timelineId={timelineId}
+              onPinChange={onCardPinChange}
             />
           </div>
 
@@ -634,6 +671,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         hasExportFull={hasExportFull}
         hasExportEssence={hasExportEssence}
         onPreviewExport={onPreviewExport}
+        onPrevSegment={segments.length > 0 ? goToPrevSegment : undefined}
+        onNextSegment={segments.length > 0 ? goToNextSegment : undefined}
         onTogglePlay={toggle}
         onSeek={seekTo}
         onVolumeChange={handleVolumeChange}

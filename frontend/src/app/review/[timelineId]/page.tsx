@@ -119,6 +119,19 @@ export default function ReviewPage() {
     [rawOpenWordCard, timeline?.source_language]
   );
 
+  // Output mode state (controls subtitle/card preview; default "learning")
+  type OutputMode = "learning" | "watching" | "dubbing";
+  const [outputMode, setOutputMode] = useState<OutputMode>("learning");
+
+  // Sync outputMode from timeline on first load
+  useEffect(() => {
+    if (timeline) {
+      if (timeline.mode === "dubbing") setOutputMode("dubbing");
+      else if (timeline.subtitle_style_mode === "floating") setOutputMode("watching");
+      else setOutputMode("learning");
+    }
+  }, [timeline?.timeline_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Creative mode state
   const [isCreativeMode, setIsCreativeMode] = useState(false);
   const { config: creativeConfig, style: creativeStyle, setConfig: setCreativeConfig, setStyle: setCreativeStyle } = useCreativeConfig();
@@ -726,7 +739,9 @@ export default function ReviewPage() {
         stats={stats}
         timelineId={timeline.timeline_id}
         jobId={timeline.job_id}
-        mode={timeline.mode}
+        mode={outputMode}
+        outputMode={outputMode}
+        onOutputModeChange={setOutputMode}
         exportStatus={liveExportStatus ?? timeline.export_status}
         onExportClick={() => setShowExportPanel(true)}
         onDelete={handleDelete}
@@ -774,7 +789,7 @@ export default function ReviewPage() {
               <VideoPlayer
               ref={videoPlayerRef}
               jobId={timeline.job_id}
-              mode={timeline.mode}
+              mode={outputMode}
               segments={timeline.segments}
               currentSegmentId={currentSegmentId}
               onTimeUpdate={handleVideoTimeUpdate}
@@ -796,14 +811,14 @@ export default function ReviewPage() {
               onPreviewExport={setExportPreviewType}
               subtitleLanguageMode={timeline.subtitle_language_mode}
               onSubtitleLanguageModeChange={handleSubtitleLanguageModeChange}
-              cardState={timeline.mode !== "dubbing" ? cardState : undefined}
-              onCardClose={timeline.mode !== "dubbing" ? closeCard : undefined}
+              cardState={cardState}
+              onCardClose={closeCard}
               timelineId={timeline.timeline_id}
-              pinnedCards={timeline.mode !== "dubbing" ? (timeline.pinned_cards || []) : []}
-              onCardPinChange={timeline.mode !== "dubbing" ? () => refresh() : undefined}
-              onCardRefresh={timeline.mode !== "dubbing" ? refreshCard : undefined}
-              cardRefreshing={timeline.mode !== "dubbing" ? cardRefreshing : undefined}
-              onEditEntity={timeline.mode !== "dubbing" ? handleEditEntityFromCard : undefined}
+              pinnedCards={timeline.pinned_cards || []}
+              onCardPinChange={() => refresh()}
+              onCardRefresh={refreshCard}
+              cardRefreshing={cardRefreshing}
+              onEditEntity={handleEditEntityFromCard}
             />
             )}
           </div>
@@ -933,16 +948,16 @@ export default function ReviewPage() {
             onTextChange={setSegmentText}
             onTimeChange={setSegmentTime}
             onSplitSegment={handleSplitSegment}
-            segmentAnnotations={timeline.mode !== "dubbing" ? segmentAnnotations : undefined}
-            onRefreshEntities={timeline.mode !== "dubbing" ? handleRefreshEntities : undefined}
-            onRefreshIdioms={timeline.mode !== "dubbing" ? handleRefreshIdioms : undefined}
-            onWordClick={timeline.mode !== "dubbing" ? openWordCard : undefined}
-            onEntityClick={timeline.mode !== "dubbing" ? openEntityCard : undefined}
-            onIdiomClick={timeline.mode !== "dubbing" ? openIdiomCard : undefined}
-            onAddEntity={timeline.mode !== "dubbing" ? handleAddEntity : undefined}
-            onEditEntity={timeline.mode !== "dubbing" ? handleEditEntity : undefined}
-            onAddIdiom={timeline.mode !== "dubbing" ? handleAddIdiom : undefined}
-            onEditIdiom={timeline.mode !== "dubbing" ? handleEditIdiom : undefined}
+            segmentAnnotations={segmentAnnotations}
+            onRefreshEntities={handleRefreshEntities}
+            onRefreshIdioms={handleRefreshIdioms}
+            onWordClick={openWordCard}
+            onEntityClick={openEntityCard}
+            onIdiomClick={openIdiomCard}
+            onAddEntity={handleAddEntity}
+            onEditEntity={handleEditEntity}
+            onAddIdiom={handleAddIdiom}
+            onEditIdiom={handleEditIdiom}
             onToggleSubtitleHidden={toggleSubtitleHidden}
             onToggleBookmark={toggleBookmark}
             bookmarkFilter={bookmarkFilter}
@@ -983,6 +998,7 @@ export default function ReviewPage() {
           coverFrameUrl={coverFrameUrl}
           coverFrameTime={coverFrameTime}
           subtitleStyle={getSubtitleStyleForExport()}
+          defaultOutputMode={outputMode}
           onClose={() => setShowExportPanel(false)}
           onExport={startExport}
           onExportStarted={() => {

@@ -6,8 +6,6 @@ import { listTimelines, listJobs, getStats, formatDuration, createJob, createJob
 import type { TimelineSummary, Job, JobCreate, WhisperModel } from "@/lib/types";
 import type { UploadProgress } from "@/lib/api";
 
-type VideoMode = "watching" | "dubbing";
-
 const SOURCE_LANGUAGES = [
   { value: "en", label: "English" },
   { value: "zh", label: "中文" },
@@ -37,7 +35,6 @@ export default function Home() {
 
   // Add Video Modal state
   const [showModal, setShowModal] = useState(false);
-  const [videoMode, setVideoMode] = useState<VideoMode>("watching");
   const [inputMode, setInputMode] = useState<"url" | "upload">("url");
   const [newUrl, setNewUrl] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -52,7 +49,7 @@ export default function Home() {
   const loadData = useCallback(async () => {
     try {
       const [timelinesData, statsData, jobsData] = await Promise.all([
-        listTimelines(false, true, 10),
+        listTimelines(false, true),
         getStats(),
         listJobs(undefined, 50),
       ]);
@@ -77,7 +74,6 @@ export default function Home() {
   }, [loadData]);
 
   function openModal() {
-    setVideoMode("watching");
     setInputMode("url");
     setNewUrl("");
     setUploadFile(null);
@@ -112,7 +108,6 @@ export default function Home() {
       const effectiveTargetLang = targetLanguage;
 
       const jobOptions: Partial<JobCreate> = {
-        mode: videoMode,
         target_language: effectiveTargetLang,
         skip_diarization: !enableDiarization,
         whisper_model: whisperModel,
@@ -127,7 +122,6 @@ export default function Home() {
         await createJobWithUpload(
           {
             file: uploadFile!,
-            mode: videoMode,
             target_language: effectiveTargetLang,
             skip_diarization: !enableDiarization,
             whisper_model: whisperModel,
@@ -163,17 +157,6 @@ export default function Home() {
         return <span className="badge badge-warning">Pending</span>;
       default:
         return <span className="badge badge-info">{status}</span>;
-    }
-  }
-
-  function getModeBadge(mode: string | undefined) {
-    switch (mode) {
-      case "watching":
-        return <span className="badge bg-purple-600 text-white text-xs">Watch</span>;
-      case "dubbing":
-        return <span className="badge bg-orange-600 text-white text-xs">Dub</span>;
-      default:
-        return <span className="badge bg-purple-600 text-white text-xs">Watch</span>;
     }
   }
 
@@ -345,7 +328,6 @@ export default function Home() {
                         <h3 className="text-lg font-semibold truncate">
                           {job.title || "Loading video info..."}
                         </h3>
-                        {getModeBadge(job.mode)}
                         {getStatusBadge(job.status)}
                       </div>
                       <p className="text-gray-400 text-sm">
@@ -446,7 +428,6 @@ export default function Home() {
                       >
                         {timeline.source_title}
                       </h3>
-                      {getModeBadge(timeline.mode)}
                       {getExportStatusBadge(timeline)}
                     </div>
                     <p className="text-gray-400 text-sm">
@@ -503,57 +484,6 @@ export default function Home() {
             <h2 className="text-xl font-bold mb-6">添加视频</h2>
 
             <form onSubmit={handleSubmit}>
-              {/* Mode Selection */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-300 mb-3">
-                  模式
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <label
-                    className={`flex flex-col items-center p-4 rounded-lg border cursor-pointer transition-all ${
-                      videoMode === "watching"
-                        ? "border-purple-500 bg-purple-500/10"
-                        : "border-gray-600 bg-gray-800/50 hover:border-gray-500"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="mode"
-                      value="watching"
-                      checked={videoMode === "watching"}
-                      onChange={() => setVideoMode("watching")}
-                      className="sr-only"
-                    />
-                    <span className="text-3xl mb-2">🎬</span>
-                    <span className="font-medium">观看学习</span>
-                    <span className="text-xs text-gray-400 text-center mt-1">
-                      双语字幕 + 笔记 + AI
-                    </span>
-                  </label>
-                  <label
-                    className={`flex flex-col items-center p-4 rounded-lg border cursor-pointer transition-all ${
-                      videoMode === "dubbing"
-                        ? "border-orange-500 bg-orange-500/10"
-                        : "border-gray-600 bg-gray-800/50 hover:border-gray-500"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="mode"
-                      value="dubbing"
-                      checked={videoMode === "dubbing"}
-                      onChange={() => setVideoMode("dubbing")}
-                      className="sr-only"
-                    />
-                    <span className="text-3xl mb-2">🎙️</span>
-                    <span className="font-medium">AI 配音</span>
-                    <span className="text-xs text-gray-400 text-center mt-1">
-                      声音克隆 + 口型同步
-                    </span>
-                  </label>
-                </div>
-              </div>
-
               {/* Language Selection */}
               <div className="mb-6">
                 <div className="grid grid-cols-2 gap-4">
@@ -564,7 +494,7 @@ export default function Home() {
                     <select
                       value={sourceLanguage}
                       onChange={(e) => setSourceLanguage(e.target.value)}
-                      className={`w-full bg-gray-800 text-white text-sm px-3 py-2 rounded-lg border border-gray-600 outline-none transition-colors ${videoMode === "dubbing" ? "focus:border-orange-500" : "focus:border-purple-500"}`}
+                      className="w-full bg-gray-800 text-white text-sm px-3 py-2 rounded-lg border border-gray-600 outline-none transition-colors focus:border-purple-500"
                     >
                       {SOURCE_LANGUAGES.map((lang) => (
                         <option key={lang.value} value={lang.value}>
@@ -580,7 +510,7 @@ export default function Home() {
                     <select
                       value={targetLanguage}
                       onChange={(e) => setTargetLanguage(e.target.value)}
-                      className={`w-full bg-gray-800 text-white text-sm px-3 py-2 rounded-lg border border-gray-600 outline-none transition-colors ${videoMode === "dubbing" ? "focus:border-orange-500" : "focus:border-purple-500"}`}
+                      className="w-full bg-gray-800 text-white text-sm px-3 py-2 rounded-lg border border-gray-600 outline-none transition-colors focus:border-purple-500"
                     >
                       {TARGET_LANGUAGES.filter((l) => l.value !== sourceLanguage && !(sourceLanguage === "zh" && l.value.startsWith("zh"))).map((lang) => (
                         <option key={lang.value} value={lang.value}>

@@ -16,6 +16,8 @@ interface ReviewStats {
   progress: number;
 }
 
+type OutputMode = "learning" | "watching" | "dubbing";
+
 interface ReviewHeaderProps {
   title: string;
   saving: boolean;
@@ -34,6 +36,9 @@ interface ReviewHeaderProps {
   /** Creative mode toggle */
   isCreativeMode?: boolean;
   onModeChange?: (isCreative: boolean) => void;
+  /** Output mode (learning / watching / dubbing) */
+  outputMode?: OutputMode;
+  onOutputModeChange?: (mode: OutputMode) => void;
 }
 
 export default function ReviewHeader({
@@ -51,6 +56,8 @@ export default function ReviewHeader({
   onExportStatusChange,
   isCreativeMode = false,
   onModeChange,
+  outputMode = "learning",
+  onOutputModeChange,
 }: ReviewHeaderProps) {
   return (
     <header className="bg-gray-800 px-4 py-3 flex items-center justify-between">
@@ -61,7 +68,7 @@ export default function ReviewHeader({
         <h1 className="text-lg font-medium truncate max-w-md">{title}</h1>
         {saving && <span className="text-yellow-400 text-sm">保存中...</span>}
 
-        {/* Mode toggle */}
+        {/* Creative mode toggle */}
         {onModeChange && (
           <div className="flex items-center gap-1 ml-2">
             <button
@@ -86,6 +93,46 @@ export default function ReviewHeader({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
               </svg>
               动效字幕
+            </button>
+          </div>
+        )}
+
+        {/* Output mode toggle (learning / watching / dubbing) */}
+        {onOutputModeChange && (
+          <div className="flex items-center gap-1 ml-2 border-l border-gray-600 pl-3">
+            <span className="text-xs text-gray-500 mr-1">模式</span>
+            <button
+              onClick={() => onOutputModeChange("learning")}
+              className={`px-2.5 py-1 text-xs rounded-lg transition-colors ${
+                outputMode === "learning"
+                  ? "bg-purple-600 text-white"
+                  : "bg-gray-700 text-gray-400 hover:bg-gray-600"
+              }`}
+              title="学习模式：半屏字幕 + 卡片面板"
+            >
+              学习
+            </button>
+            <button
+              onClick={() => onOutputModeChange("watching")}
+              className={`px-2.5 py-1 text-xs rounded-lg transition-colors ${
+                outputMode === "watching"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-700 text-gray-400 hover:bg-gray-600"
+              }`}
+              title="观影模式：浮动字幕，全宽画面"
+            >
+              观影
+            </button>
+            <button
+              onClick={() => onOutputModeChange("dubbing")}
+              className={`px-2.5 py-1 text-xs rounded-lg transition-colors ${
+                outputMode === "dubbing"
+                  ? "bg-orange-600 text-white"
+                  : "bg-gray-700 text-gray-400 hover:bg-gray-600"
+              }`}
+              title="配音模式：无字幕"
+            >
+              配音
             </button>
           </div>
         )}
@@ -118,7 +165,7 @@ export default function ReviewHeader({
         )}
 
         {/* Dubbing entry button */}
-        {mode === "dubbing" && (
+        {outputMode === "dubbing" && (
           <Link
             href={`/dub/${timelineId}`}
             className="px-4 py-2 bg-orange-600 hover:bg-orange-700 rounded-lg flex items-center gap-1.5"

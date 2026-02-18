@@ -9,11 +9,14 @@ import type { ExportProfile, ExportRequest, Timeline, TitleCandidate, MetadataDr
 import { generateThumbnail, generateUnifiedMetadata, getMetadataDraft, saveMetadataDraft, formatDuration, setShowCardPanel, setCardDisplayDuration } from "@/lib/api";
 import { useToast } from "@/components/ui";
 
+type OutputMode = "learning" | "watching" | "dubbing";
+
 interface ExportPanelProps {
   timeline: Timeline;
   coverFrameUrl: string | null;
   coverFrameTime: number | null;
   subtitleStyle?: SubtitleStyleOptions;
+  defaultOutputMode?: OutputMode;
   onClose: () => void;
   onExport: (request: ExportRequest) => Promise<unknown>;
   onExportStarted?: () => void;
@@ -25,6 +28,7 @@ export default function ExportPanel({
   coverFrameUrl,
   coverFrameTime,
   subtitleStyle,
+  defaultOutputMode,
   onClose,
   onExport,
   onExportStarted,
@@ -33,6 +37,15 @@ export default function ExportPanel({
   const toast = useToast();
   const [exportProfile, setExportProfile] = useState<ExportProfile>("full");
   const [useTraditional, setUseTraditional] = useState(false);
+
+  // Output mode for export (learning / watching / dubbing)
+  const [outputMode, setOutputMode] = useState<OutputMode>(() => {
+    if (defaultOutputMode) return defaultOutputMode;
+    // Infer from timeline settings
+    if (timeline.subtitle_style_mode === "floating") return "watching";
+    if (timeline.subtitle_style_mode === "none") return "dubbing";
+    return "learning";
+  });
 
   // YouTube metadata (for draft saving, upload happens in PreviewUploadPanel)
   const [youtubeTitle, setYoutubeTitle] = useState("");
@@ -171,13 +184,16 @@ export default function ExportPanel({
   }, [onClose]);
 
   const handleExport = async (testSeconds?: number) => {
-    console.log("[ExportPanel] Starting export...", { profile: exportProfile, subtitleStyle, testSeconds, showCardPanel });
+    // Map outputMode to subtitle_style_mode and show_card_panel
+    const subtitleStyleMode = outputMode === "watching" ? "floating" : outputMode === "dubbing" ? "none" : "half_screen";
+    const effectiveShowCardPanel = outputMode === "learning" ? showCardPanel : false;
+    console.log("[ExportPanel] Starting export...", { profile: exportProfile, outputMode, subtitleStyleMode, effectiveShowCardPanel, subtitleStyle, testSeconds });
     const request: ExportRequest = {
       profile: exportProfile,
       use_traditional_chinese: useTraditional,
       subtitle_style: subtitleStyle,
-      subtitle_style_mode: timeline.subtitle_style_mode,
-      show_card_panel: showCardPanel,
+      subtitle_style_mode: subtitleStyleMode,
+      show_card_panel: effectiveShowCardPanel,
       upload_to_youtube: false, // Don't upload yet, user will preview first
     };
     if (testSeconds) {
@@ -295,6 +311,49 @@ export default function ExportPanel({
         </button>
         <h2 className="text-xl font-bold mb-4">导出视频</h2>
 
+        {/* Output mode selector */}
+        <div className="mb-4">
+          <label className="block text-sm text-gray-400 mb-2">输出模式</label>
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              onClick={() => setOutputMode("learning")}
+              className={`flex flex-col items-center p-3 rounded-lg border-2 transition-all ${
+                outputMode === "learning"
+                  ? "border-purple-500 bg-purple-500/10"
+                  : "border-gray-600 bg-gray-800/50 hover:border-gray-500"
+              }`}
+            >
+              <span className="text-lg mb-1">📚</span>
+              <span className="text-xs font-medium">学习模式</span>
+              <span className="text-[10px] text-gray-500 mt-0.5">半屏字幕 + 卡片</span>
+            </button>
+            <button
+              onClick={() => setOutputMode("watching")}
+              className={`flex flex-col items-center p-3 rounded-lg border-2 transition-all ${
+                outputMode === "watching"
+                  ? "border-blue-500 bg-blue-500/10"
+                  : "border-gray-600 bg-gray-800/50 hover:border-gray-500"
+              }`}
+            >
+              <span className="text-lg mb-1">🎬</span>
+              <span className="text-xs font-medium">观影模式</span>
+              <span className="text-[10px] text-gray-500 mt-0.5">浮动字幕 全宽</span>
+            </button>
+            <button
+              onClick={() => setOutputMode("dubbing")}
+              className={`flex flex-col items-center p-3 rounded-lg border-2 transition-all ${
+                outputMode === "dubbing"
+                  ? "border-orange-500 bg-orange-500/10"
+                  : "border-gray-600 bg-gray-800/50 hover:border-gray-500"
+              }`}
+            >
+              <span className="text-lg mb-1">🎙️</span>
+              <span className="text-xs font-medium">配音模式</span>
+              <span className="text-[10px] text-gray-500 mt-0.5">无字幕</span>
+            </button>
+          </div>
+        </div>
+
         {/* Export profile */}
         <div className="mb-4">
           <label className="block text-sm text-gray-400 mb-2">导出配置</label>
@@ -332,8 +391,8 @@ export default function ExportPanel({
           </div>
         </div>
 
-        {/* Pinned cards indicator (only for full/both) */}
-        {(exportProfile === "full" || exportProfile === "both") && (
+        {/* Pinned cards indicator (only for learning mode + full/both) */}
+        {outputMode === "learning" && (exportProfile === "full" || exportProfile === "both") && (
           <div className="mb-4 relative">
             <div className="flex items-center gap-2 px-3 py-2.5 bg-gray-700/50 rounded-lg">
               <svg className="w-4 h-4 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

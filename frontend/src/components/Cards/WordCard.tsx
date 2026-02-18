@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useRef } from "react";
-import Image from "next/image";
 import type { WordCard as WordCardType } from "@/lib/types";
 import { CollectButton } from "@/components/MemoryBook";
+import { playWordAudio } from "@/lib/audio";
 
 interface WordCardProps {
   card: WordCardType;
@@ -23,27 +23,32 @@ export default function WordCard({
   sourceSegmentText,
 }: WordCardProps) {
   const [playingAudio, setPlayingAudio] = useState(false);
-  const [imageError, setImageError] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Get primary pronunciation
   const primaryPronunciation = card.pronunciations.find((p) => p.region === "us") || card.pronunciations[0];
 
-  // Get first image
-  const primaryImage = card.images?.[0];
-
   const playPronunciation = () => {
-    if (!primaryPronunciation?.audio_url) return;
-
     if (audioRef.current) {
       audioRef.current.pause();
     }
 
-    audioRef.current = new Audio(primaryPronunciation.audio_url);
-    audioRef.current.onplay = () => setPlayingAudio(true);
-    audioRef.current.onended = () => setPlayingAudio(false);
-    audioRef.current.onerror = () => setPlayingAudio(false);
-    audioRef.current.play().catch(() => setPlayingAudio(false));
+    if (primaryPronunciation?.audio_url) {
+      audioRef.current = new Audio(primaryPronunciation.audio_url);
+      audioRef.current.onplay = () => setPlayingAudio(true);
+      audioRef.current.onended = () => setPlayingAudio(false);
+      audioRef.current.onerror = () => {
+        setPlayingAudio(false);
+        // Audio URL failed — fall back to TTS
+        playWordAudio(card.word);
+      };
+      audioRef.current.play().catch(() => {
+        setPlayingAudio(false);
+        playWordAudio(card.word);
+      });
+    } else {
+      playWordAudio(card.word);
+    }
   };
 
   // Group senses by part of speech
@@ -56,39 +61,24 @@ export default function WordCard({
 
   return (
     <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl w-[420px] max-h-[600px] overflow-hidden flex flex-col">
-      {/* Image Header */}
-      {primaryImage && !imageError && (
-        <div className="relative h-32 w-full overflow-hidden bg-gray-800">
-          <img
-            src={primaryImage}
-            alt={card.word}
-            className="w-full h-full object-cover"
-            onError={() => setImageError(true)}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[var(--card)] via-transparent to-transparent" />
-        </div>
-      )}
-
       {/* Header */}
-      <div className={`p-4 ${primaryImage && !imageError ? '-mt-10 relative z-10' : ''} flex items-start justify-between`}>
+      <div className="p-4 flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <h2 className="text-2xl font-bold text-white">{card.word}</h2>
-            {primaryPronunciation && (
-              <button
-                onClick={playPronunciation}
-                className={`p-2 rounded-full transition-all ${
-                  playingAudio
-                    ? "bg-blue-500 text-white scale-110"
-                    : "bg-gray-700/80 text-gray-300 hover:bg-gray-600"
-                }`}
-                title="Play pronunciation"
-              >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
-                </svg>
-              </button>
-            )}
+            <button
+              onClick={playPronunciation}
+              className={`p-2 rounded-full transition-all ${
+                playingAudio
+                  ? "bg-blue-500 text-white scale-110"
+                  : "bg-gray-700/80 text-gray-300 hover:bg-gray-600"
+              }`}
+              title="Play pronunciation"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+              </svg>
+            </button>
           </div>
 
           {/* Pronunciation IPA */}
