@@ -103,6 +103,10 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   // segment changes briefly so short segments don't get overridden.
   const segmentLockUntilRef = useRef<number>(0);
 
+  // Keep a ref to segments so skip logic always reads the latest state
+  const segmentsRef = useRef(segments);
+  segmentsRef.current = segments;
+
   const {
     isPlaying,
     setIsPlaying,
@@ -221,6 +225,65 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     return () => video.removeEventListener("loadedmetadata", handleLoadedMetadata);
   }, [trimStart]);
 
+  // Helper: skip to next non-dropped segment (reads from ref for freshest state)
+  const skipDroppedSegment = useCallback((video: HTMLVideoElement, time: number): boolean => {
+    const segs = segmentsRef.current;
+    const segAtTime = segs.find((seg) => time >= seg.start && time < seg.end);
+    if (!segAtTime || segAtTime.state !== "drop") return false;
+
+    // Find the next non-dropped segment after this one
+    const nextKeep = segs
+      .filter((seg) => seg.start >= segAtTime.end && seg.state !== "drop")
+      .sort((a, b) => a.start - b.start)[0];
+    if (nextKeep) {
+      if (trimEnd !== null && nextKeep.start >= trimEnd) {
+        video.currentTime = trimEnd;
+        if (!isLooping) video.pause();
+        else video.currentTime = trimStart;
+      } else {
+        video.currentTime = nextKeep.start;
+      }
+    } else {
+      // No more kept segments
+      if (trimEnd !== null) {
+        video.currentTime = trimEnd;
+        if (!isLooping) video.pause();
+        else video.currentTime = trimStart;
+      } else {
+        video.pause();
+      }
+    }
+    return true;
+  }, [trimStart, trimEnd, isLooping]);
+
+  // RAF-based drop skip: runs at ~60fps while playing for instant response
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    let rafId: number;
+
+    const checkDrop = () => {
+      if (!video.paused && !video.seeking) {
+        skipDroppedSegment(video, video.currentTime);
+      }
+      rafId = requestAnimationFrame(checkDrop);
+    };
+
+    const startRaf = () => { rafId = requestAnimationFrame(checkDrop); };
+    const stopRaf = () => cancelAnimationFrame(rafId);
+
+    video.addEventListener("play", startRaf);
+    video.addEventListener("pause", stopRaf);
+    // Start immediately if already playing
+    if (!video.paused) startRaf();
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      video.removeEventListener("play", startRaf);
+      video.removeEventListener("pause", stopRaf);
+    };
+  }, [skipDroppedSegment]);
+
   // Video event handlers
   useEffect(() => {
     const video = videoRef.current;
@@ -230,35 +293,6 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
       const time = video.currentTime;
       setCurrentTime(time);
       onTimeUpdate?.(time);
-
-      // Skip dropped segments instantly during playback
-      if (!video.paused) {
-        const segAtTime = segments.find((seg) => time >= seg.start && time < seg.end);
-        if (segAtTime && segAtTime.state === "drop") {
-          // Find the next non-dropped segment after this one
-          const nextKeep = segments
-            .filter((seg) => seg.start >= segAtTime.end && seg.state !== "drop")
-            .sort((a, b) => a.start - b.start)[0];
-          if (nextKeep) {
-            // Respect trim end
-            if (trimEnd !== null && nextKeep.start >= trimEnd) {
-              video.currentTime = trimEnd;
-              if (!isLooping) video.pause();
-              else video.currentTime = trimStart;
-            } else {
-              video.currentTime = nextKeep.start;
-            }
-          } else {
-            // No more kept segments, go to end
-            if (trimEnd !== null) {
-              video.currentTime = trimEnd;
-              if (!isLooping) video.pause();
-              else video.currentTime = trimStart;
-            }
-          }
-          return;
-        }
-      }
 
       // Update current segment (skip if within grace period from explicit click)
       if (Date.now() > segmentLockUntilRef.current) {
@@ -271,10 +305,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
       // Handle trim end boundary
       if (trimEnd !== null && time >= trimEnd) {
         if (isLooping) {
-          // Loop back to trim start
           video.currentTime = trimStart;
         } else {
-          // Pause at trim end
           video.pause();
           video.currentTime = trimEnd;
         }
@@ -283,7 +315,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
 
       // Handle segment looping (only if within trim range)
       if (isLooping && currentSegmentId !== null) {
-        const currentSeg = segments.find((s) => s.id === currentSegmentId);
+        const currentSeg = segmentsRef.current.find((s) => s.id === currentSegmentId);
         if (currentSeg && time >= currentSeg.end) {
           video.currentTime = currentSeg.start;
         }
@@ -308,7 +340,6 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   }, [
     currentSegmentId,
     isLooping,
-    segments,
     findSegmentAtTime,
     onTimeUpdate,
     onSegmentChange,
