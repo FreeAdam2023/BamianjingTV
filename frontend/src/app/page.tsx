@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
-import { listTimelines, listJobs, getStats, formatDuration, createJob, createJobWithUpload, updateTimelineTitle } from "@/lib/api";
-import type { TimelineSummary, Job, JobCreate, WhisperModel } from "@/lib/types";
+import { listTimelines, listJobs, getStats, formatDuration, createJob, createJobWithUpload, updateTimelineTitle, probeSubtitles } from "@/lib/api";
+import type { TimelineSummary, Job, JobCreate, WhisperModel, SubtitleSource, ProbeSubtitlesResponse } from "@/lib/types";
 import type { UploadProgress } from "@/lib/api";
 
 const SOURCE_LANGUAGES = [
@@ -41,6 +41,9 @@ export default function Home() {
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [probing, setProbing] = useState(false);
+  const [probeResult, setProbeResult] = useState<ProbeSubtitlesResponse | null>(null);
+  const [subtitleSource, setSubtitleSource] = useState<SubtitleSource>("whisper");
   const [sourceLanguage, setSourceLanguage] = useState("en");
   const [targetLanguage, setTargetLanguage] = useState("zh-CN");
   const [enableDiarization, setEnableDiarization] = useState(false);
@@ -73,12 +76,51 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [loadData]);
 
+  // Auto-probe YouTube URLs for subtitle tracks
+  useEffect(() => {
+    if (inputMode !== "url" || !newUrl.trim()) {
+      setProbeResult(null);
+      return;
+    }
+
+    const urlLower = newUrl.toLowerCase();
+    const isYouTube = urlLower.includes("youtube.com") || urlLower.includes("youtu.be");
+    if (!isYouTube) {
+      setProbeResult(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setProbing(true);
+      try {
+        const result = await probeSubtitles(newUrl.trim());
+        setProbeResult(result);
+        // Auto-select recommended source
+        if (result.recommended_source === "youtube") {
+          setSubtitleSource("youtube");
+        } else {
+          setSubtitleSource("whisper");
+        }
+      } catch (err) {
+        console.error("Probe failed:", err);
+        setProbeResult(null);
+      } finally {
+        setProbing(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [newUrl, inputMode]);
+
   function openModal() {
     setInputMode("url");
     setNewUrl("");
     setUploadFile(null);
     setUploadProgress(null);
     setError(null);
+    setProbing(false);
+    setProbeResult(null);
+    setSubtitleSource("whisper");
     setSourceLanguage("en");
     setTargetLanguage("zh-CN");
     setEnableDiarization(false);
@@ -91,6 +133,9 @@ export default function Home() {
     setNewUrl("");
     setUploadFile(null);
     setUploadProgress(null);
+    setProbing(false);
+    setProbeResult(null);
+    setSubtitleSource("whisper");
     setError(null);
   }
 
@@ -111,6 +156,7 @@ export default function Home() {
         target_language: effectiveTargetLang,
         skip_diarization: !enableDiarization,
         whisper_model: whisperModel,
+        subtitle_source: subtitleSource,
       };
 
       if (inputMode === "url") {
@@ -596,7 +642,7 @@ export default function Home() {
 
               {/* URL Input */}
               {inputMode === "url" && (
-                <div className="mb-6">
+                <div className="mb-4">
                   <input
                     type="url"
                     value={newUrl}
@@ -606,6 +652,110 @@ export default function Home() {
                     disabled={submitting}
                     autoFocus
                   />
+                </div>
+              )}
+
+              {/* Subtitle Source Selection (YouTube URLs only) */}
+              {inputMode === "url" && (probing || probeResult) && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    字幕来源
+                  </label>
+                  {probing ? (
+                    <div className="flex items-center gap-2 text-sm text-gray-400 p-3 bg-gray-800/50 rounded-lg">
+                      <span className="spinner w-4 h-4" />
+                      正在检测字幕轨道...
+                    </div>
+                  ) : probeResult && probeResult.is_youtube ? (
+                    <div className="space-y-2">
+                      {/* Whisper AI option */}
+                      <label
+                        className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                          subtitleSource === "whisper"
+                            ? "border-blue-500 bg-blue-500/10"
+                            : "border-gray-600 bg-gray-800/50 hover:border-gray-500"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="subtitle_source"
+                          value="whisper"
+                          checked={subtitleSource === "whisper"}
+                          onChange={() => setSubtitleSource("whisper")}
+                          className="w-4 h-4 text-blue-500 border-gray-600 bg-gray-700 focus:ring-blue-500"
+                          disabled={submitting}
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-white text-sm font-medium">Whisper AI 转录</span>
+                            {probeResult.recommended_source === "whisper" && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">推荐</span>
+                            )}
+                          </div>
+                          <p className="text-gray-500 text-xs">使用 AI 语音识别</p>
+                        </div>
+                      </label>
+
+                      {/* YouTube Manual Subtitles */}
+                      {probeResult.subtitles.some((t) => t.type === "manual" && t.lang.startsWith("en")) && (
+                        <label
+                          className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                            subtitleSource === "youtube"
+                              ? "border-blue-500 bg-blue-500/10"
+                              : "border-gray-600 bg-gray-800/50 hover:border-gray-500"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="subtitle_source"
+                            value="youtube"
+                            checked={subtitleSource === "youtube"}
+                            onChange={() => setSubtitleSource("youtube")}
+                            className="w-4 h-4 text-blue-500 border-gray-600 bg-gray-700 focus:ring-blue-500"
+                            disabled={submitting}
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-white text-sm font-medium">YouTube 字幕</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-300">博主上传</span>
+                              {probeResult.recommended_source === "youtube" && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">推荐</span>
+                              )}
+                            </div>
+                            <p className="text-gray-500 text-xs">使用博主上传的字幕（跳过 Whisper）</p>
+                          </div>
+                        </label>
+                      )}
+
+                      {/* YouTube Auto-Captions */}
+                      {probeResult.subtitles.some((t) => t.type === "auto" && t.lang.startsWith("en")) && (
+                        <label
+                          className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                            subtitleSource === "youtube_auto"
+                              ? "border-blue-500 bg-blue-500/10"
+                              : "border-gray-600 bg-gray-800/50 hover:border-gray-500"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="subtitle_source"
+                            value="youtube_auto"
+                            checked={subtitleSource === "youtube_auto"}
+                            onChange={() => setSubtitleSource("youtube_auto")}
+                            className="w-4 h-4 text-blue-500 border-gray-600 bg-gray-700 focus:ring-blue-500"
+                            disabled={submitting}
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-white text-sm font-medium">YouTube 自动字幕</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-300">自动生成</span>
+                            </div>
+                            <p className="text-gray-500 text-xs">使用自动生成字幕（质量低于 Whisper）</p>
+                          </div>
+                        </label>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               )}
 
