@@ -568,8 +568,8 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Whisper Model Size */}
-              <div className="mb-4">
+              {/* Whisper Model Size (only when using Whisper) */}
+              {subtitleSource === "whisper" && <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   转录模型
                 </label>
@@ -595,7 +595,7 @@ export default function Home() {
                     </button>
                   ))}
                 </div>
-              </div>
+              </div>}
 
               {/* Speaker Diarization */}
               <div className="mb-4">
