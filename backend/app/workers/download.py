@@ -107,12 +107,20 @@ class DownloadWorker:
             await self._download_video(url, video_path)
 
         # Download subtitles if requested and available
+        zh_subtitle_path = None
         if fetch_subtitles and has_subtitles:
             subtitle_path = await self._download_subtitles(
                 url, source_dir, subtitle_langs, prefer_auto=prefer_auto_subs
             )
             if subtitle_path:
                 logger.info(f"Downloaded subtitles: {subtitle_path}")
+
+            # Try downloading Chinese subtitles for bilingual mode
+            zh_subtitle_path = await self._download_zh_subtitles(
+                url, source_dir, info, prefer_auto=prefer_auto_subs
+            )
+            if zh_subtitle_path:
+                logger.info(f"Downloaded Chinese subtitles: {zh_subtitle_path}")
 
         # Extract audio if requested (skip if we have subtitles and don't need audio for Whisper)
         if extract_audio:
@@ -123,11 +131,15 @@ class DownloadWorker:
                 logger.info("Extracting audio...")
                 await self._extract_audio(video_path, audio_path)
 
+        has_bilingual = subtitle_path is not None and zh_subtitle_path is not None
+
         return {
             "video_path": str(video_path),
             "audio_path": str(audio_path) if extract_audio else None,
             "subtitle_path": str(subtitle_path) if subtitle_path else None,
             "has_youtube_subtitles": subtitle_path is not None,
+            "zh_subtitle_path": str(zh_subtitle_path) if zh_subtitle_path else None,
+            "has_bilingual_youtube_subs": has_bilingual,
             "title": info.get("title"),
             "duration": duration,
             "channel": info.get("channel") or info.get("uploader"),
@@ -448,6 +460,135 @@ class DownloadWorker:
                 merged.append(seg)
 
         logger.info(f"Parsed {len(merged)} segments from YouTube subtitles (raw: {len(segments)})")
+        return merged
+
+    async def _download_zh_subtitles(
+        self,
+        url: str,
+        output_dir: Path,
+        info: Dict[str, Any],
+        prefer_auto: bool = False,
+    ) -> Optional[Path]:
+        """
+        Download Chinese subtitles from YouTube.
+
+        Tries zh-Hans, zh-Hant, zh in order from manual subs first,
+        then auto-generated if prefer_auto or no manual found.
+
+        Returns:
+            Path to Chinese VTT file if successful, None otherwise
+        """
+        zh_langs = ["zh-Hans", "zh-Hant", "zh"]
+        manual_subs = info.get("subtitles", {})
+        auto_subs = info.get("automatic_captions", {})
+
+        # Check which ZH languages are available
+        manual_zh = [lang for lang in zh_langs if lang in manual_subs]
+        auto_zh = [lang for lang in zh_langs if lang in auto_subs]
+
+        if not manual_zh and not auto_zh:
+            return None
+
+        # Order: manual first (unless prefer_auto), then auto
+        attempts = []
+        if prefer_auto:
+            if auto_zh:
+                attempts.append((auto_zh, True))
+            if manual_zh:
+                attempts.append((manual_zh, False))
+        else:
+            if manual_zh:
+                attempts.append((manual_zh, False))
+            if auto_zh:
+                attempts.append((auto_zh, True))
+
+        for langs, write_auto in attempts:
+            cmd = [
+                "yt-dlp",
+                "--skip-download",
+                "--sub-format", "vtt",
+                "--sub-langs", ",".join(langs),
+                "-o", str(output_dir / "subtitle_zh"),
+            ]
+
+            if write_auto:
+                cmd.append("--write-auto-subs")
+            else:
+                cmd.append("--write-subs")
+
+            cmd.append(url)
+
+            subprocess.run(cmd, capture_output=True, text=True)
+
+            # Check for downloaded file
+            for lang in langs:
+                possible_paths = [
+                    output_dir / f"subtitle_zh.{lang}.vtt",
+                    output_dir / f"subtitle_zh.{lang.split('-')[0]}.vtt",
+                ]
+                for path in possible_paths:
+                    if path.exists():
+                        final_path = output_dir / "youtube_subtitle_zh.vtt"
+                        path.rename(final_path)
+                        return final_path
+
+        return None
+
+    def merge_bilingual_subtitles(
+        self,
+        en_segments: List[Dict[str, Any]],
+        zh_segments: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """
+        Merge EN and ZH subtitle segments using EN-anchored overlap matching.
+
+        For each EN segment, finds all overlapping ZH segments and concatenates
+        their text. Uses sliding window pointer for O(n+m) efficiency.
+
+        Args:
+            en_segments: List of EN segments with start, end, text, speaker
+            zh_segments: List of ZH segments with start, end, text
+
+        Returns:
+            List of merged segments with text (EN), translation (ZH), start, end, speaker
+        """
+        merged = []
+        zh_ptr = 0  # Sliding window start pointer
+
+        for en_seg in en_segments:
+            en_start = en_seg["start"]
+            en_end = en_seg["end"]
+
+            # Advance pointer past ZH segments that end before this EN segment starts
+            while zh_ptr < len(zh_segments) and zh_segments[zh_ptr]["end"] <= en_start:
+                zh_ptr += 1
+
+            # Collect all overlapping ZH segments
+            zh_texts = []
+            j = zh_ptr
+            while j < len(zh_segments):
+                zh_seg = zh_segments[j]
+                zh_start = zh_seg["start"]
+                zh_end = zh_seg["end"]
+
+                # No overlap if ZH starts after EN ends
+                if zh_start >= en_end:
+                    break
+
+                # Overlap exists: zh_start < en_end AND zh_end > en_start
+                if zh_end > en_start:
+                    zh_texts.append(zh_seg["text"])
+
+                j += 1
+
+            merged.append({
+                "start": en_start,
+                "end": en_end,
+                "text": en_seg["text"],
+                "translation": " ".join(zh_texts) if zh_texts else "",
+                "speaker": en_seg.get("speaker", "SPEAKER_00"),
+            })
+
         return merged
 
     def _parse_vtt_timestamp(self, ts: str) -> float:

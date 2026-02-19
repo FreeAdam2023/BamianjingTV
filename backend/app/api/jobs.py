@@ -281,6 +281,8 @@ async def probe_subtitles(url: str = Query(..., description="YouTube or video UR
             "duration": None,
             "subtitles": [],
             "recommended_source": "whisper",
+            "has_bilingual": False,
+            "bilingual_type": None,
         }
 
     try:
@@ -314,12 +316,35 @@ async def probe_subtitles(url: str = Query(..., description="YouTube or video UR
     )
     recommended = "youtube" if has_manual_en else "whisper"
 
+    # Check for bilingual (EN + ZH) subtitle availability
+    zh_lang_prefixes = ("zh-Hans", "zh-Hant", "zh")
+    has_manual_zh = any(
+        t["type"] == "manual" and (t["lang"] in zh_lang_prefixes or t["lang"].startswith("zh"))
+        for t in tracks
+    )
+    has_auto_zh = any(
+        t["type"] == "auto" and (t["lang"] in zh_lang_prefixes or t["lang"].startswith("zh"))
+        for t in tracks
+    )
+
+    # Bilingual requires EN + ZH to both exist
+    has_en = has_manual_en or any(
+        t["type"] == "auto" and t["lang"].startswith("en")
+        for t in tracks
+    )
+    has_bilingual = has_en and (has_manual_zh or has_auto_zh)
+    bilingual_type = None
+    if has_bilingual:
+        bilingual_type = "manual" if has_manual_zh else "auto"
+
     return {
         "is_youtube": True,
         "title": info.get("title"),
         "duration": info.get("duration"),
         "subtitles": tracks,
         "recommended_source": recommended,
+        "has_bilingual": has_bilingual,
+        "bilingual_type": bilingual_type,
     }
 
 

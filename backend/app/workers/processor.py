@@ -17,6 +17,7 @@ from app.models.transcript import (
     DiarizedTranscript,
     DiarizedSegment,
     TranslatedTranscript,
+    TranslatedSegment,
 )
 
 if TYPE_CHECKING:
@@ -104,6 +105,7 @@ async def process_job(
         # ============ YouTube Subtitle Path (skip Whisper + Diarize) ============
         diarized_path = transcript_dir / "diarized.json"
         youtube_subs_used = False
+        zh_segments = None  # For bilingual subtitle shortcut
 
         if use_youtube_subs and download_result.get("has_youtube_subtitles"):
             subtitle_path = download_result["subtitle_path"]
@@ -116,6 +118,17 @@ async def process_job(
                 yt_segments = await download_worker.parse_youtube_subtitles(
                     Path(subtitle_path)
                 )
+
+                # Parse Chinese subtitles if bilingual
+                if download_result.get("has_bilingual_youtube_subs"):
+                    zh_path = download_result.get("zh_subtitle_path")
+                    if zh_path and Path(zh_path).exists():
+                        zh_segments = await download_worker.parse_youtube_subtitles(
+                            Path(zh_path)
+                        )
+                        logger.info(
+                            f"Parsed {len(zh_segments)} Chinese subtitle segments for job {job_id}"
+                        )
 
                 # Convert to DiarizedTranscript format
                 diarized_transcript = DiarizedTranscript(
@@ -262,6 +275,49 @@ async def process_job(
         if translation_path.exists():
             logger.info(f"Translation file already exists, skipping translation: {job_id}")
             translated_transcript = load_json_model(translation_path, TranslatedTranscript)
+        elif zh_segments is not None:
+            # ---- Bilingual shortcut: merge EN + ZH, skip GPT translation ----
+            logger.info(
+                f"Using bilingual YouTube subtitles for job {job_id}, skipping GPT translation"
+            )
+            await job_manager.update_status(job, JobStatus.TRANSLATING, 0.70)
+
+            # Merge EN (from diarized_transcript) with ZH segments
+            en_for_merge = [
+                {
+                    "start": seg.start,
+                    "end": seg.end,
+                    "text": seg.text,
+                    "speaker": seg.speaker,
+                }
+                for seg in diarized_transcript.segments
+            ]
+            merged = download_worker.merge_bilingual_subtitles(en_for_merge, zh_segments)
+
+            translated_transcript = TranslatedTranscript(
+                source_language="en",
+                target_language=target_lang_code,
+                num_speakers=diarized_transcript.num_speakers,
+                segments=[
+                    TranslatedSegment(
+                        start=seg["start"],
+                        end=seg["end"],
+                        text=seg["text"],
+                        speaker=seg["speaker"],
+                        translation=seg["translation"],
+                    )
+                    for seg in merged
+                ],
+            )
+
+            # Save translation
+            translation_dir.mkdir(parents=True, exist_ok=True)
+            with open(translation_path, "w", encoding="utf-8") as f:
+                f.write(translated_transcript.model_dump_json(indent=2))
+
+            logger.info(
+                f"Bilingual merge complete: {len(merged)} segments for job {job_id}"
+            )
         else:
             await job_manager.update_status(job, JobStatus.TRANSLATING, 0.70)
             translated_transcript = await translation_worker.translate_transcript(

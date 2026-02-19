@@ -95,8 +95,10 @@ export default function Home() {
       try {
         const result = await probeSubtitles(newUrl.trim());
         setProbeResult(result);
-        // Auto-select recommended source
-        if (result.recommended_source === "youtube") {
+        // Auto-select: prefer YouTube when bilingual manual subs exist
+        if (result.has_bilingual && result.bilingual_type === "manual") {
+          setSubtitleSource("youtube");
+        } else if (result.recommended_source === "youtube") {
           setSubtitleSource("youtube");
         } else {
           setSubtitleSource("whisper");
@@ -668,6 +670,21 @@ export default function Home() {
                     </div>
                   ) : probeResult && probeResult.is_youtube ? (
                     <div className="space-y-2">
+                      {/* Bilingual banner */}
+                      {probeResult.has_bilingual && (
+                        <div className="flex items-center gap-2 p-2.5 rounded-lg bg-green-500/10 border border-green-500/30">
+                          <svg className="w-4 h-4 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="text-green-300 text-sm">
+                            EN + ZH 双语字幕可用 — 将跳过翻译
+                            {probeResult.bilingual_type === "auto" && (
+                              <span className="text-green-400/70 text-xs ml-1">（自动生成）</span>
+                            )}
+                          </span>
+                        </div>
+                      )}
+
                       {/* Whisper AI option */}
                       <label
                         className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-all ${
@@ -722,7 +739,11 @@ export default function Home() {
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">推荐</span>
                               )}
                             </div>
-                            <p className="text-gray-500 text-xs">使用博主上传的字幕（跳过 Whisper）</p>
+                            <p className="text-gray-500 text-xs">
+                              {probeResult.has_bilingual
+                                ? "使用博主上传的双语字幕（跳过 Whisper + 翻译）"
+                                : "使用博主上传的字幕（跳过 Whisper）"}
+                            </p>
                           </div>
                         </label>
                       )}

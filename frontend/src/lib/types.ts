@@ -305,6 +305,8 @@ export interface ProbeSubtitlesResponse {
   duration: number | null;
   subtitles: SubtitleTrack[];
   recommended_source: "whisper" | "youtube";
+  has_bilingual: boolean;
+  bilingual_type: "manual" | "auto" | null;
 }
 
 export interface JobCreate {
