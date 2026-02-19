@@ -27,7 +27,7 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   fontWeight: "500",
   textShadow: true,
   backgroundColor: "#1a2744",
-  displayMode: "split", // "split" = below video, "overlay" = on video
+  displayMode: "overlay", // "split" = below video, "overlay" = on video
   languageMode: "both", // "both" | "en" | "zh" | "none"
 };
 

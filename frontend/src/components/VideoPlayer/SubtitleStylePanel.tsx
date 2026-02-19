@@ -190,22 +190,24 @@ export default function SubtitleStylePanel({
         </button>
       </div>
 
-      {/* Background color */}
-      <div>
-        <label className="block text-gray-400 text-xs mb-1">Background</label>
-        <div className="flex gap-1">
-          {BACKGROUND_COLORS.map((color) => (
-            <button
-              key={color}
-              onClick={() => onStyleChange({ backgroundColor: color })}
-              className={`w-8 h-5 rounded border-2 ${
-                style.backgroundColor === color ? "border-white" : "border-gray-500"
-              }`}
-              style={{ backgroundColor: color }}
-            />
-          ))}
+      {/* Background color (only relevant in split mode) */}
+      {style.displayMode === "split" && (
+        <div>
+          <label className="block text-gray-400 text-xs mb-1">Background</label>
+          <div className="flex gap-1">
+            {BACKGROUND_COLORS.map((color) => (
+              <button
+                key={color}
+                onClick={() => onStyleChange({ backgroundColor: color })}
+                className={`w-8 h-5 rounded border-2 ${
+                  style.backgroundColor === color ? "border-white" : "border-gray-500"
+                }`}
+                style={{ backgroundColor: color }}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

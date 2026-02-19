@@ -513,9 +513,9 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   );
   const showCardPanel = mode !== "dubbing";
 
-  // Calculate heights for split mode
-  const videoHeightPercent = (isOverlayMode || isHiddenMode) ? 100 : (1 - subtitleHeightRatio) * 100;
-  const subtitleHeightPercent = (isOverlayMode || isHiddenMode) ? 0 : subtitleHeightRatio * 100;
+  // Calculate heights (consistent 75%/25% in all modes)
+  const videoHeightPercent = (1 - subtitleHeightRatio) * 100;
+  const subtitleHeightPercent = subtitleHeightRatio * 100;
 
   return (
     <div
@@ -527,7 +527,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
       <div
         className="flex flex-shrink-0"
         style={{
-          height: (isOverlayMode || isHiddenMode) ? "calc(100% - 60px)" : `${videoHeightPercent}%`,
+          height: `${videoHeightPercent}%`,
           minHeight: "200px",
         }}
       >
@@ -574,17 +574,6 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
                 className="max-h-16 max-w-32 object-contain opacity-90"
               />
             </div>
-          )}
-
-          {/* Overlay/hidden mode: subtitles on video (hidden passes null segment for gear-only) */}
-          {(isOverlayMode || isHiddenMode) && (
-            <SubtitleOverlay
-              segment={isHiddenMode ? null : (currentSegment || null)}
-              style={subtitleStyle}
-              onStyleChange={handleStyleChange}
-              onStyleReset={resetSubtitleStyle}
-              overlayMode={true}
-            />
           )}
 
         </div>
@@ -662,21 +651,18 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         )}
       </div>
 
-      {/* Split mode: subtitles below video (full width) */}
-      {!isOverlayMode && !isHiddenMode && (
-        <div
-          className="flex-1 min-h-0 border-t border-white/20"
-          style={{ height: `${subtitleHeightPercent}%` }}
-        >
-          <SubtitleOverlay
-            segment={currentSegment || null}
-            style={subtitleStyle}
-            onStyleChange={handleStyleChange}
-            onStyleReset={resetSubtitleStyle}
-            overlayMode={false}
-          />
-        </div>
-      )}
+      {/* Subtitles below video (full width, all modes) */}
+      <div
+        className="flex-1 min-h-0 border-t border-white/20"
+        style={{ height: `${subtitleHeightPercent}%` }}
+      >
+        <SubtitleOverlay
+          segment={isHiddenMode ? null : (currentSegment || null)}
+          style={subtitleStyle}
+          onStyleChange={handleStyleChange}
+          onStyleReset={resetSubtitleStyle}
+        />
+      </div>
 
       {/* Controls bar (full width) */}
       <VideoControls
