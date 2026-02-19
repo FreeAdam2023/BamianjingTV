@@ -147,12 +147,13 @@ export default function SubtitleOverlay({
         </svg>
       </button>
 
-      {/* Style settings panel */}
+      {/* Style settings modal */}
       {showStyleSettings && (
         <SubtitleStylePanel
           style={style}
           onStyleChange={onStyleChange}
           onReset={onStyleReset}
+          onClose={() => setShowStyleSettings(false)}
         />
       )}
     </div>

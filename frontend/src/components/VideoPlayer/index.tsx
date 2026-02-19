@@ -512,9 +512,11 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     (c) => currentTime >= c.display_start && currentTime <= c.display_end
   );
   const showCardPanel = mode !== "dubbing";
+  // Card drawer is visible when a card detail or pinned card is active
+  const isCardDrawerOpen = showCardPanel && (hasCardOpen || hasActivePinnedCardNow);
 
-  // Calculate heights (consistent 75%/25% in all modes)
-  const videoHeightPercent = (1 - subtitleHeightRatio) * 100;
+  // Calculate heights: split mode uses 75%/25%, overlay/hidden use full height
+  const useSplitLayout = !isOverlayMode && !isHiddenMode;
   const subtitleHeightPercent = subtitleHeightRatio * 100;
 
   return (
@@ -523,16 +525,16 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
       className="flex flex-col rounded-lg overflow-hidden h-full"
       style={{ backgroundColor: containerBgColor }}
     >
-      {/* Top section: Video + Card Panel side by side */}
+      {/* Video area (full width, always flex-1 in overlay/hidden, fixed in split) */}
       <div
-        className="flex flex-shrink-0"
+        className={`relative ${useSplitLayout ? "flex-shrink-0" : "flex-1 min-h-0"}`}
         style={{
-          height: `${videoHeightPercent}%`,
+          ...(useSplitLayout ? { height: `${(1 - subtitleHeightRatio) * 100}%` } : {}),
           minHeight: "200px",
         }}
       >
-        {/* Video area with blurred background fill */}
-        <div className={`${showCardPanel ? "w-[70%]" : "w-full"} relative overflow-hidden`}>
+        {/* Video with blurred background fill — full width */}
+        <div className="w-full h-full relative overflow-hidden">
           {/* Blurred background: covers area, zoomed in */}
           <video
             src={videoUrl}
@@ -576,93 +578,94 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
             </div>
           )}
 
+          {/* Floating subtitle overlay (overlay mode only) */}
+          {isOverlayMode && (
+            <div className="absolute bottom-0 left-0 right-0 z-10" style={{ height: `${subtitleHeightPercent}%` }}>
+              <SubtitleOverlay
+                segment={currentSegment || null}
+                style={subtitleStyle}
+                onStyleChange={handleStyleChange}
+                onStyleReset={resetSubtitleStyle}
+              />
+            </div>
+          )}
         </div>
 
-        {/* Card panel (next to video only) — matches export card area */}
+        {/* Card drawer — slides in from right, overlays on video, opaque */}
         {showCardPanel && (
-        <div
-          className="w-[30%] flex-shrink-0 border-l border-white/20 relative overflow-hidden"
-          style={{ backgroundColor: containerBgColor }}
-        >
-          {/* Layer 1: Placeholder (visible when nothing else is showing) */}
           <div
-            className={`absolute inset-0 flex flex-col items-center justify-center p-6 transition-opacity duration-300 ${
-              hasCardOpen || hasActivePinnedCardNow ? "opacity-0 pointer-events-none" : "opacity-100"
+            className={`absolute top-0 right-0 h-full w-[30%] z-20 border-l border-white/20 overflow-hidden transition-transform duration-300 ease-out ${
+              isCardDrawerOpen ? "translate-x-0" : "translate-x-full"
             }`}
+            style={{ backgroundColor: containerBgColor }}
           >
-            <div className="text-center space-y-4">
-              <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center">
-                <svg className="w-8 h-8 text-purple-400/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <h3 className="text-white/70 font-medium text-lg">学习卡片</h3>
-              <p className="text-white/40 text-sm leading-relaxed max-w-[200px]">
-                点击字幕中高亮的单词或实体查看详细卡片
-              </p>
-              <div className="flex flex-wrap justify-center gap-2 pt-2">
-                <span className="px-2 py-1 bg-blue-500/10 text-blue-400/60 text-xs rounded-full">单词</span>
-                <span className="px-2 py-1 bg-purple-500/10 text-purple-400/60 text-xs rounded-full">实体</span>
-                <span className="px-2 py-1 bg-amber-500/10 text-amber-400/60 text-xs rounded-full">习语</span>
-              </div>
+            {/* Pinned card preview (visible when pinned cards active and no detail open) */}
+            <div
+              className={`absolute inset-0 transition-opacity duration-300 ${
+                !hasCardOpen && hasActivePinnedCardNow ? "opacity-100" : "opacity-0 pointer-events-none"
+              }`}
+            >
+              <PinnedCardOverlay
+                pinnedCards={pinnedCards}
+                currentTime={currentTime}
+                timelineId={timelineId}
+                onPinChange={onCardPinChange}
+              />
+            </div>
+
+            {/* Card detail panel (highest priority) */}
+            <div
+              className={`h-full transition-opacity duration-200 ${
+                hasCardOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+              }`}
+            >
+              {cardState && onCardClose && (
+                <CardSidePanel
+                  state={cardState}
+                  onClose={onCardClose}
+                  position="right"
+                  inline={true}
+                  sourceTimelineId={timelineId}
+                  sourceSegmentId={currentSegmentId ?? undefined}
+                  sourceTimecode={currentTime}
+                  pinnedCards={pinnedCards}
+                  onPinChange={onCardPinChange ? () => onCardPinChange() : undefined}
+                  onRefresh={onCardRefresh}
+                  refreshing={cardRefreshing}
+                  onEditEntity={onEditEntity}
+                />
+              )}
             </div>
           </div>
-
-          {/* Layer 2: Pinned card live preview (visible when pinned cards exist and no card detail open) */}
-          <div
-            className={`absolute inset-0 transition-opacity duration-300 ${
-              !hasCardOpen && hasActivePinnedCards ? "opacity-100" : "opacity-0 pointer-events-none"
-            }`}
-          >
-            <PinnedCardOverlay
-              pinnedCards={pinnedCards}
-              currentTime={currentTime}
-              timelineId={timelineId}
-              onPinChange={onCardPinChange}
-            />
-          </div>
-
-          {/* Layer 3: Card detail panel (highest priority, shown when user clicks a word) */}
-          <div
-            className={`h-full transition-all duration-300 ease-out ${
-              hasCardOpen
-                ? "opacity-100 translate-x-0"
-                : "opacity-0 translate-x-4 pointer-events-none"
-            }`}
-          >
-            {cardState && onCardClose && (
-              <CardSidePanel
-                state={cardState}
-                onClose={onCardClose}
-                position="right"
-                inline={true}
-                sourceTimelineId={timelineId}
-                sourceSegmentId={currentSegmentId ?? undefined}
-                sourceTimecode={currentTime}
-                pinnedCards={pinnedCards}
-                onPinChange={onCardPinChange ? () => onCardPinChange() : undefined}
-                onRefresh={onCardRefresh}
-                refreshing={cardRefreshing}
-                onEditEntity={onEditEntity}
-              />
-            )}
-          </div>
-        </div>
         )}
       </div>
 
-      {/* Subtitles below video (full width, all modes) */}
-      <div
-        className="flex-1 min-h-0 border-t border-white/20"
-        style={{ height: `${subtitleHeightPercent}%` }}
-      >
-        <SubtitleOverlay
-          segment={isHiddenMode ? null : (currentSegment || null)}
-          style={subtitleStyle}
-          onStyleChange={handleStyleChange}
-          onStyleReset={resetSubtitleStyle}
-        />
-      </div>
+      {/* Subtitles below video (split mode only) */}
+      {useSplitLayout && (
+        <div
+          className="flex-shrink-0 min-h-0 border-t border-white/20"
+          style={{ height: `${subtitleHeightPercent}%` }}
+        >
+          <SubtitleOverlay
+            segment={currentSegment || null}
+            style={subtitleStyle}
+            onStyleChange={handleStyleChange}
+            onStyleReset={resetSubtitleStyle}
+          />
+        </div>
+      )}
+
+      {/* Hidden mode: just the settings button, no subtitle text */}
+      {isHiddenMode && (
+        <div className="flex-shrink-0 relative" style={{ height: "40px" }}>
+          <SubtitleOverlay
+            segment={null}
+            style={subtitleStyle}
+            onStyleChange={handleStyleChange}
+            onStyleReset={resetSubtitleStyle}
+          />
+        </div>
+      )}
 
       {/* Controls bar (full width) */}
       <VideoControls
