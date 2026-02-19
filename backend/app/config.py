@@ -77,9 +77,9 @@ class Settings(BaseSettings):
     # Music generation settings
     music_device: str = "cuda"
 
-    # Virtual Studio settings
-    studio_ue_url: str = "http://192.168.1.200:30010"  # UE5 Remote Control API
-    studio_pixel_streaming_url: str = "http://192.168.1.200:80"  # Pixel Streaming Signalling Server
+    # Virtual Studio settings (override via STUDIO_UE_URL / STUDIO_PIXEL_STREAMING_URL env vars)
+    studio_ue_url: str = "http://192.168.2.64:30010"  # UE5 Remote Control API
+    studio_pixel_streaming_url: str = "http://192.168.2.64:88"  # Pixel Streaming Signalling Server
 
     # Upload settings
     max_upload_size_mb: int = 4096  # 4GB max upload

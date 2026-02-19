@@ -36,6 +36,9 @@ services:
       # TomTrove API (for word cards)
       - TOMTROVE_API_URL=${TOMTROVE_API_URL:-https://dev-api.tomtrove.com/api/v1/public}
       - TOMTROVE_API_KEY=${TOMTROVE_API_KEY}
+      # Virtual Studio (UE5)
+      - STUDIO_UE_URL=${STUDIO_UE_URL:-http://192.168.2.64:30010}
+      - STUDIO_PIXEL_STREAMING_URL=${STUDIO_PIXEL_STREAMING_URL:-http://192.168.2.64:88}
     deploy:
       resources:
         reservations:

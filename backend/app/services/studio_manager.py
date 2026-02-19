@@ -31,8 +31,8 @@ class StudioManager:
 
     def __init__(
         self,
-        ue_base_url: str = "http://192.168.1.200:30010",
-        pixel_streaming_url: str = "http://192.168.1.200:80",
+        ue_base_url: str = "http://192.168.2.64:30010",
+        pixel_streaming_url: str = "http://192.168.2.64:88",
         state_file: Optional[Path] = None,
     ):
         self._ue_base_url = ue_base_url

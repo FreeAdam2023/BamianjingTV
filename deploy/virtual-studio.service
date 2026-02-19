@@ -20,6 +20,7 @@ ExecStart=/opt/virtual-studio/VirtualStudio.sh \
   -FPS=60 \
   -PixelStreamingIP=0.0.0.0 \
   -PixelStreamingPort=8888 \
+  -PixelStreamingSignallingPort=88 \
   -AudioMixer \
   -nosplash \
   -nosound \

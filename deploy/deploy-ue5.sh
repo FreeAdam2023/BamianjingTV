@@ -59,15 +59,15 @@ if [[ "${SKIP_PACKAGE}" == "false" ]]; then
         -unattended \
         -utf8output
 
-    if [[ ! -d "${ARCHIVE_DIR}/LinuxNoEditor" ]]; then
-        echo "ERROR: Packaging failed — expected output not found"
+    if [[ ! -d "${ARCHIVE_DIR}/Linux" ]]; then
+        echo "ERROR: Packaging failed — expected output not found at ${ARCHIVE_DIR}/Linux"
         exit 1
     fi
     echo ">>> Packaging complete."
 else
     echo ">>> Skipping package step."
-    if [[ ! -d "${ARCHIVE_DIR}/LinuxNoEditor" ]]; then
-        echo "ERROR: No staged build found at ${ARCHIVE_DIR}/LinuxNoEditor"
+    if [[ ! -d "${ARCHIVE_DIR}/Linux" ]]; then
+        echo "ERROR: No staged build found at ${ARCHIVE_DIR}/Linux"
         echo "       Run without --skip-package first."
         exit 1
     fi
@@ -88,7 +88,7 @@ fi
 # ---- 5. Deploy new build ----
 echo ">>> Deploying new build..."
 mkdir -p "${UE5_DEPLOY_DIR}"
-cp -a "${ARCHIVE_DIR}/LinuxNoEditor/." "${UE5_DEPLOY_DIR}/"
+cp -a "${ARCHIVE_DIR}/Linux/." "${UE5_DEPLOY_DIR}/"
 chmod +x "${UE5_DEPLOY_DIR}/VirtualStudio.sh" 2>/dev/null || true
 
 # ---- 6. Install / update systemd service ----
@@ -124,15 +124,16 @@ if [[ $ELAPSED -ge $MAX_WAIT ]]; then
 fi
 
 # ---- 9. Verify Pixel Streaming ----
-if curl -sf http://localhost:80 > /dev/null 2>&1; then
-    echo ">>> Pixel Streaming signalling server is responding!"
+SIGNALLING_PORT="${SIGNALLING_PORT:-88}"
+if curl -sf "http://localhost:${SIGNALLING_PORT}" > /dev/null 2>&1; then
+    echo ">>> Pixel Streaming signalling server is responding on :${SIGNALLING_PORT}!"
 else
-    echo "WARNING: Pixel Streaming not responding on :80"
-    echo "         You may need to start the signalling server separately."
+    echo "WARNING: Pixel Streaming not responding on :${SIGNALLING_PORT}"
+    echo "         UE5 may need more time to start, or check -PixelStreamingSignallingPort."
 fi
 
 echo ""
 echo "=== UE5 Deploy Complete ==="
 echo "Service status: $(systemctl is-active ${UE5_SERVICE_NAME} 2>/dev/null || echo 'unknown')"
 echo "Remote Control: http://localhost:30010"
-echo "Pixel Streaming: http://localhost:80"
+echo "Pixel Streaming: http://localhost:${SIGNALLING_PORT}"
