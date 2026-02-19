@@ -38,8 +38,10 @@ def _get_manager() -> StudioManager:
 
 @router.get("/status", response_model=StudioState)
 async def get_status():
-    """Get current virtual studio state."""
-    return _get_manager().get_state()
+    """Get current virtual studio state (with live UE5 connection check)."""
+    manager = _get_manager()
+    await manager.check_connection()
+    return manager.get_state()
 
 
 @router.get("/presets", response_model=StudioPresets)

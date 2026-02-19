@@ -77,11 +77,15 @@ async def process_job(
         await job_manager.update_status(job, JobStatus.DOWNLOADING, 0.10)
         job.start_step("download")
 
-        # Always use Whisper for transcription — no YouTube subtitle fallback
+        # Determine if we should fetch YouTube subtitles
+        use_youtube_subs = getattr(job, "subtitle_source", "whisper") in ("youtube", "youtube_auto")
+        prefer_auto = getattr(job, "subtitle_source", "whisper") == "youtube_auto"
+
         download_result = await download_worker.download(
             url=job.url,
             output_dir=job_dir,
-            fetch_subtitles=False,
+            fetch_subtitles=use_youtube_subs,
+            prefer_auto_subs=prefer_auto,
         )
 
         job.source_video = download_result["video_path"]
@@ -97,76 +101,151 @@ async def process_job(
             logger.info(f"Job {job_id} cancelled after download stage")
             return
 
-        # ============ Stage 2: Transcribe (30%) ============
-        raw_path = transcript_dir / "raw.json"
-        job.start_step("transcribe")
-
-        if raw_path.exists():
-            logger.info(f"Transcript already exists, skipping transcription: {job_id}")
-            transcript = load_json_model(raw_path, Transcript)
-        else:
-            await job_manager.update_status(job, JobStatus.TRANSCRIBING, 0.30)
-            transcript = await whisper_worker.transcribe(
-                audio_path=Path(job.source_audio),
-                model_name=getattr(job, "whisper_model", None),
-            )
-            await whisper_worker.save_transcript(transcript, raw_path)
-
-        job.transcript_raw = str(raw_path)
-        job.end_step("transcribe")
-        job_manager.save_job(job)
-
-        if check_cancelled():
-            await job_manager.update_status(job, JobStatus.CANCELLED)
-            logger.info(f"Job {job_id} cancelled after transcription stage")
-            return
-
-        # ============ Stage 3: Diarize (50%) ============
+        # ============ YouTube Subtitle Path (skip Whisper + Diarize) ============
         diarized_path = transcript_dir / "diarized.json"
-        job.start_step("diarize")
+        youtube_subs_used = False
 
-        if diarized_path.exists():
-            logger.info(f"Diarization file already exists, skipping diarization: {job_id}")
-            diarized_transcript = load_json_model(diarized_path, DiarizedTranscript)
-        elif job.skip_diarization:
-            # Skip diarization - convert transcript to diarized format without speakers
-            logger.info(f"User chose to skip speaker diarization: {job_id}")
-            diarized_transcript = DiarizedTranscript(
-                language=transcript.language,
-                num_speakers=1,
-                segments=[
-                    DiarizedSegment(
-                        start=seg.start,
-                        end=seg.end,
-                        text=seg.text,
-                        speaker="SPEAKER_0",
-                    )
-                    for seg in transcript.segments
-                ],
-            )
-            await diarization_worker.save_diarized_transcript(
-                diarized_transcript, diarized_path
-            )
-        else:
-            await job_manager.update_status(job, JobStatus.DIARIZING, 0.50)
-            diarization_segments = await diarization_worker.diarize(
-                audio_path=Path(job.source_audio),
-            )
-            diarized_transcript = await diarization_worker.merge_with_transcript(
-                transcript=transcript,
-                diarization_segments=diarization_segments,
-            )
-            await diarization_worker.save_diarized_transcript(
-                diarized_transcript, diarized_path
+        if use_youtube_subs and download_result.get("has_youtube_subtitles"):
+            subtitle_path = download_result["subtitle_path"]
+            if subtitle_path and Path(subtitle_path).exists() and not diarized_path.exists():
+                logger.info(f"Using YouTube subtitles for job {job_id}")
+                job.start_step("youtube_subtitles")
+                await job_manager.update_status(job, JobStatus.TRANSCRIBING, 0.30)
+
+                # Parse VTT → segments
+                yt_segments = await download_worker.parse_youtube_subtitles(
+                    Path(subtitle_path)
+                )
+
+                # Convert to DiarizedTranscript format
+                diarized_transcript = DiarizedTranscript(
+                    language="en",
+                    num_speakers=1,
+                    segments=[
+                        DiarizedSegment(
+                            start=seg["start"],
+                            end=seg["end"],
+                            text=seg["text"],
+                            speaker=seg.get("speaker", "SPEAKER_00"),
+                        )
+                        for seg in yt_segments
+                    ],
+                )
+
+                # Save as diarized.json
+                transcript_dir.mkdir(parents=True, exist_ok=True)
+                with open(diarized_path, "w", encoding="utf-8") as f:
+                    f.write(diarized_transcript.model_dump_json(indent=2))
+
+                job.used_youtube_subtitles = True
+                job.transcript_diarized = str(diarized_path)
+                job.end_step("youtube_subtitles")
+                job_manager.save_job(job)
+                youtube_subs_used = True
+                logger.info(
+                    f"YouTube subtitles parsed: {len(yt_segments)} segments for job {job_id}"
+                )
+            elif diarized_path.exists():
+                # Already have diarized transcript (resume case)
+                logger.info(f"Diarized transcript exists, skipping YouTube subtitle parse: {job_id}")
+                diarized_transcript = load_json_model(diarized_path, DiarizedTranscript)
+                youtube_subs_used = True
+
+        if use_youtube_subs and not youtube_subs_used:
+            logger.warning(
+                f"YouTube subtitles requested but not found for job {job_id}, "
+                "falling back to Whisper"
             )
 
-        job.transcript_diarized = str(diarized_path)
-        job.end_step("diarize")
-        job_manager.save_job(job)
+        # ============ Stage 2: Transcribe (30%) ============
+        if not youtube_subs_used:
+            raw_path = transcript_dir / "raw.json"
+            job.start_step("transcribe")
+
+            if raw_path.exists():
+                logger.info(f"Transcript already exists, skipping transcription: {job_id}")
+                transcript = load_json_model(raw_path, Transcript)
+            else:
+                await job_manager.update_status(job, JobStatus.TRANSCRIBING, 0.30)
+                transcript = await whisper_worker.transcribe(
+                    audio_path=Path(job.source_audio),
+                    model_name=getattr(job, "whisper_model", None),
+                )
+                await whisper_worker.save_transcript(transcript, raw_path)
+
+            job.transcript_raw = str(raw_path)
+            job.end_step("transcribe")
+            job_manager.save_job(job)
+
+            if check_cancelled():
+                await job_manager.update_status(job, JobStatus.CANCELLED)
+                logger.info(f"Job {job_id} cancelled after transcription stage")
+                return
+
+            # ============ Stage 3: Diarize (50%) ============
+            job.start_step("diarize")
+
+            if diarized_path.exists():
+                logger.info(f"Diarization file already exists, skipping diarization: {job_id}")
+                diarized_transcript = load_json_model(diarized_path, DiarizedTranscript)
+            elif job.skip_diarization:
+                # Skip diarization - convert transcript to diarized format without speakers
+                logger.info(f"User chose to skip speaker diarization: {job_id}")
+                diarized_transcript = DiarizedTranscript(
+                    language=transcript.language,
+                    num_speakers=1,
+                    segments=[
+                        DiarizedSegment(
+                            start=seg.start,
+                            end=seg.end,
+                            text=seg.text,
+                            speaker="SPEAKER_0",
+                        )
+                        for seg in transcript.segments
+                    ],
+                )
+                await diarization_worker.save_diarized_transcript(
+                    diarized_transcript, diarized_path
+                )
+            else:
+                await job_manager.update_status(job, JobStatus.DIARIZING, 0.50)
+                diarization_segments = await diarization_worker.diarize(
+                    audio_path=Path(job.source_audio),
+                )
+                diarized_transcript = await diarization_worker.merge_with_transcript(
+                    transcript=transcript,
+                    diarization_segments=diarization_segments,
+                )
+                await diarization_worker.save_diarized_transcript(
+                    diarized_transcript, diarized_path
+                )
+
+            job.transcript_diarized = str(diarized_path)
+            job.end_step("diarize")
+            job_manager.save_job(job)
 
         if check_cancelled():
             await job_manager.update_status(job, JobStatus.CANCELLED)
             logger.info(f"Job {job_id} cancelled after diarization stage")
+            return
+
+        # ============ Stage 3.5: Clean Disfluencies (55%) ============
+        cleaned_path = transcript_dir / "diarized_clean.json"
+        if cleaned_path.exists():
+            logger.info(f"Cleaned transcript exists, skipping defluff: {job_id}")
+            diarized_transcript = load_json_model(cleaned_path, DiarizedTranscript)
+        else:
+            await job_manager.update_status(job, JobStatus.TRANSCRIBING, 0.55)
+            from app.workers.defluff import DefluffWorker
+            defluff_worker = DefluffWorker()
+            diarized_transcript = await defluff_worker.clean_transcript(diarized_transcript)
+            # Save cleaned version (original diarized.json preserved)
+            with open(cleaned_path, "w", encoding="utf-8") as f:
+                f.write(diarized_transcript.model_dump_json(indent=2))
+
+        if check_cancelled():
+            await job_manager.update_status(job, JobStatus.CANCELLED)
+            logger.info(f"Job {job_id} cancelled after defluff stage")
             return
 
         # ============ Stage 4: Translate (70%) ============

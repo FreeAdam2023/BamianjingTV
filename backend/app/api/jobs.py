@@ -16,6 +16,7 @@ from loguru import logger
 
 from app.config import settings
 from app.models.job import Job, JobCreate, JobStatus, JobMode
+from app.workers.download import DownloadWorker
 
 
 router = APIRouter(tags=["jobs"])
@@ -118,6 +119,7 @@ async def create_job(
     job.use_traditional_chinese = job_create.use_traditional_chinese
     job.skip_diarization = job_create.skip_diarization
     job.whisper_model = job_create.whisper_model
+    job.subtitle_source = job_create.subtitle_source
     _job_manager.save_job(job)
 
     # Register webhook if provided
@@ -263,6 +265,62 @@ async def list_jobs(
     jobs = _job_manager.list_jobs(status=status, limit=limit)
     # Validate file paths exist before returning
     return [job.validate_file_paths() for job in jobs]
+
+
+@router.get("/jobs/probe-subtitles")
+async def probe_subtitles(url: str = Query(..., description="YouTube or video URL to probe")):
+    """Probe a YouTube URL for available subtitle tracks (no download)."""
+    download_worker = DownloadWorker()
+
+    # Check if this is a YouTube URL
+    is_youtube = download_worker._is_youtube_url(url)
+    if not is_youtube:
+        return {
+            "is_youtube": False,
+            "title": None,
+            "duration": None,
+            "subtitles": [],
+            "recommended_source": "whisper",
+        }
+
+    try:
+        info = await download_worker._get_video_info(url)
+    except Exception as e:
+        logger.warning(f"Failed to probe URL {url}: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to probe URL: {str(e)}")
+
+    manual_subs = info.get("subtitles", {})
+    auto_subs = info.get("automatic_captions", {})
+
+    tracks = []
+    # Manual subtitles
+    for lang, formats in manual_subs.items():
+        name = None
+        if formats and isinstance(formats, list) and len(formats) > 0:
+            name = formats[0].get("name")
+        tracks.append({"lang": lang, "type": "manual", "name": name})
+
+    # Auto-generated subtitles
+    for lang, formats in auto_subs.items():
+        name = None
+        if formats and isinstance(formats, list) and len(formats) > 0:
+            name = formats[0].get("name")
+        tracks.append({"lang": lang, "type": "auto", "name": name})
+
+    # Recommend YouTube if manual English subs exist
+    has_manual_en = any(
+        t["type"] == "manual" and t["lang"].startswith("en")
+        for t in tracks
+    )
+    recommended = "youtube" if has_manual_en else "whisper"
+
+    return {
+        "is_youtube": True,
+        "title": info.get("title"),
+        "duration": info.get("duration"),
+        "subtitles": tracks,
+        "recommended_source": recommended,
+    }
 
 
 @router.get("/jobs/{job_id}", response_model=Job)

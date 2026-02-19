@@ -291,6 +291,21 @@ export interface Job {
 }
 
 export type WhisperModel = "tiny" | "base" | "small" | "medium" | "large-v3";
+export type SubtitleSource = "whisper" | "youtube" | "youtube_auto";
+
+export interface SubtitleTrack {
+  lang: string;
+  type: "manual" | "auto";
+  name: string | null;
+}
+
+export interface ProbeSubtitlesResponse {
+  is_youtube: boolean;
+  title: string | null;
+  duration: number | null;
+  subtitles: SubtitleTrack[];
+  recommended_source: "whisper" | "youtube";
+}
 
 export interface JobCreate {
   url: string;
@@ -299,6 +314,7 @@ export interface JobCreate {
   use_traditional_chinese?: boolean;
   skip_diarization?: boolean;
   whisper_model?: WhisperModel;
+  subtitle_source?: SubtitleSource;
   learning_config?: Partial<LearningConfig>;
   watching_config?: Partial<WatchingConfig>;
   dubbing_config?: Partial<DubbingConfig>;

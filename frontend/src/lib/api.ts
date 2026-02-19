@@ -12,6 +12,7 @@ import type {
   ExportStatusResponse,
   Job,
   JobCreate,
+  ProbeSubtitlesResponse,
   SegmentState,
   WaveformData,
   CoverFrameResponse,
@@ -509,6 +510,12 @@ export async function createJob(job: JobCreate): Promise<Job> {
   });
 }
 
+export async function probeSubtitles(url: string): Promise<ProbeSubtitlesResponse> {
+  return fetchAPI<ProbeSubtitlesResponse>(
+    `/jobs/probe-subtitles?url=${encodeURIComponent(url)}`
+  );
+}
+
 export interface JobUploadOptions {
   file: File;
   mode?: string;
@@ -727,6 +734,72 @@ export async function retranscribeWithProgress(
             };
           } else if (data.type === "error") {
             throw new Error(data.message || "Retranscription failed");
+          }
+        } catch (e) {
+          if (e instanceof SyntaxError) continue;
+          throw e;
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+export interface CleanDisfluenciesProgress {
+  type: "phase" | "progress" | "complete" | "error";
+  phase?: string;
+  current?: number;
+  total?: number;
+  updated?: number;
+  message?: string;
+  updated_count?: number;
+}
+
+export async function cleanDisfluenciesWithProgress(
+  timelineId: string,
+  onProgress: (progress: CleanDisfluenciesProgress) => void,
+): Promise<{ message: string; updated_count: number }> {
+  const response = await fetch(`${API_BASE}/timelines/${timelineId}/clean-disfluencies`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(error.detail || "API request failed");
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("No response body");
+  }
+
+  const decoder = new TextDecoder();
+  let result = { message: "", updated_count: 0 };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    const chunk = decoder.decode(value, { stream: true });
+    const lines = chunk.split("\n");
+
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        try {
+          const data = JSON.parse(line.slice(6)) as CleanDisfluenciesProgress;
+          onProgress(data);
+
+          if (data.type === "complete") {
+            result = {
+              message: data.message || "",
+              updated_count: data.updated_count || 0,
+            };
+          } else if (data.type === "error") {
+            throw new Error(data.message || "Disfluency cleaning failed");
           }
         } catch (e) {
           if (e instanceof SyntaxError) continue;

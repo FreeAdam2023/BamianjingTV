@@ -22,6 +22,7 @@ class DownloadWorker:
         output_dir: Path,
         extract_audio: bool = True,
         fetch_subtitles: bool = False,
+        prefer_auto_subs: bool = False,
         subtitle_langs: List[str] = None,
     ) -> Dict[str, Any]:
         """
@@ -75,15 +76,22 @@ class DownloadWorker:
             available_subs = info.get("subtitles", {})
             auto_subs = info.get("automatic_captions", {})
 
-            # Only use manual (human-uploaded) subtitles; auto-generated ones
-            # are lower quality than Whisper large-v3, so we skip them.
+            # Check for manual (human-uploaded) subtitles first
             for lang in subtitle_langs:
                 if lang in available_subs:
                     logger.info(f"Found manual subtitles for language: {lang}")
                     has_subtitles = True
                     break
 
-            if not has_subtitles:
+            # If no manual subs found and auto subs requested, accept auto-generated
+            if not has_subtitles and prefer_auto_subs:
+                auto_langs = [l for l in subtitle_langs if l in auto_subs]
+                if auto_langs:
+                    logger.info(f"Using auto-generated subtitles ({auto_langs}) as requested")
+                    has_subtitles = True
+                else:
+                    logger.info("No subtitles found for requested languages")
+            elif not has_subtitles:
                 auto_langs = [l for l in subtitle_langs if l in auto_subs]
                 if auto_langs:
                     logger.info(f"Only auto-generated subtitles found ({auto_langs}), preferring Whisper")
@@ -101,7 +109,7 @@ class DownloadWorker:
         # Download subtitles if requested and available
         if fetch_subtitles and has_subtitles:
             subtitle_path = await self._download_subtitles(
-                url, source_dir, subtitle_langs
+                url, source_dir, subtitle_langs, prefer_auto=prefer_auto_subs
             )
             if subtitle_path:
                 logger.info(f"Downloaded subtitles: {subtitle_path}")
@@ -304,6 +312,7 @@ class DownloadWorker:
         url: str,
         output_dir: Path,
         langs: List[str],
+        prefer_auto: bool = False,
     ) -> Optional[Path]:
         """
         Download subtitles from YouTube.
@@ -312,12 +321,14 @@ class DownloadWorker:
             url: Video URL
             output_dir: Directory to save subtitle file
             langs: List of language codes to try (e.g., ["en", "en-US"])
+            prefer_auto: If True, try auto-generated subs first
 
         Returns:
             Path to subtitle file if successful, None otherwise
         """
-        # Try manual subtitles first, then auto-generated
-        for write_auto in [False, True]:
+        # Order: manual first (default), or auto first if prefer_auto
+        attempts = [True, False] if prefer_auto else [False, True]
+        for write_auto in attempts:
             subtitle_path = output_dir / "subtitle.en.vtt"
 
             cmd = [

@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import { useJobUpdates } from "@/hooks/useJobUpdates";
 import PageHeader from "@/components/ui/PageHeader";
-import { listJobs, createJob, createJobWithUpload, deleteJob, cancelJob, updateJob, formatDuration, getVideoUrl, getExportVideoUrl } from "@/lib/api";
+import { listJobs, createJob, createJobWithUpload, deleteJob, cancelJob, updateJob, formatDuration, getVideoUrl, getExportVideoUrl, probeSubtitles } from "@/lib/api";
 import type { UploadProgress } from "@/lib/api";
 import { useToast, useConfirm } from "@/components/ui";
-import type { Job, JobCreate, JobMode } from "@/lib/types";
+import type { Job, JobCreate, JobMode, SubtitleSource, ProbeSubtitlesResponse } from "@/lib/types";
 
 export default function JobsPage() {
   const toast = useToast();
@@ -29,6 +29,8 @@ export default function JobsPage() {
   const [uploadTitle, setUploadTitle] = useState("");
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [probing, setProbing] = useState(false);
+  const [probeResult, setProbeResult] = useState<ProbeSubtitlesResponse | null>(null);
   const [jobOptions, setJobOptions] = useState<Partial<JobCreate>>({
     mode: "learning",          // Default to Learning mode
     target_language: "zh-CN",  // Default to Simplified Chinese
@@ -81,12 +83,50 @@ export default function JobsPage() {
   // Real-time job updates via WebSocket (falls back to 5s polling)
   useJobUpdates(useCallback(() => loadJobs(false), [loadJobs]));
 
+  // Auto-probe YouTube URLs for subtitle tracks
+  useEffect(() => {
+    if (inputMode !== "url" || !newUrl.trim()) {
+      setProbeResult(null);
+      return;
+    }
+
+    const urlLower = newUrl.toLowerCase();
+    const isYouTube = urlLower.includes("youtube.com") || urlLower.includes("youtu.be");
+    if (!isYouTube) {
+      setProbeResult(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setProbing(true);
+      try {
+        const result = await probeSubtitles(newUrl.trim());
+        setProbeResult(result);
+        // Auto-select recommended source
+        if (result.recommended_source === "youtube") {
+          setJobOptions((prev) => ({ ...prev, subtitle_source: "youtube" }));
+        } else {
+          setJobOptions((prev) => ({ ...prev, subtitle_source: "whisper" }));
+        }
+      } catch (err) {
+        console.error("Probe failed:", err);
+        setProbeResult(null);
+      } finally {
+        setProbing(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [newUrl, inputMode]);
+
   function openModal() {
     setInputMode("url");
     setNewUrl("");
     setUploadFile(null);
     setUploadTitle("");
     setUploadProgress(null);
+    setProbing(false);
+    setProbeResult(null);
     setJobOptions({
       mode: "learning",          // Default to Learning mode
       target_language: "zh-CN",  // Default to Simplified Chinese
@@ -103,6 +143,8 @@ export default function JobsPage() {
     setUploadFile(null);
     setUploadTitle("");
     setUploadProgress(null);
+    setProbing(false);
+    setProbeResult(null);
     setError(null);
   }
 
@@ -654,6 +696,110 @@ export default function JobsPage() {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Subtitle Source Selection (YouTube URLs only) */}
+              {inputMode === "url" && (probing || probeResult) && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-300 mb-3">
+                    Transcription Source
+                  </label>
+                  {probing ? (
+                    <div className="flex items-center gap-2 text-sm text-gray-400 p-3 bg-gray-800/50 rounded-lg">
+                      <span className="spinner w-4 h-4" />
+                      Detecting subtitle tracks...
+                    </div>
+                  ) : probeResult && probeResult.is_youtube ? (
+                    <div className="space-y-2">
+                      {/* Whisper AI option (always available) */}
+                      <label
+                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                          (jobOptions.subtitle_source || "whisper") === "whisper"
+                            ? "border-blue-500 bg-blue-500/10"
+                            : "border-gray-600 bg-gray-800/50 hover:border-gray-500"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="subtitle_source"
+                          value="whisper"
+                          checked={(jobOptions.subtitle_source || "whisper") === "whisper"}
+                          onChange={() => setJobOptions({ ...jobOptions, subtitle_source: "whisper" })}
+                          className="w-4 h-4 text-blue-500 border-gray-600 bg-gray-700 focus:ring-blue-500"
+                          disabled={submitting}
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-white font-medium">Whisper AI</span>
+                            {probeResult.recommended_source === "whisper" && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">Recommended</span>
+                            )}
+                          </div>
+                          <p className="text-gray-500 text-xs">Use AI speech recognition (default)</p>
+                        </div>
+                      </label>
+
+                      {/* YouTube Manual Subtitles */}
+                      {probeResult.subtitles.some((t) => t.type === "manual" && t.lang.startsWith("en")) && (
+                        <label
+                          className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                            jobOptions.subtitle_source === "youtube"
+                              ? "border-blue-500 bg-blue-500/10"
+                              : "border-gray-600 bg-gray-800/50 hover:border-gray-500"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="subtitle_source"
+                            value="youtube"
+                            checked={jobOptions.subtitle_source === "youtube"}
+                            onChange={() => setJobOptions({ ...jobOptions, subtitle_source: "youtube" })}
+                            className="w-4 h-4 text-blue-500 border-gray-600 bg-gray-700 focus:ring-blue-500"
+                            disabled={submitting}
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-white font-medium">YouTube Subtitles</span>
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-green-500/20 text-green-300">Creator</span>
+                              {probeResult.recommended_source === "youtube" && (
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">Recommended</span>
+                              )}
+                            </div>
+                            <p className="text-gray-500 text-xs">Use creator-uploaded subtitles (skips Whisper)</p>
+                          </div>
+                        </label>
+                      )}
+
+                      {/* YouTube Auto-Captions */}
+                      {probeResult.subtitles.some((t) => t.type === "auto" && t.lang.startsWith("en")) && (
+                        <label
+                          className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                            jobOptions.subtitle_source === "youtube_auto"
+                              ? "border-blue-500 bg-blue-500/10"
+                              : "border-gray-600 bg-gray-800/50 hover:border-gray-500"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="subtitle_source"
+                            value="youtube_auto"
+                            checked={jobOptions.subtitle_source === "youtube_auto"}
+                            onChange={() => setJobOptions({ ...jobOptions, subtitle_source: "youtube_auto" })}
+                            className="w-4 h-4 text-blue-500 border-gray-600 bg-gray-700 focus:ring-blue-500"
+                            disabled={submitting}
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-white font-medium">YouTube Auto-Captions</span>
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-300">Auto</span>
+                            </div>
+                            <p className="text-gray-500 text-xs">Use auto-generated captions (lower quality than Whisper)</p>
+                          </div>
+                        </label>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               )}
 

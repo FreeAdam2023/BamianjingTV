@@ -967,6 +967,86 @@ async def regenerate_translation(
     )
 
 
+@router.post("/{timeline_id}/clean-disfluencies")
+async def clean_disfluencies(timeline_id: str):
+    """Clean speech disfluencies (fillers, repetitions) from English subtitles.
+
+    Removes um/uh/er filler words and stuttered repetitions, then
+    re-translates any changed segments. Returns SSE progress stream.
+    """
+    import json
+    from loguru import logger
+    from fastapi.responses import StreamingResponse
+    from app.workers.defluff import DefluffWorker
+    from app.workers.translation import TranslationWorker
+
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    target_language = "zh-TW" if timeline.use_traditional_chinese else "zh-CN"
+
+    async def generate_progress():
+        defluff = DefluffWorker()
+        translator = TranslationWorker()
+        total = len(timeline.segments)
+
+        try:
+            # Phase 1: Clean English text
+            yield f"data: {json.dumps({'type': 'phase', 'phase': 'cleaning'})}\n\n"
+
+            en_texts = [seg.en or "" for seg in timeline.segments]
+            cleaned_texts = await defluff.clean_texts(en_texts)
+
+            # Find changed segments
+            changed_indices = []
+            for i, (orig, cleaned) in enumerate(zip(en_texts, cleaned_texts)):
+                if cleaned != orig and orig:
+                    timeline.segments[i].en = cleaned
+                    changed_indices.append(i)
+
+            yield f"data: {json.dumps({'type': 'progress', 'phase': 'cleaning', 'current': total, 'total': total, 'updated': len(changed_indices)})}\n\n"
+
+            # Phase 2: Re-translate changed segments
+            if changed_indices:
+                yield f"data: {json.dumps({'type': 'phase', 'phase': 'translating'})}\n\n"
+
+                for j, idx in enumerate(changed_indices):
+                    seg = timeline.segments[idx]
+                    if seg.en:
+                        translated, _, _ = await translator.translate_text(
+                            seg.en, target_language=target_language,
+                        )
+                        seg.zh = translated
+
+                    yield f"data: {json.dumps({'type': 'progress', 'phase': 'translating', 'current': j + 1, 'total': len(changed_indices)})}\n\n"
+
+            # Save
+            manager.save_timeline(timeline)
+
+            logger.info(
+                f"Cleaned disfluencies for timeline {timeline_id}: "
+                f"{len(changed_indices)} segments updated"
+            )
+
+            yield f"data: {json.dumps({'type': 'complete', 'message': f'Cleaned {len(changed_indices)} segments', 'updated_count': len(changed_indices)})}\n\n"
+
+        except Exception as e:
+            logger.exception(f"Disfluency cleaning failed for timeline {timeline_id}: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        generate_progress(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )
+
+
 class RetranscribeRequest(BaseModel):
     """Request for retranscription."""
     source: str = "whisper"  # Currently only "whisper" is supported

@@ -112,6 +112,10 @@ class JobCreate(BaseModel):
     whisper_model: str = Field(
         default="large-v3", description="Whisper model size (tiny, base, small, medium, large-v3)"
     )
+    subtitle_source: str = Field(
+        default="whisper",
+        description="Transcription source: whisper, youtube (manual subs), youtube_auto"
+    )
 
     # Mode-specific configurations
     learning_config: Optional[LearningConfig] = None
@@ -241,6 +245,9 @@ class Job(BaseModel):
     )
     whisper_model: str = Field(
         default="large-v3", description="Whisper model size"
+    )
+    subtitle_source: str = Field(
+        default="whisper", description="Transcription source used"
     )
     used_youtube_subtitles: bool = Field(
         default=False, description="Whether YouTube subtitles were used instead of Whisper"

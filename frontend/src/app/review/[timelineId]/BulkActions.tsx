@@ -4,13 +4,14 @@
  * BulkActions - Buttons for segment operations and video trimming
  */
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   keepAllSegments,
   dropAllSegments,
   resetAllSegments,
   setVideoTrim,
   resetVideoTrim,
+  cleanDisfluenciesWithProgress,
 } from "@/lib/api";
 import { useToast, useConfirm } from "@/components/ui";
 
@@ -39,6 +40,9 @@ export default function BulkActions({
 }: BulkActionsProps) {
   const toast = useToast();
   const confirm = useConfirm();
+
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanProgress, setCleanProgress] = useState("");
 
   const hasTrim = trimStart > 0 || trimEnd !== null;
   const effectiveDuration = (trimEnd ?? sourceDuration) - trimStart;
@@ -100,6 +104,41 @@ export default function BulkActions({
           "操作失败: " + (err instanceof Error ? err.message : "Unknown error")
         );
       }
+    }
+  };
+
+  const handleCleanDisfluencies = async () => {
+    const confirmed = await confirm({
+      title: "清理字幕",
+      message: "将自动移除英文字幕中的 um/uh 等填充词和重复语句，并重新翻译中文。",
+      type: "info",
+      confirmText: "开始清理",
+    });
+    if (!confirmed) return;
+
+    setCleaning(true);
+    setCleanProgress("");
+    try {
+      const result = await cleanDisfluenciesWithProgress(timelineId, (data) => {
+        if (data.type === "phase") {
+          setCleanProgress(data.phase === "cleaning" ? "清理中..." : "翻译中...");
+        } else if (data.type === "progress") {
+          setCleanProgress(
+            data.phase === "cleaning"
+              ? `清理中... ${data.current}/${data.total}`
+              : `翻译中... ${data.current}/${data.total}`
+          );
+        }
+      });
+      toast.success(`已清理 ${result.updated_count} 个片段`);
+      if (onUpdate) onUpdate();
+    } catch (err) {
+      toast.error(
+        "清理失败: " + (err instanceof Error ? err.message : "Unknown error")
+      );
+    } finally {
+      setCleaning(false);
+      setCleanProgress("");
     }
   };
 
@@ -187,6 +226,17 @@ export default function BulkActions({
           className="flex-1 py-1 text-xs bg-gray-600 hover:bg-gray-700 rounded"
         >
           Reset
+        </button>
+      </div>
+
+      {/* Row 1.5: Clean Disfluencies */}
+      <div className="flex gap-2">
+        <button
+          onClick={handleCleanDisfluencies}
+          disabled={cleaning}
+          className="flex-1 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded"
+        >
+          {cleaning ? cleanProgress || "Cleaning..." : "Clean Subtitles"}
         </button>
       </div>
 

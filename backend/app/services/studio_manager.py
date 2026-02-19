@@ -94,6 +94,17 @@ class StudioManager:
 
     # ---- State accessors ----
 
+    async def check_connection(self) -> bool:
+        """Ping UE5 Remote Control API to check if it's reachable."""
+        try:
+            client = await self._get_client()
+            resp = await client.get("/api/v1/preset", timeout=2.0)
+            connected = resp.status_code == 200
+        except Exception:
+            connected = False
+        self._state.ue_connected = connected
+        return connected
+
     def get_state(self) -> StudioState:
         return self._state.model_copy()
 
