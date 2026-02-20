@@ -4,7 +4,7 @@
 
 import { useRef, useCallback, useState, useEffect } from "react";
 import { formatDuration } from "@/lib/api";
-import type { SubtitleStyle } from "./constants";
+import type { SubtitleStyle, CardPosition } from "./constants";
 import SubtitleStylePanel from "./SubtitleStylePanel";
 
 /** Spinner SVG used across multiple components */
@@ -352,6 +352,9 @@ interface VideoControlsProps {
   subtitleStyle?: SubtitleStyle;
   onSubtitleStyleChange?: (updates: Partial<SubtitleStyle>) => void;
   onSubtitleStyleReset?: () => void;
+  // Card position
+  cardPosition?: CardPosition;
+  onToggleCardPosition?: () => void;
 }
 
 export default function VideoControls({
@@ -392,6 +395,8 @@ export default function VideoControls({
   subtitleStyle,
   onSubtitleStyleChange,
   onSubtitleStyleReset,
+  cardPosition = "right",
+  onToggleCardPosition,
 }: VideoControlsProps) {
   const watermarkInputRef = useRef<HTMLInputElement>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
@@ -660,6 +665,26 @@ export default function VideoControls({
                 </button>
               )}
             </div>
+          )}
+
+          {/* Card position toggle */}
+          {onToggleCardPosition && (
+            <button
+              onClick={onToggleCardPosition}
+              className="text-sm px-2 py-1 rounded bg-gray-700 text-gray-300 hover:bg-gray-600 flex items-center gap-1"
+              title={cardPosition === "right" ? "卡片显示在左侧" : "卡片显示在右侧"}
+            >
+              {cardPosition === "right" ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 17l-5-5m0 0l5-5m-5 5h12" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              )}
+              卡片{cardPosition === "right" ? "右" : "左"}
+            </button>
           )}
 
           {/* Subtitle style settings */}

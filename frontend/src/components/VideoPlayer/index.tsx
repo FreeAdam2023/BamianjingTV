@@ -682,6 +682,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         subtitleStyle={subtitleStyle}
         onSubtitleStyleChange={handleStyleChange}
         onSubtitleStyleReset={resetSubtitleStyle}
+        cardPosition={cardPosition}
+        onToggleCardPosition={toggleCardPosition}
       />
     </div>
   );
