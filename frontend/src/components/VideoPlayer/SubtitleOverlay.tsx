@@ -58,8 +58,8 @@ export default function SubtitleOverlay({
     const lineCount = (showEn ? 1 : 0) + (showZh ? 1 : 0);
     if (lineCount === 0) return { englishFontSize: style.enFontSize, chineseFontSize: style.zhFontSize };
 
-    // Available height (subtract vertical padding ~32px and gap)
-    const padding = 32;
+    // Available height (subtract vertical padding: pt-4=16px + pb-1=4px = 20px, plus gap)
+    const padding = 20;
     const gap = isBoth ? GAP_PX : 0;
     const availableHeight = containerHeight - padding - gap;
     // Available width (subtract horizontal padding ~64px)
@@ -118,7 +118,7 @@ export default function SubtitleOverlay({
   return (
     <div
       ref={containerRef}
-      className="h-full flex flex-col items-center justify-center px-8 py-4 relative"
+      className="h-full flex flex-col items-center justify-end px-8 pb-1 pt-4 relative"
       style={bgStyle}
     >
       {segment && style.languageMode !== "none" ? (

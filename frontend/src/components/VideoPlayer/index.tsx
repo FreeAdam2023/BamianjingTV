@@ -562,16 +562,17 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
             </div>
           )}
 
-          {/* Floating subtitle overlay (bottom 25%, transparent gradient) */}
-          {!isHiddenMode && (
-            <div className="absolute bottom-0 left-0 right-0 z-10" style={{ height: `${subtitleHeightPercent}%` }}>
-              <SubtitleOverlay
-                segment={currentSegment || null}
-                style={subtitleStyle}
-              />
-            </div>
-          )}
         </div>
+
+        {/* Floating subtitle overlay — absolute to outer container, flush above controls */}
+        {!isHiddenMode && (
+          <div className="absolute bottom-0 left-0 right-0 z-10" style={{ height: `${subtitleHeightPercent}%` }}>
+            <SubtitleOverlay
+              segment={currentSegment || null}
+              style={subtitleStyle}
+            />
+          </div>
+        )}
 
         {/* Card drawer — slides in from left or right, ABOVE subtitle zone, opaque */}
         {showCardPanel && (
