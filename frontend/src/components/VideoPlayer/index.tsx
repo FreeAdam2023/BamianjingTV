@@ -568,8 +568,6 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
               <SubtitleOverlay
                 segment={currentSegment || null}
                 style={subtitleStyle}
-                onStyleChange={handleStyleChange}
-                onStyleReset={resetSubtitleStyle}
               />
             </div>
           )}
@@ -681,6 +679,9 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         onSetCover={onSetCover ? () => onSetCover(currentTime) : undefined}
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
+        subtitleStyle={subtitleStyle}
+        onSubtitleStyleChange={handleStyleChange}
+        onSubtitleStyleReset={resetSubtitleStyle}
       />
     </div>
   );

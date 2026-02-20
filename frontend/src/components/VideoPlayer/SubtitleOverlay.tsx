@@ -4,16 +4,13 @@
  * Positioned at bottom 25% of video with gradient background (transparent → semi-dark).
  */
 
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import type { EditableSegment } from "@/lib/types";
 import { SubtitleStyle } from "./constants";
-import SubtitleStylePanel from "./SubtitleStylePanel";
 
 interface SubtitleOverlayProps {
   segment: EditableSegment | null;
   style: SubtitleStyle;
-  onStyleChange: (updates: Partial<SubtitleStyle>) => void;
-  onStyleReset: () => void;
 }
 
 // Minimum font sizes to maintain readability
@@ -31,10 +28,7 @@ const SUBTITLE_HEIGHT_RATIO = 0.25;
 export default function SubtitleOverlay({
   segment,
   style,
-  onStyleChange,
-  onStyleReset,
 }: SubtitleOverlayProps) {
-  const [showStyleSettings, setShowStyleSettings] = useState(false);
 
   // Calculate adaptive font sizes based on text length
   const { englishFontSize, chineseFontSize } = useMemo(() => {
@@ -123,30 +117,6 @@ export default function SubtitleOverlay({
         </>
       ) : null}
 
-      {/* Style settings button (floating) */}
-      <button
-        onClick={() => setShowStyleSettings(!showStyleSettings)}
-        className={`absolute top-2 right-2 p-1.5 rounded-full transition-colors ${
-          showStyleSettings ? "bg-blue-500 text-white" : "bg-black/30 text-white/70 hover:bg-black/50"
-        }`}
-        title="Subtitle style settings"
-        aria-label="Toggle subtitle style settings"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      </button>
-
-      {/* Style settings modal */}
-      {showStyleSettings && (
-        <SubtitleStylePanel
-          style={style}
-          onStyleChange={onStyleChange}
-          onReset={onStyleReset}
-          onClose={() => setShowStyleSettings(false)}
-        />
-      )}
     </div>
   );
 }
