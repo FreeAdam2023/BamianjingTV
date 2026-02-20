@@ -1,10 +1,7 @@
 /**
- * SubtitleOverlay - Bilingual subtitle display area with auto-scaling
+ * SubtitleOverlay - Bilingual subtitle display floating on video
  *
- * Always rendered as a bottom section (25% height). Background depends on displayMode:
- * - "split": solid background color
- * - "overlay": gradient fade (transparent → semi-dark)
- * - "hidden": solid background, no text
+ * Positioned at bottom 25% of video with gradient background (transparent → semi-dark).
  */
 
 import { useState, useMemo } from "react";
@@ -38,8 +35,6 @@ export default function SubtitleOverlay({
   onStyleReset,
 }: SubtitleOverlayProps) {
   const [showStyleSettings, setShowStyleSettings] = useState(false);
-
-  const isOverlay = style.displayMode === "overlay";
 
   // Calculate adaptive font sizes based on text length
   const { englishFontSize, chineseFontSize } = useMemo(() => {
@@ -80,17 +75,13 @@ export default function SubtitleOverlay({
     return { englishFontSize: Math.round(enSize), chineseFontSize: Math.round(zhSize) };
   }, [segment, style.enFontSize, style.zhFontSize]);
 
-  // Text shadow style for better visibility (stronger in overlay mode)
+  // Text shadow style for better visibility
   const textShadowStyle = style.textShadow
-    ? isOverlay
-      ? "2px 2px 6px rgba(0,0,0,0.9), -1px -1px 3px rgba(0,0,0,0.7), 0 0 10px rgba(0,0,0,0.5)"
-      : "2px 2px 4px rgba(0,0,0,0.8), -1px -1px 2px rgba(0,0,0,0.5)"
+    ? "2px 2px 6px rgba(0,0,0,0.9), -1px -1px 3px rgba(0,0,0,0.7), 0 0 10px rgba(0,0,0,0.5)"
     : "none";
 
-  // Background: gradient for overlay mode, solid color for split/hidden mode
-  const bgStyle = isOverlay
-    ? { background: "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.4) 40%, rgba(0,0,0,0.7) 100%)" }
-    : { backgroundColor: style.backgroundColor };
+  // Always gradient background (transparent at top, dark at bottom)
+  const bgStyle = { background: "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.4) 40%, rgba(0,0,0,0.7) 100%)" };
 
   return (
     <div

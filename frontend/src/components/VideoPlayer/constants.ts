@@ -2,7 +2,7 @@
  * VideoPlayer constants - fonts, colors, and default styles
  */
 
-export type SubtitleDisplayMode = "split" | "overlay" | "hidden";
+export type SubtitleDisplayMode = "overlay" | "hidden";
 export type SubtitleLanguageMode = "both" | "en" | "zh" | "none";
 
 export interface SubtitleStyle {
@@ -27,12 +27,11 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   fontWeight: "500",
   textShadow: true,
   backgroundColor: "#1a2744",
-  displayMode: "overlay", // "split" = below video, "overlay" = on video
+  displayMode: "overlay", // "overlay" = on video, "hidden" = no subtitles
   languageMode: "both", // "both" | "en" | "zh" | "none"
 };
 
 export const DISPLAY_MODES: { value: SubtitleDisplayMode; label: string; description: string }[] = [
-  { value: "split", label: "分屏", description: "字幕在视频下方" },
   { value: "overlay", label: "悬浮", description: "字幕叠加在视频上" },
   { value: "hidden", label: "隐藏", description: "不显示字幕" },
 ];
@@ -69,7 +68,10 @@ export const BACKGROUND_COLORS = [
   "#1a2744", "#000000", "#111827", "#1e3a5f", "#2d1f47"
 ];
 
+export type CardPosition = "left" | "right";
+
 export const STORAGE_KEYS = {
   SUBTITLE_STYLE: "subtitleStyle",
   WATERMARK: "videoWatermark",
+  CARD_POSITION: "cardPosition",
 } as const;

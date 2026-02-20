@@ -3,7 +3,7 @@
  */
 
 import { useState, useCallback, useEffect } from "react";
-import { SubtitleStyle, DEFAULT_SUBTITLE_STYLE, STORAGE_KEYS } from "./constants";
+import { SubtitleStyle, DEFAULT_SUBTITLE_STYLE, STORAGE_KEYS, CardPosition } from "./constants";
 
 export function useVideoState() {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -22,11 +22,22 @@ export function useVideoState() {
   // Subtitle style
   const [subtitleStyle, setSubtitleStyle] = useState<SubtitleStyle>(DEFAULT_SUBTITLE_STYLE);
 
+  // Card drawer position (left/right)
+  const [cardPosition, setCardPositionState] = useState<CardPosition>("right");
+
   // Load watermark from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.WATERMARK);
     if (saved) {
       setWatermarkUrl(saved);
+    }
+  }, []);
+
+  // Load card position from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.CARD_POSITION);
+    if (saved === "left" || saved === "right") {
+      setCardPositionState(saved);
     }
   }, []);
 
@@ -36,6 +47,10 @@ export function useVideoState() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+        // Migrate: "split" mode removed, force to "overlay"
+        if (parsed.displayMode === "split") {
+          parsed.displayMode = "overlay";
+        }
         setSubtitleStyle({ ...DEFAULT_SUBTITLE_STYLE, ...parsed });
       } catch (e) {
         console.error("Failed to parse subtitle style:", e);
@@ -57,6 +72,16 @@ export function useVideoState() {
     setSubtitleStyle(DEFAULT_SUBTITLE_STYLE);
     localStorage.setItem(STORAGE_KEYS.SUBTITLE_STYLE, JSON.stringify(DEFAULT_SUBTITLE_STYLE));
   }, []);
+
+  // Toggle card drawer position
+  const setCardPosition = useCallback((pos: CardPosition) => {
+    setCardPositionState(pos);
+    localStorage.setItem(STORAGE_KEYS.CARD_POSITION, pos);
+  }, []);
+
+  const toggleCardPosition = useCallback(() => {
+    setCardPosition(cardPosition === "right" ? "left" : "right");
+  }, [cardPosition, setCardPosition]);
 
   // Handle watermark upload
   const handleWatermarkUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -116,5 +141,10 @@ export function useVideoState() {
     subtitleStyle,
     updateSubtitleStyle,
     resetSubtitleStyle,
+
+    // Card position
+    cardPosition,
+    setCardPosition,
+    toggleCardPosition,
   };
 }

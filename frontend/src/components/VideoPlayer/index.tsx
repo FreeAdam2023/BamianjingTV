@@ -128,6 +128,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     subtitleStyle,
     updateSubtitleStyle,
     resetSubtitleStyle,
+    cardPosition,
+    toggleCardPosition,
   } = useVideoState();
 
   // Fullscreen state
@@ -158,13 +160,6 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
       updateSubtitleStyle({ languageMode: subtitleLanguageMode });
     }
   }, [subtitleLanguageMode]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Auto-set overlay mode for dubbing
-  useEffect(() => {
-    if (mode === "dubbing" && subtitleStyle.displayMode !== "overlay") {
-      updateSubtitleStyle({ displayMode: "overlay" });
-    }
-  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Notify backend when language mode changes locally
   const handleStyleChange = (updates: Partial<typeof subtitleStyle>) => {
@@ -504,10 +499,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
 
   // Dark blue color matching subtitle area and export
   const containerBgColor = "#1a2744";
-  const isOverlayMode = subtitleStyle.displayMode === "overlay";
   const isHiddenMode = subtitleStyle.displayMode === "hidden";
   const hasCardOpen = cardState?.isOpen === true;
-  const hasActivePinnedCards = pinnedCards.length > 0;
   const hasActivePinnedCardNow = pinnedCards.some(
     (c) => currentTime >= c.display_start && currentTime <= c.display_end
   );
@@ -515,9 +508,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   // Card drawer is visible when a card detail or pinned card is active
   const isCardDrawerOpen = showCardPanel && (hasCardOpen || hasActivePinnedCardNow);
 
-  // Calculate heights: split mode uses 75%/25%, overlay/hidden use full height
-  const useSplitLayout = !isOverlayMode && !isHiddenMode;
   const subtitleHeightPercent = subtitleHeightRatio * 100;
+  const isOnLeft = cardPosition === "left";
 
   return (
     <div
@@ -525,15 +517,9 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
       className="flex flex-col rounded-lg overflow-hidden h-full"
       style={{ backgroundColor: containerBgColor }}
     >
-      {/* Video area (full width, always flex-1 in overlay/hidden, fixed in split) */}
-      <div
-        className={`relative ${useSplitLayout ? "flex-shrink-0" : "flex-1 min-h-0"}`}
-        style={{
-          ...(useSplitLayout ? { height: `${(1 - subtitleHeightRatio) * 100}%` } : {}),
-          minHeight: "200px",
-        }}
-      >
-        {/* Video with blurred background fill — full width */}
+      {/* Video area — always full width, full height */}
+      <div className="relative flex-1 min-h-0" style={{ minHeight: "200px" }}>
+        {/* Video with blurred background fill */}
         <div className="w-full h-full relative overflow-hidden">
           {/* Blurred background: covers area, zoomed in */}
           <video
@@ -578,8 +564,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
             </div>
           )}
 
-          {/* Floating subtitle overlay (overlay mode only) */}
-          {isOverlayMode && (
+          {/* Floating subtitle overlay (bottom 25%, transparent gradient) */}
+          {!isHiddenMode && (
             <div className="absolute bottom-0 left-0 right-0 z-10" style={{ height: `${subtitleHeightPercent}%` }}>
               <SubtitleOverlay
                 segment={currentSegment || null}
@@ -591,14 +577,35 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
           )}
         </div>
 
-        {/* Card drawer — slides in from right, overlays on video, opaque */}
+        {/* Card drawer — slides in from left or right, ABOVE subtitle zone, opaque */}
         {showCardPanel && (
           <div
-            className={`absolute top-0 right-0 h-full w-[30%] z-20 border-l border-white/20 overflow-hidden transition-transform duration-300 ease-out ${
-              isCardDrawerOpen ? "translate-x-0" : "translate-x-full"
+            className={`absolute top-0 w-[30%] z-20 overflow-hidden transition-transform duration-300 ease-out ${
+              isOnLeft
+                ? `left-0 border-r border-white/20 ${isCardDrawerOpen ? "translate-x-0" : "-translate-x-full"}`
+                : `right-0 border-l border-white/20 ${isCardDrawerOpen ? "translate-x-0" : "translate-x-full"}`
             }`}
-            style={{ backgroundColor: containerBgColor }}
+            style={{
+              backgroundColor: containerBgColor,
+              height: `${100 - subtitleHeightPercent}%`,
+            }}
           >
+            {/* Position toggle button */}
+            <button
+              onClick={toggleCardPosition}
+              className="absolute top-2 z-30 p-1 rounded bg-black/40 text-white/70 hover:bg-black/60 hover:text-white transition-colors"
+              style={isOnLeft ? { right: 8 } : { left: 8 }}
+              title={isOnLeft ? "移到右侧" : "移到左侧"}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {isOnLeft ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 17l-5-5m0 0l5-5m-5 5h12" />
+                )}
+              </svg>
+            </button>
+
             {/* Pinned card preview (visible when pinned cards active and no detail open) */}
             <div
               className={`absolute inset-0 transition-opacity duration-300 ${
@@ -623,7 +630,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
                 <CardSidePanel
                   state={cardState}
                   onClose={onCardClose}
-                  position="right"
+                  position={cardPosition}
                   inline={true}
                   sourceTimelineId={timelineId}
                   sourceSegmentId={currentSegmentId ?? undefined}
@@ -639,33 +646,6 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
           </div>
         )}
       </div>
-
-      {/* Subtitles below video (split mode only) */}
-      {useSplitLayout && (
-        <div
-          className="flex-shrink-0 min-h-0 border-t border-white/20"
-          style={{ height: `${subtitleHeightPercent}%` }}
-        >
-          <SubtitleOverlay
-            segment={currentSegment || null}
-            style={subtitleStyle}
-            onStyleChange={handleStyleChange}
-            onStyleReset={resetSubtitleStyle}
-          />
-        </div>
-      )}
-
-      {/* Hidden mode: just the settings button, no subtitle text */}
-      {isHiddenMode && (
-        <div className="flex-shrink-0 relative" style={{ height: "40px" }}>
-          <SubtitleOverlay
-            segment={null}
-            style={subtitleStyle}
-            onStyleChange={handleStyleChange}
-            onStyleReset={resetSubtitleStyle}
-          />
-        </div>
-      )}
 
       {/* Controls bar (full width) */}
       <VideoControls
