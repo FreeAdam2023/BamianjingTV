@@ -15,7 +15,6 @@ import { CardSidePanel } from "@/components/Cards";
 
 interface VideoPlayerProps {
   jobId: string;
-  mode?: string;
   segments: EditableSegment[];
   currentSegmentId: number | null;
   onTimeUpdate?: (time: number) => void;
@@ -66,7 +65,6 @@ export interface VideoPlayerRef {
 
 const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoPlayer({
   jobId,
-  mode,
   segments,
   currentSegmentId,
   onTimeUpdate,
@@ -504,7 +502,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   const hasActivePinnedCardNow = pinnedCards.some(
     (c) => currentTime >= c.display_start && currentTime <= c.display_end
   );
-  const showCardPanel = mode !== "dubbing";
+  const showCardPanel = true;
   // Card drawer is visible when a card detail or pinned card is active
   const isCardDrawerOpen = showCardPanel && (hasCardOpen || hasActivePinnedCardNow);
 

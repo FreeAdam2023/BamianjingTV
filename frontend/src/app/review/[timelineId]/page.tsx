@@ -119,19 +119,6 @@ export default function ReviewPage() {
     [rawOpenWordCard, timeline?.source_language]
   );
 
-  // Output mode state (controls subtitle/card preview; default "learning")
-  type OutputMode = "learning" | "watching" | "dubbing";
-  const [outputMode, setOutputMode] = useState<OutputMode>("learning");
-
-  // Sync outputMode from timeline on first load
-  useEffect(() => {
-    if (timeline) {
-      if (timeline.mode === "dubbing") setOutputMode("dubbing");
-      else if (timeline.subtitle_style_mode === "floating") setOutputMode("watching");
-      else setOutputMode("learning");
-    }
-  }, [timeline?.timeline_id]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Creative mode state
   const [isCreativeMode, setIsCreativeMode] = useState(false);
   const { config: creativeConfig, style: creativeStyle, setConfig: setCreativeConfig, setStyle: setCreativeStyle } = useCreativeConfig();
@@ -739,9 +726,6 @@ export default function ReviewPage() {
         stats={stats}
         timelineId={timeline.timeline_id}
         jobId={timeline.job_id}
-        mode={outputMode}
-        outputMode={outputMode}
-        onOutputModeChange={setOutputMode}
         exportStatus={liveExportStatus ?? timeline.export_status}
         onExportClick={() => setShowExportPanel(true)}
         onDelete={handleDelete}
@@ -789,7 +773,6 @@ export default function ReviewPage() {
               <VideoPlayer
               ref={videoPlayerRef}
               jobId={timeline.job_id}
-              mode={outputMode}
               segments={timeline.segments}
               currentSegmentId={currentSegmentId}
               onTimeUpdate={handleVideoTimeUpdate}
@@ -998,7 +981,6 @@ export default function ReviewPage() {
           coverFrameUrl={coverFrameUrl}
           coverFrameTime={coverFrameTime}
           subtitleStyle={getSubtitleStyleForExport()}
-          defaultOutputMode={outputMode}
           onClose={() => setShowExportPanel(false)}
           onExport={startExport}
           onExportStarted={() => {
