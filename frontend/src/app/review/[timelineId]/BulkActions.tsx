@@ -50,6 +50,11 @@ export default function BulkActions({
   const [cleaning, setCleaning] = useState(false);
   const [cleanProgress, setCleanProgress] = useState("");
 
+  // Trim editing
+  const [showTrimEdit, setShowTrimEdit] = useState(false);
+  const [trimStartInput, setTrimStartInput] = useState("");
+  const [trimEndInput, setTrimEndInput] = useState("");
+
   // Time-range drop
   const [showRangeDrop, setShowRangeDrop] = useState(false);
   const [rangeStart, setRangeStart] = useState("");
@@ -153,45 +158,61 @@ export default function BulkActions({
     }
   };
 
-  // Video-level trim operations
-  const handleTrimStart = async () => {
-    const timeStr = formatTime(currentTime);
-    const confirmed = await confirm({
-      title: "设置视频起点",
-      message: `将视频起点设为 ${timeStr}？\n\n这会剪掉 ${timeStr} 之前的所有内容（包括无字幕部分）。`,
-      type: "warning",
-      confirmText: `从 ${timeStr} 开始`,
-    });
-    if (confirmed) {
-      try {
-        const result = await setVideoTrim(timelineId, currentTime, undefined);
-        toast.success(`视频起点已设为 ${timeStr}`);
-        if (onUpdate) onUpdate();
-      } catch (err) {
-        toast.error(
-          "操作失败: " + (err instanceof Error ? err.message : "Unknown error")
-        );
-      }
-    }
-  };
+  // Video-level trim operations — capture to editable inputs
+  const handleCaptureStart = useCallback(() => {
+    setTrimStartInput(formatTime(currentTime));
+    if (!showTrimEdit) setShowTrimEdit(true);
+  }, [currentTime, showTrimEdit]);
 
-  const handleTrimEnd = async () => {
-    const timeStr = formatTime(currentTime);
+  const handleCaptureEnd = useCallback(() => {
+    setTrimEndInput(formatTime(currentTime));
+    if (!showTrimEdit) setShowTrimEdit(true);
+  }, [currentTime, showTrimEdit]);
+
+  // Apply edited trim values
+  const handleApplyTrim = async () => {
+    const startVal = trimStartInput ? parseTime(trimStartInput) : null;
+    const endVal = trimEndInput ? parseTime(trimEndInput) : null;
+
+    if (trimStartInput && startVal === null) {
+      toast.error("起点时间格式无效，请使用 M:SS.d");
+      return;
+    }
+    if (trimEndInput && endVal === null) {
+      toast.error("终点时间格式无效，请使用 M:SS.d");
+      return;
+    }
+    if (startVal !== null && endVal !== null && startVal >= endVal) {
+      toast.error("起点必须小于终点");
+      return;
+    }
+    if (!trimStartInput && !trimEndInput) {
+      toast.error("请至少设置起点或终点");
+      return;
+    }
+
+    const startStr = startVal !== null ? formatTime(startVal) : "0:00.0";
+    const endStr = endVal !== null ? formatTime(endVal) : formatTime(sourceDuration);
+
     const confirmed = await confirm({
-      title: "设置视频终点",
-      message: `将视频终点设为 ${timeStr}？\n\n这会剪掉 ${timeStr} 之后的所有内容。`,
+      title: "应用视频裁剪",
+      message: `裁剪范围: ${startStr} ~ ${endStr}\n\n范围外的内容将被剪掉。`,
       type: "warning",
-      confirmText: `在 ${timeStr} 结束`,
+      confirmText: "应用裁剪",
     });
+
     if (confirmed) {
       try {
-        const result = await setVideoTrim(timelineId, undefined, currentTime);
-        toast.success(`视频终点已设为 ${timeStr}`);
-        if (onUpdate) onUpdate();
-      } catch (err) {
-        toast.error(
-          "操作失败: " + (err instanceof Error ? err.message : "Unknown error")
+        await setVideoTrim(
+          timelineId,
+          startVal !== null ? startVal : undefined,
+          endVal !== null ? endVal : undefined,
         );
+        toast.success(`裁剪已应用: ${startStr} ~ ${endStr}`);
+        setShowTrimEdit(false);
+        onUpdate?.();
+      } catch (err) {
+        toast.error("操作失败: " + (err instanceof Error ? err.message : "Unknown error"));
       }
     }
   };
@@ -207,6 +228,9 @@ export default function BulkActions({
       try {
         await resetVideoTrim(timelineId);
         toast.success("已恢复完整视频");
+        setShowTrimEdit(false);
+        setTrimStartInput("");
+        setTrimEndInput("");
         if (onUpdate) onUpdate();
       } catch (err) {
         toast.error(
@@ -357,41 +381,76 @@ export default function BulkActions({
         </button>
       </div>
 
-      {/* Row 2: Video Trim Controls */}
+      {/* Row 2: Video Trim — capture playhead to editable inputs */}
       <div className="flex gap-2">
         <button
-          onClick={handleTrimStart}
+          onClick={handleCaptureStart}
           className="flex-1 py-1 text-xs bg-purple-600 hover:bg-purple-700 rounded flex items-center justify-center gap-1"
-          title={`设置视频起点为 ${formatTime(currentTime)}`}
+          title={`捕获当前播放位置 ${formatTime(currentTime)} 为起点`}
         >
           <span>✂️</span>
           <span>Start @ {formatTime(currentTime)}</span>
         </button>
         <button
-          onClick={handleTrimEnd}
+          onClick={handleCaptureEnd}
           className="flex-1 py-1 text-xs bg-purple-600 hover:bg-purple-700 rounded flex items-center justify-center gap-1"
-          title={`设置视频终点为 ${formatTime(currentTime)}`}
+          title={`捕获当前播放位置 ${formatTime(currentTime)} 为终点`}
         >
           <span>End @ {formatTime(currentTime)}</span>
           <span>✂️</span>
         </button>
       </div>
 
-      {/* Row 3: Current Trim Status (if any) */}
-      {hasTrim && (
-        <div className="flex items-center gap-2 text-xs bg-purple-900/50 rounded p-2">
-          <span className="text-purple-300">
-            📐 裁剪范围: {formatTime(trimStart)} - {formatTime(trimEnd ?? sourceDuration)}
-            <span className="text-gray-400 ml-1">
-              ({formatTime(effectiveDuration)})
-            </span>
-          </span>
-          <button
-            onClick={handleResetTrim}
-            className="ml-auto px-2 py-0.5 bg-gray-600 hover:bg-gray-500 rounded text-white"
-          >
-            恢复
-          </button>
+      {/* Row 3: Trim edit panel (editable inputs + apply) */}
+      {(showTrimEdit || hasTrim) && (
+        <div className="bg-purple-900/30 border border-purple-500/30 rounded p-2 space-y-2">
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-purple-300 shrink-0">✂️ 裁剪:</span>
+            <input
+              type="text"
+              value={trimStartInput || (hasTrim ? formatTime(trimStart) : "")}
+              onChange={(e) => { setTrimStartInput(e.target.value); if (!showTrimEdit) setShowTrimEdit(true); }}
+              placeholder="起点"
+              className="w-20 px-1.5 py-0.5 bg-gray-700 border border-gray-600 rounded text-white text-xs text-center focus:border-purple-500 focus:outline-none"
+            />
+            <span className="text-gray-400">~</span>
+            <input
+              type="text"
+              value={trimEndInput || (hasTrim && trimEnd !== null ? formatTime(trimEnd) : "")}
+              onChange={(e) => { setTrimEndInput(e.target.value); if (!showTrimEdit) setShowTrimEdit(true); }}
+              placeholder="终点"
+              className="w-20 px-1.5 py-0.5 bg-gray-700 border border-gray-600 rounded text-white text-xs text-center focus:border-purple-500 focus:outline-none"
+            />
+            {hasTrim && (
+              <span className="text-gray-400 text-[10px]">
+                当前: {formatTime(trimStart)} ~ {formatTime(trimEnd ?? sourceDuration)} ({formatTime(effectiveDuration)})
+              </span>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleApplyTrim}
+              className="flex-1 py-1 text-xs bg-purple-600 hover:bg-purple-700 rounded"
+            >
+              应用裁剪
+            </button>
+            {hasTrim && (
+              <button
+                onClick={handleResetTrim}
+                className="px-3 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded"
+              >
+                恢复完整
+              </button>
+            )}
+            {showTrimEdit && !hasTrim && (
+              <button
+                onClick={() => { setShowTrimEdit(false); setTrimStartInput(""); setTrimEndInput(""); }}
+                className="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded"
+              >
+                取消
+              </button>
+            )}
+          </div>
         </div>
       )}
 
