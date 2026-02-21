@@ -4,11 +4,13 @@
  * BulkActions - Buttons for segment operations and video trimming
  */
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import type { EditableSegment } from "@/lib/types";
 import {
   keepAllSegments,
   dropAllSegments,
   resetAllSegments,
+  batchUpdateSegments,
   setVideoTrim,
   resetVideoTrim,
   cleanDisfluenciesWithProgress,
@@ -21,6 +23,7 @@ interface BulkActionsProps {
   trimStart?: number; // Current video trim start
   trimEnd?: number | null; // Current video trim end
   sourceDuration?: number; // Total video duration
+  segments?: EditableSegment[]; // Segments for time-range operations
   onUpdate?: () => void; // Callback after update
 }
 
@@ -36,6 +39,7 @@ export default function BulkActions({
   trimStart = 0,
   trimEnd = null,
   sourceDuration = 0,
+  segments = [],
   onUpdate,
 }: BulkActionsProps) {
   const toast = useToast();
@@ -43,6 +47,11 @@ export default function BulkActions({
 
   const [cleaning, setCleaning] = useState(false);
   const [cleanProgress, setCleanProgress] = useState("");
+
+  // Time-range drop
+  const [showRangeDrop, setShowRangeDrop] = useState(false);
+  const [rangeStart, setRangeStart] = useState("");
+  const [rangeEnd, setRangeEnd] = useState("");
 
   const hasTrim = trimStart > 0 || trimEnd !== null;
   const effectiveDuration = (trimEnd ?? sourceDuration) - trimStart;
@@ -205,6 +214,111 @@ export default function BulkActions({
     }
   };
 
+  // Set current playhead as range start
+  const handleSetRangeStart = useCallback(() => {
+    setRangeStart(formatTime(currentTime));
+    if (!showRangeDrop) setShowRangeDrop(true);
+  }, [currentTime, showRangeDrop]);
+
+  // Set current playhead as range end
+  const handleSetRangeEnd = useCallback(() => {
+    setRangeEnd(formatTime(currentTime));
+    if (!showRangeDrop) setShowRangeDrop(true);
+  }, [currentTime, showRangeDrop]);
+
+  // Parse "M:SS" or "H:MM:SS" to seconds
+  const parseTime = (str: string): number | null => {
+    const parts = str.trim().split(":").map(Number);
+    if (parts.some(isNaN)) return null;
+    if (parts.length === 2) return parts[0] * 60 + parts[1];
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    return null;
+  };
+
+  // Drop all segments overlapping the time range
+  const handleRangeDrop = async () => {
+    const startSec = parseTime(rangeStart);
+    const endSec = parseTime(rangeEnd);
+    if (startSec === null || endSec === null) {
+      toast.error("时间格式无效，请使用 M:SS 或 H:MM:SS");
+      return;
+    }
+    if (startSec >= endSec) {
+      toast.error("起始时间必须小于结束时间");
+      return;
+    }
+
+    // Find segments that overlap with the range
+    const overlapping = segments.filter(
+      (seg) => seg.start < endSec && seg.end > startSec
+    );
+
+    if (overlapping.length === 0) {
+      toast.error("该时间范围内没有片段");
+      return;
+    }
+
+    const confirmed = await confirm({
+      title: "丢弃时间范围",
+      message: `将丢弃 ${formatTime(startSec)} ~ ${formatTime(endSec)} 范围内的 ${overlapping.length} 个片段（视频+字幕）。`,
+      type: "danger",
+      confirmText: `丢弃 ${overlapping.length} 个片段`,
+    });
+
+    if (confirmed) {
+      try {
+        const result = await batchUpdateSegments(timelineId, {
+          segment_ids: overlapping.map((s) => s.id),
+          state: "drop",
+        });
+        toast.success(`已丢弃 ${result.updated} 个片段`);
+        setShowRangeDrop(false);
+        setRangeStart("");
+        setRangeEnd("");
+        onUpdate?.();
+      } catch (err) {
+        toast.error("操作失败: " + (err instanceof Error ? err.message : "Unknown error"));
+      }
+    }
+  };
+
+  // Keep all segments in the time range (reverse of drop)
+  const handleRangeKeep = async () => {
+    const startSec = parseTime(rangeStart);
+    const endSec = parseTime(rangeEnd);
+    if (startSec === null || endSec === null) {
+      toast.error("时间格式无效，请使用 M:SS 或 H:MM:SS");
+      return;
+    }
+    if (startSec >= endSec) {
+      toast.error("起始时间必须小于结束时间");
+      return;
+    }
+
+    const overlapping = segments.filter(
+      (seg) => seg.start < endSec && seg.end > startSec
+    );
+
+    if (overlapping.length === 0) {
+      toast.error("该时间范围内没有片段");
+      return;
+    }
+
+    try {
+      const result = await batchUpdateSegments(timelineId, {
+        segment_ids: overlapping.map((s) => s.id),
+        state: "keep",
+      });
+      toast.success(`已保留 ${result.updated} 个片段`);
+      setShowRangeDrop(false);
+      setRangeStart("");
+      setRangeEnd("");
+      onUpdate?.();
+    } catch (err) {
+      toast.error("操作失败: " + (err instanceof Error ? err.message : "Unknown error"));
+    }
+  };
+
   return (
     <div className="p-2 border-b border-gray-700 space-y-2">
       {/* Row 1: Keep All / Drop All / Reset */}
@@ -275,6 +389,79 @@ export default function BulkActions({
           >
             恢复
           </button>
+        </div>
+      )}
+
+      {/* Row 4: Time Range Drop */}
+      <div className="flex gap-2">
+        <button
+          onClick={handleSetRangeStart}
+          className="flex-1 py-1 text-xs bg-orange-600 hover:bg-orange-700 rounded flex items-center justify-center gap-1"
+          title={`将当前播放位置 ${formatTime(currentTime)} 设为范围起点`}
+        >
+          <span>📌</span>
+          <span>起点 @ {formatTime(currentTime)}</span>
+        </button>
+        <button
+          onClick={handleSetRangeEnd}
+          className="flex-1 py-1 text-xs bg-orange-600 hover:bg-orange-700 rounded flex items-center justify-center gap-1"
+          title={`将当前播放位置 ${formatTime(currentTime)} 设为范围终点`}
+        >
+          <span>终点 @ {formatTime(currentTime)}</span>
+          <span>📌</span>
+        </button>
+      </div>
+
+      {/* Row 5: Range Drop Panel (expanded) */}
+      {showRangeDrop && (
+        <div className="bg-orange-900/30 border border-orange-500/30 rounded p-2 space-y-2">
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-orange-300 shrink-0">范围:</span>
+            <input
+              type="text"
+              value={rangeStart}
+              onChange={(e) => setRangeStart(e.target.value)}
+              placeholder="0:00"
+              className="w-16 px-1.5 py-0.5 bg-gray-700 border border-gray-600 rounded text-white text-xs text-center focus:border-orange-500 focus:outline-none"
+            />
+            <span className="text-gray-400">~</span>
+            <input
+              type="text"
+              value={rangeEnd}
+              onChange={(e) => setRangeEnd(e.target.value)}
+              placeholder="0:00"
+              className="w-16 px-1.5 py-0.5 bg-gray-700 border border-gray-600 rounded text-white text-xs text-center focus:border-orange-500 focus:outline-none"
+            />
+            {rangeStart && rangeEnd && (() => {
+              const s = parseTime(rangeStart);
+              const e = parseTime(rangeEnd);
+              if (s !== null && e !== null && e > s) {
+                const count = segments.filter((seg) => seg.start < e && seg.end > s).length;
+                return <span className="text-gray-400 text-[10px]">({count} 个片段)</span>;
+              }
+              return null;
+            })()}
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleRangeDrop}
+              className="flex-1 py-1 text-xs bg-red-600 hover:bg-red-700 rounded"
+            >
+              丢弃该范围
+            </button>
+            <button
+              onClick={handleRangeKeep}
+              className="flex-1 py-1 text-xs bg-green-600 hover:bg-green-700 rounded"
+            >
+              保留该范围
+            </button>
+            <button
+              onClick={() => { setShowRangeDrop(false); setRangeStart(""); setRangeEnd(""); }}
+              className="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded"
+            >
+              取消
+            </button>
+          </div>
         </div>
       )}
     </div>
