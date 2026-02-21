@@ -7,8 +7,8 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { CardPopupState } from "@/hooks/useCardPopup";
-import type { WordCard, EntityCard, IdiomCard, PinnedCard, PinnedCardType } from "@/lib/types";
-import { pinCard, unpinCard, updatePinnedCardNote } from "@/lib/api";
+import type { WordCard, EntityCard, IdiomCard, NoteCard, PinnedCard, PinnedCardType } from "@/lib/types";
+import { pinCard, unpinCard, updatePinnedCardNote, updatePinnedCardData } from "@/lib/api";
 import { playWordAudio } from "@/lib/audio";
 
 interface CardSidePanelProps {
@@ -639,6 +639,109 @@ export function SidePanelIdiomCard({ card, onClose, isPinned, pinLoading, onTogg
             />
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+export interface SidePanelNoteCardProps {
+  card: NoteCard;
+  pinId: string;
+  timelineId: string;
+  onClose: () => void;
+  onUnpin?: () => void;
+  pinLoading?: boolean;
+  onDataChange?: () => void;
+}
+
+export function SidePanelNoteCard({ card, pinId, timelineId, onClose, onUnpin, pinLoading, onDataChange }: SidePanelNoteCardProps) {
+  const [title, setTitle] = useState(card.title);
+  const [content, setContent] = useState(card.content);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = useCallback(async () => {
+    if (title === card.title && content === card.content) return;
+    setSaving(true);
+    try {
+      await updatePinnedCardData(timelineId, pinId, { title, content });
+      onDataChange?.();
+    } catch (err) {
+      console.error("Failed to update note card:", err);
+    } finally {
+      setSaving(false);
+    }
+  }, [title, content, card.title, card.content, timelineId, pinId, onDataChange]);
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Header */}
+      <div className="relative flex-shrink-0">
+        <div className="h-16 bg-gradient-to-r from-green-900/30 to-green-800/20" />
+
+        {/* Action buttons */}
+        <div className="absolute top-2 right-2 flex items-center gap-1">
+          {onUnpin && (
+            <button
+              onClick={onUnpin}
+              disabled={pinLoading}
+              className={`p-1.5 text-purple-400 bg-purple-500/20 hover:bg-purple-500/30 rounded-full transition ${pinLoading ? "opacity-50 cursor-wait" : ""}`}
+              title="取消钉住"
+            >
+              {pinLoading ? (
+                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <PinIcon filled={true} />
+              )}
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="p-1.5 bg-black/50 text-white hover:bg-black/70 rounded-full transition"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <span className="absolute top-2 left-2 px-2 py-0.5 bg-green-500/50 text-white text-xs font-medium rounded backdrop-blur-sm">
+          笔记
+        </span>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs font-medium text-white/40 uppercase tracking-wider">标题</span>
+            <div className="flex-1 h-px bg-white/10" />
+          </div>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onBlur={handleSave}
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-base text-white font-medium placeholder-white/30 focus:outline-none focus:border-green-500/50 focus:ring-1 focus:ring-green-500/30"
+            placeholder="笔记标题..."
+          />
+        </div>
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs font-medium text-white/40 uppercase tracking-wider">内容</span>
+            <div className="flex-1 h-px bg-white/10" />
+            {saving && (
+              <div className="w-3 h-3 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />
+            )}
+          </div>
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            onBlur={handleSave}
+            placeholder="笔记内容..."
+            rows={6}
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/80 placeholder-white/30 resize-none focus:outline-none focus:border-green-500/50 focus:ring-1 focus:ring-green-500/30"
+          />
+        </div>
       </div>
     </div>
   );

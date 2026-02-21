@@ -1692,6 +1692,17 @@ export async function updatePinnedCardNote(
   });
 }
 
+export async function updatePinnedCardData(
+  timelineId: string,
+  cardId: string,
+  cardData: Record<string, unknown>
+): Promise<PinnedCard> {
+  return fetchAPI<PinnedCard>(`/timelines/${timelineId}/pinned-cards/${cardId}/data`, {
+    method: "PATCH",
+    body: JSON.stringify({ card_data: cardData }),
+  });
+}
+
 export async function checkCardPinned(
   timelineId: string,
   cardType: PinnedCardType,

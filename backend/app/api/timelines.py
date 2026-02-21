@@ -807,6 +807,23 @@ class PinnedCardNoteUpdate(BaseModel):
     note: str  # Empty string to clear note
 
 
+class PinnedCardDataUpdate(BaseModel):
+    """Request model for updating a pinned card's card_data."""
+    card_data: dict
+
+
+@router.patch("/{timeline_id}/pinned-cards/{card_id}/data")
+async def update_pinned_card_data(timeline_id: str, card_id: str, update: PinnedCardDataUpdate):
+    """Update the card_data on a pinned card (e.g. note title/content)."""
+    manager = _get_manager()
+
+    pinned_card = manager.update_pinned_card_data(timeline_id, card_id, update.card_data)
+    if not pinned_card:
+        raise HTTPException(status_code=404, detail="Pinned card not found")
+
+    return pinned_card
+
+
 @router.patch("/{timeline_id}/pinned-cards/{card_id}/note")
 async def update_pinned_card_note(timeline_id: str, card_id: str, update: PinnedCardNoteUpdate):
     """Update the note on a pinned card."""

@@ -836,3 +836,36 @@ class TimelineManager:
         )
 
         return pinned_card
+
+    def update_pinned_card_data(
+        self,
+        timeline_id: str,
+        card_id: str,
+        card_data: dict,
+    ) -> Optional[PinnedCard]:
+        """Update the card_data on a pinned card.
+
+        Args:
+            timeline_id: Timeline ID
+            card_id: Pinned card ID
+            card_data: New card data dict (replaces existing)
+
+        Returns:
+            Updated PinnedCard or None if not found
+        """
+        timeline = self.get_timeline(timeline_id)
+        if not timeline:
+            return None
+
+        pinned_card = timeline.get_pinned_card(card_id)
+        if not pinned_card:
+            return None
+
+        pinned_card.card_data = card_data
+        timeline.updated_at = datetime.utcnow()
+        self._save_timeline(timeline)
+        logger.info(
+            f"Updated card_data for pinned card {card_id} in timeline {timeline_id}"
+        )
+
+        return pinned_card

@@ -97,6 +97,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
 }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Video natural aspect ratio (detected on metadata load)
+  const [videoAspect, setVideoAspect] = useState<number>(16 / 9);
   // Grace period: after an explicit segment click/seek, ignore timeupdate-driven
   // segment changes briefly so short segments don't get overridden.
   const segmentLockUntilRef = useRef<number>(0);
@@ -217,6 +219,25 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     video.addEventListener("loadedmetadata", handleLoadedMetadata);
     return () => video.removeEventListener("loadedmetadata", handleLoadedMetadata);
   }, [trimStart]);
+
+  // Detect video native aspect ratio
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const detectAspect = () => {
+      if (video.videoWidth && video.videoHeight) {
+        setVideoAspect(video.videoWidth / video.videoHeight);
+      }
+    };
+
+    if (video.readyState >= 1 && video.videoWidth) {
+      detectAspect();
+    }
+
+    video.addEventListener("loadedmetadata", detectAspect);
+    return () => video.removeEventListener("loadedmetadata", detectAspect);
+  }, []);
 
   // Helper: skip to next non-dropped segment (reads from ref for freshest state)
   const skipDroppedSegment = useCallback((video: HTMLVideoElement, time: number): boolean => {
@@ -515,29 +536,15 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
       className="flex flex-col rounded-lg overflow-hidden h-full"
       style={{ backgroundColor: containerBgColor }}
     >
-      {/* Video area — always full width, full height */}
-      <div className="relative flex-1 min-h-0" style={{ minHeight: "200px" }}>
-        {/* Video with blurred background fill */}
+      {/* Video area — aspect-ratio constrained, centered */}
+      <div className="flex-1 min-h-0 flex items-center justify-center" style={{ minHeight: "200px", backgroundColor: containerBgColor }}>
+        <div
+          className="relative overflow-hidden"
+          style={{ width: "100%", maxHeight: "100%", aspectRatio: `${videoAspect}` }}
+        >
+        {/* Video fills the aspect-ratio container */}
         <div className="w-full h-full relative overflow-hidden">
-          {/* Blurred background: covers area, zoomed in */}
-          <video
-            src={videoUrl}
-            key={`${videoUrl}-bg`}
-            className="absolute inset-0 w-full h-full pointer-events-none"
-            style={{
-              objectFit: "cover",
-              filter: "blur(25px) brightness(0.6)",
-            }}
-            muted
-            playsInline
-            ref={(el) => {
-              // Sync background video time with main video
-              if (el && videoRef.current) {
-                el.currentTime = videoRef.current.currentTime;
-              }
-            }}
-          />
-          {/* Sharp foreground: fits area, centered */}
+          {/* Main video: now fills container exactly */}
           <video
             ref={videoRef}
             src={videoUrl}
@@ -587,10 +594,10 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
               height: `${100 - subtitleHeightPercent}%`,
             }}
           >
-            {/* Position toggle button */}
+            {/* Position toggle button - offset below card action buttons to avoid overlap */}
             <button
               onClick={toggleCardPosition}
-              className="absolute top-2 z-30 p-1 rounded bg-black/40 text-white/70 hover:bg-black/60 hover:text-white transition-colors"
+              className="absolute top-11 z-30 p-1 rounded bg-black/40 text-white/70 hover:bg-black/60 hover:text-white transition-colors"
               style={isOnLeft ? { right: 8 } : { left: 8 }}
               title={isOnLeft ? "移到右侧" : "移到左侧"}
             >
@@ -642,6 +649,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
             </div>
           </div>
         )}
+        </div>
       </div>
 
       {/* Controls bar (full width) */}

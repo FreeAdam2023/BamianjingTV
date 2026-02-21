@@ -7,3 +7,4 @@ export { default as IdiomBadges, IdiomBadgesSkeleton } from "./IdiomBadges";
 export { default as CardSidePanel } from "./CardSidePanel";
 export { default as EntityEditModal } from "./EntityEditModal";
 export { default as IdiomEditModal } from "./IdiomEditModal";
+export { default as NoteEditModal } from "./NoteEditModal";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
-import type { EditableSegment, SegmentState, SegmentAnnotations, EntityAnnotation, IdiomAnnotation } from "@/lib/types";
+import type { EditableSegment, SegmentState, SegmentAnnotations, EntityAnnotation, IdiomAnnotation, PinnedCard } from "@/lib/types";
 import { formatDuration } from "@/lib/api";
 import { ClickableSubtitle, EntityBadges, IdiomBadges } from "@/components/Cards";
 import SplitSegmentModal from "./SplitSegmentModal";
@@ -31,6 +31,10 @@ interface SegmentListProps {
   // Idiom editing handlers
   onAddIdiom?: (segmentId: number, segmentText: string) => void;
   onEditIdiom?: (segmentId: number, segmentText: string, idiom: IdiomAnnotation) => void;
+  // Note handlers
+  onAddNote?: (segmentId: number) => void;
+  onEditNote?: (card: PinnedCard) => void;
+  pinnedCards?: PinnedCard[];
   // Bookmark handlers
   onToggleBookmark?: (segmentId: number) => void;
   bookmarkFilter?: boolean | null;  // null = show all, true = bookmarked only
@@ -54,6 +58,9 @@ export default function SegmentList({
   onEditEntity,
   onAddIdiom,
   onEditIdiom,
+  onAddNote,
+  onEditNote,
+  pinnedCards,
   onToggleSubtitleHidden,
   onToggleBookmark,
   bookmarkFilter,
@@ -506,6 +513,48 @@ export default function SegmentList({
                   )}
                 </div>
               )}
+              {/* Note row — label + note badges + add */}
+              {(() => {
+                const segNotes = pinnedCards?.filter((c) => c.card_type === "note" && c.segment_id === segment.id) || [];
+                if (segNotes.length === 0 && !(segment.id === currentSegmentId && onAddNote)) return null;
+                return (
+                  <div className="flex items-center gap-1 mt-1">
+                    <span className="text-[10px] text-green-400/70 font-medium shrink-0">笔记</span>
+                    <div className="flex flex-wrap gap-1 flex-1">
+                      {segNotes.map((card) => {
+                        const data = card.card_data as { title?: string } | null;
+                        return (
+                          <button
+                            key={card.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEditNote?.(card);
+                            }}
+                            className="px-1.5 py-0.5 text-[10px] bg-green-500/20 text-green-300 rounded hover:bg-green-500/30 transition-colors truncate max-w-[120px]"
+                            title={data?.title || "笔记"}
+                          >
+                            {data?.title || "笔记"}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {segment.id === currentSegmentId && onAddNote && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAddNote(segment.id);
+                        }}
+                        className="p-0.5 text-gray-400 hover:text-green-400 hover:bg-green-500/20 rounded transition-colors"
+                        title="添加笔记"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
 

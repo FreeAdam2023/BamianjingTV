@@ -15,6 +15,7 @@ import type {
   EntityCard,
   IdiomCard,
   InsightCard,
+  NoteCard,
 } from "@/lib/types";
 import {
   SidePanelWordCard,
@@ -112,6 +113,49 @@ function FullCard({ pinnedCard, onUnpin, onDismiss, pinLoading }: {
         />
         {note && <NoteDisplay note={note} />}
       </>
+    );
+  }
+
+  if (pinnedCard.card_type === "note") {
+    const noteData = data as NoteCard;
+    return (
+      <div className="h-full flex flex-col">
+        <div className="relative flex-shrink-0">
+          <div className="h-16 bg-gradient-to-r from-green-900/30 to-green-800/20" />
+          <span className="absolute top-2 left-2 px-2 py-0.5 bg-green-500/50 text-white text-xs font-medium rounded backdrop-blur-sm">
+            笔记
+          </span>
+          <div className="absolute top-2 right-2 flex items-center gap-1">
+            {onUnpin && (
+              <button
+                onClick={() => onUnpin(pinnedCard.id)}
+                disabled={pinLoading}
+                className="p-1.5 bg-black/50 text-white hover:bg-black/70 rounded-full transition"
+                title="取消钉住"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z" />
+                </svg>
+              </button>
+            )}
+            {onDismiss && (
+              <button
+                onClick={() => onDismiss(pinnedCard.id)}
+                className="p-1.5 bg-black/50 text-white hover:bg-black/70 rounded-full transition"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          <h2 className="text-xl font-bold text-white">{noteData.title}</h2>
+          <p className="text-sm text-white/60 whitespace-pre-wrap">{noteData.content}</p>
+        </div>
+        {note && <NoteDisplay note={note} />}
+      </div>
     );
   }
 

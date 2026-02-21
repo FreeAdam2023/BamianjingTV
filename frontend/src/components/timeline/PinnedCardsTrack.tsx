@@ -37,6 +37,11 @@ const CARD_TYPE_COLORS: Record<PinnedCardType, { bg: string; border: string; tex
     border: "border-yellow-400",
     text: "text-yellow-300",
   },
+  note: {
+    bg: "bg-green-500/30",
+    border: "border-green-400",
+    text: "text-green-300",
+  },
 };
 
 // Format timestamp to MM:SS

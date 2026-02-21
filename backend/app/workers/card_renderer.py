@@ -1039,6 +1039,72 @@ class CardRenderer:
 
         return img
 
+    def render_full_note_card(
+        self,
+        card_data: dict,
+        panel_width: int,
+        panel_height: int,
+        output_path: Optional[Path] = None,
+    ) -> Image.Image:
+        """Render a full-detail note card.
+
+        Includes: green gradient header, 笔记 badge, title, content text.
+        """
+        padding = 20
+        content_width = panel_width - 2 * padding
+
+        title = card_data.get("title", "")
+        content = card_data.get("content", "")
+
+        # Create panel image
+        img = Image.new("RGBA", (panel_width, panel_height), self.BG_SOLID)
+        draw = ImageDraw.Draw(img)
+
+        # Green gradient header
+        header_height = 64
+        for gy in range(header_height):
+            progress = gy / header_height
+            r = int(20 + (25 - 20) * progress)
+            g = int(83 + (90 - 83) * progress)
+            b = int(45 + (50 - 45) * progress)
+            alpha = int(77 - 26 * progress)
+            draw.line([(0, gy), (panel_width, gy)], fill=(r, g, b, alpha))
+
+        # 笔记 badge
+        badge_text = "笔记"
+        cat_bbox = self.font_panel_small.getbbox(badge_text)
+        cat_w = cat_bbox[2] - cat_bbox[0] + 16
+        self._draw_rounded_rect(
+            draw, (padding, 12, padding + cat_w, 12 + 22), 6, (34, 197, 94, 128),
+        )
+        draw.text((padding + 8, 12 + 3), badge_text, font=self.font_panel_small, fill=self.TEXT_WHITE)
+
+        y = header_height + 16
+
+        # Title
+        title_lines = self._wrap_text(title, self.font_panel_title, content_width)
+        for line in title_lines[:2]:
+            draw.text((padding, y), line, font=self.font_panel_title, fill=self.TEXT_WHITE)
+            y += 30
+        y += 8
+
+        # Content text
+        if content:
+            lines = self._wrap_text(content, self.font_panel_body, content_width)
+            for line in lines:
+                if y + 18 > panel_height - 10:
+                    break
+                draw.text((padding, y), line, font=self.font_panel_body, fill=self.TEXT_MUTED)
+                y += 18
+
+        if output_path:
+            output_path = Path(output_path)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            img.save(output_path, "PNG")
+            logger.debug(f"Saved full note card: {output_path}")
+
+        return img
+
     def render_full_insight_card(
         self,
         card_data: dict,
@@ -1240,6 +1306,51 @@ class CardRenderer:
             output_path.parent.mkdir(parents=True, exist_ok=True)
             img.save(output_path, "PNG")
             logger.debug(f"Saved idiom card: {output_path}")
+        elif card_type == "note":
+            # Render note as a compact card (green theme)
+            title = card_data.get("title", "")
+            content = card_data.get("content", "")
+
+            content_width = self.CARD_WIDTH - 2 * self.CARD_PADDING
+            height = self.CARD_PADDING + 32 + 36 + 12
+            if content:
+                lines = self._wrap_text(content, self.font_body, content_width)
+                height += min(len(lines), 4) * 22
+            height += self.CARD_PADDING
+            height = max(height, 180)
+
+            img = Image.new("RGBA", (self.CARD_WIDTH, height), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(img)
+            self._draw_rounded_rect(draw, (0, 0, self.CARD_WIDTH, height), self.CARD_RADIUS, self.BG_COLOR)
+
+            y = self.CARD_PADDING
+            # Badge
+            badge_text = "笔记"
+            badge_bbox = self.font_small.getbbox(badge_text)
+            badge_w = badge_bbox[2] - badge_bbox[0] + 16
+            self._draw_rounded_rect(
+                draw, (self.CARD_PADDING, y, self.CARD_PADDING + badge_w, y + 22),
+                6, (34, 197, 94, 128),  # green-500 with alpha
+            )
+            draw.text((self.CARD_PADDING + 8, y + 3), badge_text, font=self.font_small, fill=self.TEXT_WHITE)
+            y += 32
+
+            # Title
+            draw.text((self.CARD_PADDING, y), title, font=self.font_title, fill=self.TEXT_WHITE)
+            y += 36
+            y += 8
+
+            # Content
+            if content:
+                lines = self._wrap_text(content, self.font_body, content_width)
+                for line in lines[:4]:
+                    draw.text((self.CARD_PADDING, y), line, font=self.font_body, fill=self.TEXT_MUTED)
+                    y += 22
+
+            output_path = Path(output_path)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            img.save(output_path, "PNG")
+            logger.debug(f"Saved note card: {output_path}")
         elif card_type == "insight":
             # Render insight as a compact card
             title = card_data.get("title", "")
@@ -1326,6 +1437,8 @@ class CardRenderer:
             self.render_full_entity_card(card_data, panel_width, panel_height, output_path)
         elif card_type == "idiom":
             self.render_full_idiom_card(card_data, panel_width, panel_height, output_path)
+        elif card_type == "note":
+            self.render_full_note_card(card_data, panel_width, panel_height, output_path)
         elif card_type == "insight":
             self.render_full_insight_card(card_data, panel_width, panel_height, output_path)
         else:

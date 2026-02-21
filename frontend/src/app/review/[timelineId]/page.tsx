@@ -35,7 +35,7 @@ import CreativeAIChat from "./CreativeAIChat";
 import RemotionExportPanel from "./RemotionExportPanel";
 import type { Observation, EntityAnnotation, IdiomAnnotation } from "@/lib/types";
 import type { RemotionConfig } from "@/lib/creative-types";
-import { EntityEditModal, IdiomEditModal } from "@/components/Cards";
+import { EntityEditModal, IdiomEditModal, NoteEditModal } from "@/components/Cards";
 
 // Lazy load RemotionPreview to avoid SSR issues with Remotion
 const RemotionPreview = lazy(() => import("./RemotionPreview"));
@@ -103,6 +103,13 @@ export default function ReviewPage() {
     segmentId: number;
     segmentText: string;
     idiom: IdiomAnnotation | null;
+  } | null>(null);
+
+  // Note editing modal state
+  const [noteEditModal, setNoteEditModal] = useState<{
+    isOpen: boolean;
+    segmentId: number;
+    existingCard?: PinnedCard;
   } | null>(null);
 
   // Card popup state (shared between video and segment list)
@@ -426,6 +433,23 @@ export default function ReviewPage() {
     });
   }, []);
 
+  // Handle add note (open modal for adding new note)
+  const handleAddNote = useCallback((segmentId: number) => {
+    setNoteEditModal({
+      isOpen: true,
+      segmentId,
+    });
+  }, []);
+
+  // Handle edit note (open modal for editing existing note)
+  const handleEditNote = useCallback((card: PinnedCard) => {
+    setNoteEditModal({
+      isOpen: true,
+      segmentId: card.segment_id,
+      existingCard: card,
+    });
+  }, []);
+
   // Handle idiom edit success
   const handleIdiomEditSuccess = useCallback(async () => {
     if (idiomEditModal && timeline) {
@@ -495,6 +519,43 @@ export default function ReviewPage() {
       setAnalyzingEntities(false);
     }
   }, [timeline, analyzingEntities, refresh, toast]);
+
+  // Persist playback position to localStorage (throttled)
+  const lastSavedTimeRef = useRef(0);
+  useEffect(() => {
+    // Throttle: save at most every 2 seconds
+    if (Math.abs(currentVideoTime - lastSavedTimeRef.current) < 2) return;
+    lastSavedTimeRef.current = currentVideoTime;
+    try {
+      localStorage.setItem(`playbackPosition-${timelineId}`, String(currentVideoTime));
+    } catch { /* ignore quota errors */ }
+  }, [currentVideoTime, timelineId]);
+
+  // Restore playback position on initial video load
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current || !videoPlayerRef.current) return;
+    const saved = localStorage.getItem(`playbackPosition-${timelineId}`);
+    if (!saved) return;
+    const savedTime = parseFloat(saved);
+    if (isNaN(savedTime) || savedTime <= 0) return;
+
+    // Wait for video element to be ready before seeking
+    const video = videoPlayerRef.current.getVideoElement();
+    if (!video) return;
+
+    const doRestore = () => {
+      restoredRef.current = true;
+      videoPlayerRef.current?.seekTo(savedTime);
+    };
+
+    if (video.readyState >= 1) {
+      doRestore();
+    } else {
+      video.addEventListener("loadedmetadata", doRestore, { once: true });
+      return () => video.removeEventListener("loadedmetadata", doRestore);
+    }
+  }, [timelineId, timeline]); // re-run when timeline loads (video element becomes available)
 
   // Handle video time update
   const handleVideoTimeUpdate = useCallback((time: number) => {
@@ -941,6 +1002,9 @@ export default function ReviewPage() {
             onEditEntity={handleEditEntity}
             onAddIdiom={handleAddIdiom}
             onEditIdiom={handleEditIdiom}
+            onAddNote={handleAddNote}
+            onEditNote={handleEditNote}
+            pinnedCards={timeline.pinned_cards || []}
             onToggleSubtitleHidden={toggleSubtitleHidden}
             onToggleBookmark={toggleBookmark}
             bookmarkFilter={bookmarkFilter}
@@ -1039,6 +1103,19 @@ export default function ReviewPage() {
           segmentText={idiomEditModal.segmentText}
           idiom={idiomEditModal.idiom}
           onSuccess={handleIdiomEditSuccess}
+        />
+      )}
+
+      {/* Note Edit Modal */}
+      {noteEditModal && (
+        <NoteEditModal
+          isOpen={noteEditModal.isOpen}
+          onClose={() => setNoteEditModal(null)}
+          timelineId={timeline.timeline_id}
+          segmentId={noteEditModal.segmentId}
+          currentTime={currentVideoTime}
+          existingCard={noteEditModal.existingCard}
+          onSuccess={() => { setNoteEditModal(null); refresh(); }}
         />
       )}
     </main>

@@ -99,6 +99,7 @@ class PinnedCardType(str, Enum):
     ENTITY = "entity"
     IDIOM = "idiom"
     INSIGHT = "insight"  # AI-generated insight from chat
+    NOTE = "note"  # User-created note card
 
 
 class PinnedCard(BaseModel):
@@ -499,10 +500,11 @@ class Timeline(BaseModel):
                 return f"{hours}:{minutes:02d}:{secs:02d}"
             return f"{minutes}:{secs:02d}"
 
-        # Separate words, entities, and idioms
+        # Separate words, entities, idioms, and notes
         words = []
         entities = []
         idioms = []
+        notes = []
 
         for card in sorted(self.pinned_cards, key=lambda c: c.timestamp):
             if card.card_type == PinnedCardType.WORD and card.card_data:
@@ -511,6 +513,8 @@ class Timeline(BaseModel):
                 entities.append(card)
             elif card.card_type == PinnedCardType.IDIOM and card.card_data:
                 idioms.append(card)
+            elif card.card_type == PinnedCardType.NOTE and card.card_data:
+                notes.append(card)
 
         lines = []
 
@@ -591,6 +595,23 @@ class Timeline(BaseModel):
                     lines.append(f"{timestamp_str}{text} — {meaning_zh}")
                 else:
                     lines.append(f"{timestamp_str}{text}")
+
+            lines.append("")
+
+        # Notes section
+        if notes:
+            lines.append("📝 笔记 | Notes")
+            lines.append("-" * 30)
+            for card in notes:
+                data = card.card_data
+                title = data.get("title", "")
+                content = data.get("content", "")
+
+                timestamp_str = f"[{format_timestamp(card.timestamp)}] " if include_timestamps else ""
+                if content:
+                    lines.append(f"{timestamp_str}{title} — {content[:80]}")
+                else:
+                    lines.append(f"{timestamp_str}{title}")
 
             lines.append("")
 
