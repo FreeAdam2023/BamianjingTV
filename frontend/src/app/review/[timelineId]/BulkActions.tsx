@@ -29,8 +29,10 @@ interface BulkActionsProps {
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
+  const secs = seconds % 60;
+  // Show one decimal place for sub-second precision
+  const secsStr = secs < 10 ? `0${secs.toFixed(1)}` : secs.toFixed(1);
+  return `${mins}:${secsStr}`;
 }
 
 export default function BulkActions({
@@ -226,12 +228,13 @@ export default function BulkActions({
     if (!showRangeDrop) setShowRangeDrop(true);
   }, [currentTime, showRangeDrop]);
 
-  // Parse "M:SS" or "H:MM:SS" to seconds
+  // Parse "M:SS", "M:SS.d", or "H:MM:SS.d" to seconds (supports decimals)
   const parseTime = (str: string): number | null => {
-    const parts = str.trim().split(":").map(Number);
-    if (parts.some(isNaN)) return null;
-    if (parts.length === 2) return parts[0] * 60 + parts[1];
-    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    const parts = str.trim().split(":");
+    const nums = parts.map(Number);
+    if (nums.some(isNaN)) return null;
+    if (nums.length === 2) return nums[0] * 60 + nums[1];
+    if (nums.length === 3) return nums[0] * 3600 + nums[1] * 60 + nums[2];
     return null;
   };
 
@@ -240,7 +243,7 @@ export default function BulkActions({
     const startSec = parseTime(rangeStart);
     const endSec = parseTime(rangeEnd);
     if (startSec === null || endSec === null) {
-      toast.error("时间格式无效，请使用 M:SS 或 H:MM:SS");
+      toast.error("时间格式无效，请使用 M:SS.d 或 H:MM:SS.d");
       return;
     }
     if (startSec >= endSec) {
@@ -287,7 +290,7 @@ export default function BulkActions({
     const startSec = parseTime(rangeStart);
     const endSec = parseTime(rangeEnd);
     if (startSec === null || endSec === null) {
-      toast.error("时间格式无效，请使用 M:SS 或 H:MM:SS");
+      toast.error("时间格式无效，请使用 M:SS.d 或 H:MM:SS.d");
       return;
     }
     if (startSec >= endSec) {
@@ -421,16 +424,16 @@ export default function BulkActions({
               type="text"
               value={rangeStart}
               onChange={(e) => setRangeStart(e.target.value)}
-              placeholder="0:00"
-              className="w-16 px-1.5 py-0.5 bg-gray-700 border border-gray-600 rounded text-white text-xs text-center focus:border-orange-500 focus:outline-none"
+              placeholder="0:00.0"
+              className="w-20 px-1.5 py-0.5 bg-gray-700 border border-gray-600 rounded text-white text-xs text-center focus:border-orange-500 focus:outline-none"
             />
             <span className="text-gray-400">~</span>
             <input
               type="text"
               value={rangeEnd}
               onChange={(e) => setRangeEnd(e.target.value)}
-              placeholder="0:00"
-              className="w-16 px-1.5 py-0.5 bg-gray-700 border border-gray-600 rounded text-white text-xs text-center focus:border-orange-500 focus:outline-none"
+              placeholder="0:00.0"
+              className="w-20 px-1.5 py-0.5 bg-gray-700 border border-gray-600 rounded text-white text-xs text-center focus:border-orange-500 focus:outline-none"
             />
             {rangeStart && rangeEnd && (() => {
               const s = parseTime(rangeStart);
