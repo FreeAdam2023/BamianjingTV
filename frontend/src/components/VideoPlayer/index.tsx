@@ -53,6 +53,8 @@ interface VideoPlayerProps {
   cardRefreshing?: boolean;
   // Entity edit callback
   onEditEntity?: (entityId: string) => void;
+  // Video exclusion ranges (skip during playback)
+  exclusionRanges?: Array<[number, number]>;
 }
 
 export interface VideoPlayerRef {
@@ -94,6 +96,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   onCardRefresh,
   cardRefreshing = false,
   onEditEntity,
+  exclusionRanges = [],
 }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -106,6 +109,10 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   // Keep a ref to segments so skip logic always reads the latest state
   const segmentsRef = useRef(segments);
   segmentsRef.current = segments;
+
+  // Keep a ref to exclusion ranges for RAF-based skip
+  const exclusionRangesRef = useRef(exclusionRanges);
+  exclusionRangesRef.current = exclusionRanges;
 
   const {
     isPlaying,
@@ -270,20 +277,40 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     return true;
   }, [trimStart, trimEnd, isLooping]);
 
-  // RAF-based drop skip: runs at ~60fps while playing for instant response
+  // Helper: skip exclusion ranges during playback
+  const skipExclusionRange = useCallback((video: HTMLVideoElement, time: number): boolean => {
+    const ranges = exclusionRangesRef.current;
+    for (const [exStart, exEnd] of ranges) {
+      if (time >= exStart && time < exEnd) {
+        // Jump to end of exclusion range
+        if (trimEnd !== null && exEnd >= trimEnd) {
+          if (isLooping) video.currentTime = trimStart;
+          else { video.currentTime = trimEnd; video.pause(); }
+        } else {
+          video.currentTime = exEnd;
+        }
+        return true;
+      }
+    }
+    return false;
+  }, [trimStart, trimEnd, isLooping]);
+
+  // RAF-based drop/exclusion skip: runs at ~60fps while playing for instant response
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     let rafId: number;
 
-    const checkDrop = () => {
+    const checkSkip = () => {
       if (!video.paused && !video.seeking) {
-        skipDroppedSegment(video, video.currentTime);
+        if (!skipDroppedSegment(video, video.currentTime)) {
+          skipExclusionRange(video, video.currentTime);
+        }
       }
-      rafId = requestAnimationFrame(checkDrop);
+      rafId = requestAnimationFrame(checkSkip);
     };
 
-    const startRaf = () => { rafId = requestAnimationFrame(checkDrop); };
+    const startRaf = () => { rafId = requestAnimationFrame(checkSkip); };
     const stopRaf = () => cancelAnimationFrame(rafId);
 
     video.addEventListener("play", startRaf);
@@ -296,7 +323,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
       video.removeEventListener("play", startRaf);
       video.removeEventListener("pause", stopRaf);
     };
-  }, [skipDroppedSegment]);
+  }, [skipDroppedSegment, skipExclusionRange]);
 
   // Video event handlers
   useEffect(() => {
