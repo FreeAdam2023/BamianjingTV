@@ -808,6 +808,145 @@ class ExportWorker:
         logger.info(f"Retimed {len(retimed_cards)}/{len(pinned_cards)} pinned cards for essence export")
         return retimed_cards
 
+    def _compute_keep_regions(
+        self,
+        trim_start: float,
+        trim_end: float,
+        exclusion_ranges: list,
+    ) -> List[Tuple[float, float]]:
+        """Compute non-excluded video regions within trim range.
+
+        Args:
+            trim_start: Start of trim range
+            trim_end: End of trim range
+            exclusion_ranges: List of [start, end] exclusion ranges
+
+        Returns:
+            Sorted list of (start, end) tuples for keep regions
+        """
+        if not exclusion_ranges:
+            return [(trim_start, trim_end)]
+
+        # Sort exclusion ranges by start time
+        sorted_exclusions = sorted(exclusion_ranges, key=lambda r: r[0])
+
+        keep_regions = []
+        current_start = trim_start
+
+        for ex_range in sorted_exclusions:
+            ex_start = max(ex_range[0], trim_start)
+            ex_end = min(ex_range[1], trim_end)
+
+            if ex_start >= ex_end:
+                continue  # Exclusion outside trim range
+
+            if current_start < ex_start:
+                keep_regions.append((current_start, ex_start))
+            current_start = max(current_start, ex_end)
+
+        if current_start < trim_end:
+            keep_regions.append((current_start, trim_end))
+
+        logger.info(
+            f"Keep regions: {len(keep_regions)} regions from "
+            f"{len(exclusion_ranges)} exclusions in [{trim_start:.1f}, {trim_end:.1f}]"
+        )
+        return keep_regions
+
+    def _retime_segments_for_regions(
+        self,
+        segments: List[EditableSegment],
+        keep_regions: List[Tuple[float, float]],
+    ) -> List[Tuple[float, float, str, str]]:
+        """Retime subtitle segments to match concatenated keep regions.
+
+        Builds a cumulative offset map from keep regions, then for each
+        segment finds which region contains it and applies the offset.
+
+        Args:
+            segments: Subtitle segments (already filtered for exclusions)
+            keep_regions: Non-excluded time regions
+
+        Returns:
+            List of (start, end, en, zh) tuples with retimed timing
+        """
+        # Build cumulative offset map
+        region_offsets = []
+        cumulative_time = 0.0
+        for region_start, region_end in keep_regions:
+            offset = cumulative_time - region_start
+            region_offsets.append((region_start, region_end, offset))
+            cumulative_time += (region_end - region_start)
+
+        retimed = []
+        for seg in segments:
+            seg_start = seg.effective_start
+            seg_end = seg.effective_end
+
+            # Find which region contains this segment
+            for region_start, region_end, offset in region_offsets:
+                if seg_start >= region_start and seg_end <= region_end:
+                    new_start = seg_start + offset
+                    new_end = seg_end + offset
+                    if seg.subtitle_hidden:
+                        retimed.append((new_start, new_end, "", ""))
+                    else:
+                        retimed.append((new_start, new_end, seg.en, seg.zh))
+                    break
+
+        logger.info(f"Retimed {len(retimed)}/{len(segments)} segments for keep regions")
+        return retimed
+
+    def _retime_pinned_cards_for_regions(
+        self,
+        pinned_cards: List[PinnedCard],
+        keep_regions: List[Tuple[float, float]],
+    ) -> List[PinnedCard]:
+        """Retime pinned cards to match concatenated keep regions.
+
+        Same approach as _retime_pinned_cards() but uses keep regions
+        instead of keep segments.
+
+        Args:
+            pinned_cards: Original pinned cards
+            keep_regions: Non-excluded time regions
+
+        Returns:
+            New PinnedCard list with adjusted display_start/display_end
+        """
+        # Build cumulative offset map
+        region_offsets = []
+        cumulative_time = 0.0
+        for region_start, region_end in keep_regions:
+            offset = cumulative_time - region_start
+            region_offsets.append((region_start, region_end, offset))
+            cumulative_time += (region_end - region_start)
+
+        retimed_cards = []
+        for card in pinned_cards:
+            if not card.card_data:
+                continue
+
+            new_start = None
+            new_end = None
+            for region_start, region_end, offset in region_offsets:
+                # Card display window overlaps with this region
+                if card.display_start < region_end and card.display_end > region_start:
+                    clamped_start = max(card.display_start, region_start)
+                    clamped_end = min(card.display_end, region_end)
+                    new_start = clamped_start + offset
+                    new_end = clamped_end + offset
+                    break
+
+            if new_start is not None and new_end is not None and new_end > new_start:
+                retimed_card = card.model_copy(
+                    update={"display_start": new_start, "display_end": new_end}
+                )
+                retimed_cards.append(retimed_card)
+
+        logger.info(f"Retimed {len(retimed_cards)}/{len(pinned_cards)} pinned cards for keep regions")
+        return retimed_cards
+
     def _build_card_overlay_filter(
         self,
         cards: List[Tuple[Path, float, float]],
@@ -2229,41 +2368,207 @@ class ExportWorker:
 
         # WYSIWYG mode: HALF_SCREEN uses Remotion for pixel-perfect React rendering
         if subtitle_style_mode == SubtitleStyleMode.HALF_SCREEN:
-            # Get video duration
-            video_duration = self._get_video_duration(video_path)
-            if trim_end is not None:
-                video_duration = min(video_duration, trim_end - trim_start)
+            if exclusion_ranges:
+                # Exclusion ranges: extract keep regions, concat, retime
+                video_duration = self._get_video_duration(video_path)
+                effective_trim_end = trim_end if trim_end is not None else video_duration
+                keep_regions = self._compute_keep_regions(trim_start, effective_trim_end, exclusion_ranges)
 
-            # Determine source video: trim if needed
-            if trim_start > 0 or trim_end is not None:
-                trimmed_video = output_path.parent / "trimmed_source.mp4"
-                trim_cmd = ["ffmpeg", "-ss", str(trim_start), "-i", str(video_path)]
-                if trim_end is not None:
-                    trim_cmd.extend(["-t", str(trim_end - trim_start)])
-                trim_cmd.extend(["-c", "copy", "-y", str(trimmed_video)])
-                trim_result = subprocess.run(trim_cmd, capture_output=True, text=True)
-                if trim_result.returncode != 0:
-                    raise RuntimeError(f"ffmpeg trim failed: {trim_result.stderr}")
-                source_video = trimmed_video
+                if not keep_regions:
+                    raise ValueError("No video regions remain after applying exclusion ranges")
+
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    temp_path = Path(temp_dir)
+
+                    # Extract each keep region as a clip
+                    segment_files = []
+                    for i, (region_start, region_end) in enumerate(keep_regions):
+                        segment_file = temp_path / f"region_{i:04d}.mp4"
+                        await self._extract_segment(
+                            video_path=video_path,
+                            start=region_start,
+                            duration=region_end - region_start,
+                            output_path=segment_file,
+                        )
+                        segment_files.append(segment_file)
+
+                    # Concatenate region clips
+                    concat_file = temp_path / "concat.txt"
+                    with open(concat_file, "w") as f:
+                        for sf in segment_files:
+                            f.write(f"file '{sf}'\n")
+                    concat_output = temp_path / "concat.mp4"
+                    await self._concat_segments(concat_file, concat_output)
+
+                    # Retime segments and cards for concatenated regions
+                    retimed_segments = self._retime_segments_for_regions(trimmed_segments, keep_regions)
+                    retimed_pinned = self._retime_pinned_cards_for_regions(pinned_cards, keep_regions)
+
+                    concat_duration = self._get_video_duration(concat_output)
+
+                    logger.info(
+                        f"Full export with exclusions: {len(keep_regions)} keep regions, "
+                        f"{len(retimed_segments)} retimed segments, "
+                        f"{len(retimed_pinned)} retimed cards, "
+                        f"concat duration={concat_duration:.1f}s"
+                    )
+
+                    return await self._render_with_remotion(
+                        segments=[],
+                        pinned_cards=retimed_pinned,
+                        video_path=concat_output,
+                        output_path=output_path,
+                        video_duration=concat_duration,
+                        subtitle_style=subtitle_style,
+                        retimed_segments=retimed_segments,
+                        use_traditional=timeline.use_traditional_chinese,
+                        subtitle_language_mode=subtitle_language_mode,
+                        progress_callback=progress_callback,
+                        timeline_id=timeline_id,
+                        show_card_panel=show_card_panel,
+                    )
             else:
-                source_video = video_path
+                # No exclusion ranges — existing trim-only flow
+                video_duration = self._get_video_duration(video_path)
+                if trim_end is not None:
+                    video_duration = min(video_duration, trim_end - trim_start)
 
-            return await self._render_with_remotion(
-                segments=trimmed_segments,
-                pinned_cards=pinned_cards,
-                video_path=source_video,
-                output_path=output_path,
-                video_duration=video_duration,
-                subtitle_style=subtitle_style,
-                time_offset=time_offset,
-                use_traditional=timeline.use_traditional_chinese,
-                subtitle_language_mode=subtitle_language_mode,
-                progress_callback=progress_callback,
-                timeline_id=timeline_id,
-                show_card_panel=show_card_panel,
-            )
+                # Determine source video: trim if needed
+                if trim_start > 0 or trim_end is not None:
+                    trimmed_video = output_path.parent / "trimmed_source.mp4"
+                    trim_cmd = ["ffmpeg", "-ss", str(trim_start), "-i", str(video_path)]
+                    if trim_end is not None:
+                        trim_cmd.extend(["-t", str(trim_end - trim_start)])
+                    trim_cmd.extend(["-c", "copy", "-y", str(trimmed_video)])
+                    trim_result = subprocess.run(trim_cmd, capture_output=True, text=True)
+                    if trim_result.returncode != 0:
+                        raise RuntimeError(f"ffmpeg trim failed: {trim_result.stderr}")
+                    source_video = trimmed_video
+                else:
+                    source_video = video_path
+
+                return await self._render_with_remotion(
+                    segments=trimmed_segments,
+                    pinned_cards=pinned_cards,
+                    video_path=source_video,
+                    output_path=output_path,
+                    video_duration=video_duration,
+                    subtitle_style=subtitle_style,
+                    time_offset=time_offset,
+                    use_traditional=timeline.use_traditional_chinese,
+                    subtitle_language_mode=subtitle_language_mode,
+                    progress_callback=progress_callback,
+                    timeline_id=timeline_id,
+                    show_card_panel=show_card_panel,
+                )
         else:
-            # FLOATING / NONE modes: existing behavior (full-width video)
+            # FLOATING / NONE modes
+            if exclusion_ranges:
+                # Exclusion ranges: extract keep regions, concat, retime
+                video_duration = self._get_video_duration(video_path)
+                effective_trim_end = trim_end if trim_end is not None else video_duration
+                keep_regions = self._compute_keep_regions(trim_start, effective_trim_end, exclusion_ranges)
+
+                if not keep_regions:
+                    raise ValueError("No video regions remain after applying exclusion ranges")
+
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    temp_path = Path(temp_dir)
+
+                    # Extract each keep region as a clip
+                    segment_files = []
+                    for i, (region_start, region_end) in enumerate(keep_regions):
+                        segment_file = temp_path / f"region_{i:04d}.mp4"
+                        await self._extract_segment(
+                            video_path=video_path,
+                            start=region_start,
+                            duration=region_end - region_start,
+                            output_path=segment_file,
+                        )
+                        segment_files.append(segment_file)
+
+                    # Concatenate region clips
+                    concat_file = temp_path / "concat.txt"
+                    with open(concat_file, "w") as f:
+                        for sf in segment_files:
+                            f.write(f"file '{sf}'\n")
+                    concat_output = temp_path / "concat.mp4"
+                    await self._concat_segments(concat_file, concat_output)
+
+                    concat_width, concat_height = self._get_video_dimensions(concat_output)
+
+                    # Retime segments and cards for concatenated regions
+                    retimed_segments = self._retime_segments_for_regions(trimmed_segments, keep_regions)
+                    retimed_pinned = self._retime_pinned_cards_for_regions(pinned_cards, keep_regions)
+
+                    # Render cards with retimed timing
+                    rendered_cards = await self.render_pinned_cards(
+                        pinned_cards=retimed_pinned,
+                        output_dir=cards_dir,
+                        time_offset=0.0,
+                    )
+
+                    # Generate ASS from retimed segments
+                    ass_path = output_path.parent / "subtitles_full.ass"
+                    await self._generate_essence_ass(
+                        retimed_segments,
+                        ass_path,
+                        timeline.use_traditional_chinese,
+                        video_height=concat_height,
+                        subtitle_style=subtitle_style,
+                        subtitle_style_mode=subtitle_style_mode,
+                        subtitle_language_mode=subtitle_language_mode,
+                    )
+
+                    if subtitle_style_mode == SubtitleStyleMode.FLOATING:
+                        vf_filter = self._build_floating_filter(ass_path)
+                        mode_name = "floating (Watching)"
+                    else:
+                        vf_filter = None
+                        mode_name = "none (Dubbing)"
+
+                    cmd = ["ffmpeg", "-i", str(concat_output)]
+
+                    card_filter = ""
+                    card_inputs = []
+                    final_label = ""
+                    if rendered_cards:
+                        card_filter, card_inputs, final_label = self._build_card_overlay_filter(
+                            cards=rendered_cards,
+                            video_width=concat_width,
+                            video_height=concat_height,
+                        )
+                        cmd.extend(card_inputs)
+
+                    if card_filter and vf_filter:
+                        cmd.extend(["-filter_complex", f"{vf_filter}[subtitled];{card_filter.replace('[0:v]', '[subtitled]')}"])
+                        cmd.extend(["-map", f"[{final_label}]", "-map", "0:a?"])
+                    elif card_filter:
+                        cmd.extend(["-filter_complex", card_filter])
+                        cmd.extend(["-map", f"[{final_label}]", "-map", "0:a?"])
+                    elif vf_filter:
+                        cmd.extend(["-vf", vf_filter])
+
+                    if self.use_nvenc:
+                        cmd.extend(["-c:v", "h264_nvenc", "-preset", "p4"])
+                    else:
+                        cmd.extend(["-c:v", "libx264", "-preset", "medium", "-crf", "23"])
+                    cmd.extend(["-c:a", "aac", "-b:a", "192k", "-y", str(output_path)])
+
+                    cards_info = f", {len(rendered_cards)} cards" if rendered_cards else ""
+                    logger.info(
+                        f"Exporting full video (exclusions removed) with {mode_name} mode, "
+                        f"lang={subtitle_language_mode.value}{cards_info}: {output_path}"
+                    )
+                    result = subprocess.run(cmd, capture_output=True, text=True)
+
+                    if result.returncode != 0:
+                        raise RuntimeError(f"ffmpeg export failed: {result.stderr}")
+
+                logger.info(f"Full video exported (exclusions removed): {output_path}")
+                return output_path
+
+            # No exclusion ranges — existing behavior (full-width video)
             rendered_cards = await self.render_pinned_cards(
                 pinned_cards=pinned_cards,
                 output_dir=cards_dir,
