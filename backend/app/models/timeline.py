@@ -661,6 +661,9 @@ class TimelineExportRequest(BaseModel):
     # Card panel visibility override (None = use timeline's setting)
     show_card_panel: Optional[bool] = None
 
+    # Default card position override (None = use timeline's setting)
+    card_position: Optional[str] = None  # "left" or "right"
+
     # Quick test: limit export to first N seconds (overrides video_trim_end)
     test_seconds: Optional[float] = None
 

@@ -188,12 +188,14 @@ export default function ExportPanel({
     const subtitleStyleMode = outputMode === "watching" ? "floating" : outputMode === "dubbing" ? "none" : "half_screen";
     const effectiveShowCardPanel = outputMode === "learning" ? showCardPanel : false;
     console.log("[ExportPanel] Starting export...", { profile: exportProfile, outputMode, subtitleStyleMode, effectiveShowCardPanel, subtitleStyle, testSeconds });
+    const cardPos = localStorage.getItem("cardPosition") as "left" | "right" || "right";
     const request: ExportRequest = {
       profile: exportProfile,
       use_traditional_chinese: useTraditional,
       subtitle_style: subtitleStyle,
       subtitle_style_mode: subtitleStyleMode,
       show_card_panel: effectiveShowCardPanel,
+      card_position: cardPos,
       upload_to_youtube: false, // Don't upload yet, user will preview first
     };
     if (testSeconds) {

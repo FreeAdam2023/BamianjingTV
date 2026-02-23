@@ -147,9 +147,9 @@ def generate_floating_ass_header(
     """
     config = config or SubtitleStyleConfig()
 
-    # Floating mode: use full font size (subtitle area unchanged, just bigger text)
+    # Floating mode: Chinese slightly larger than English for readability
     english_font_size = config.en_font_size  # 40px default
-    chinese_font_size = config.zh_font_size  # 40px default
+    chinese_font_size = int(config.zh_font_size * 1.15)  # 46px default
 
     # Colors for floating mode
     english_color = _hex_to_ass_color(config.en_color, 0)  # White

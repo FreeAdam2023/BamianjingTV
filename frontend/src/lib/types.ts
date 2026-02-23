@@ -150,6 +150,7 @@ export interface ExportRequest {
   subtitle_style_mode?: SubtitleStyleMode;  // half_screen, floating, none
   subtitle_style?: SubtitleStyleOptions;
   show_card_panel?: boolean;  // Whether to show card panel in export
+  card_position?: "left" | "right";  // Default card position for export
   test_seconds?: number;  // Quick test: limit export to first N seconds
   upload_to_youtube?: boolean;
   youtube_title?: string;

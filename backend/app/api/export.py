@@ -101,6 +101,11 @@ async def trigger_export(
         timeline.show_card_panel = request.show_card_panel
         manager.save_timeline(timeline)
 
+    # Update default card position if specified in request
+    if request.card_position is not None and request.card_position in ("left", "right"):
+        timeline.card_position = request.card_position
+        manager.save_timeline(timeline)
+
     # Get video path from job
     jobs_dir = _get_jobs_dir()
     if jobs_dir is None:
