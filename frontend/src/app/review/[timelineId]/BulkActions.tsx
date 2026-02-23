@@ -74,7 +74,7 @@ export default function BulkActions({
     const s = parseTime(startInput);
     const e = parseTime(endInput);
     if (s !== null && e !== null && e > s) {
-      return segments.filter((seg) => seg.start < e && seg.end > s).length;
+      return segments.filter((seg) => seg.start >= s && seg.start < e).length;
     }
     return null;
   })();
@@ -271,7 +271,7 @@ export default function BulkActions({
     }
 
     const overlapping = segments.filter(
-      (seg) => seg.start < endSec && seg.end > startSec
+      (seg) => seg.start >= startSec && seg.start < endSec
     );
 
     if (overlapping.length === 0) {
@@ -317,7 +317,7 @@ export default function BulkActions({
     }
 
     const overlapping = segments.filter(
-      (seg) => seg.start < endSec && seg.end > startSec
+      (seg) => seg.start >= startSec && seg.start < endSec
     );
 
     if (overlapping.length === 0) {
