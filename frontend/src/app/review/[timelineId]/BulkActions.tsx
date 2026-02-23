@@ -14,6 +14,8 @@ import {
   setVideoTrim,
   resetVideoTrim,
   cleanDisfluenciesWithProgress,
+  addExclusionRange,
+  removeExclusionRange,
 } from "@/lib/api";
 import { useToast, useConfirm } from "@/components/ui";
 
@@ -24,6 +26,7 @@ interface BulkActionsProps {
   trimEnd?: number | null; // Current video trim end
   sourceDuration?: number; // Total video duration
   segments?: EditableSegment[]; // Segments for time-range operations
+  exclusionRanges?: Array<[number, number]>; // Video exclusion ranges
   onStateChange?: (segmentId: number, state: "keep" | "drop" | "undecided") => void;
   onUpdate?: () => void; // Callback after update
 }
@@ -43,6 +46,7 @@ export default function BulkActions({
   trimEnd = null,
   sourceDuration = 0,
   segments = [],
+  exclusionRanges = [],
   onStateChange,
   onUpdate,
 }: BulkActionsProps) {
@@ -74,13 +78,19 @@ export default function BulkActions({
     return null;
   };
 
+  // A segment matches the range if >=50% of it overlaps
+  const segmentInRange = (seg: EditableSegment, rangeStart: number, rangeEnd: number) => {
+    const overlap = Math.min(seg.end, rangeEnd) - Math.max(seg.start, rangeStart);
+    return overlap > 0 && overlap >= (seg.end - seg.start) * 0.5;
+  };
+
   // Compute overlapping segment count for display
   const overlappingCount = (() => {
     if (!startInput || !endInput) return null;
     const s = parseTime(startInput);
     const e = parseTime(endInput);
     if (s !== null && e !== null && e > s) {
-      return segments.filter((seg) => seg.start >= s && seg.start < e).length;
+      return segments.filter((seg) => segmentInRange(seg, s, e)).length;
     }
     return null;
   })();
@@ -276,9 +286,7 @@ export default function BulkActions({
       return;
     }
 
-    const overlapping = segments.filter(
-      (seg) => seg.start >= startSec && seg.start < endSec
-    );
+    const overlapping = segments.filter((seg) => segmentInRange(seg, startSec, endSec));
 
     if (overlapping.length === 0) {
       toast.error("该时间范围内没有片段");
@@ -322,9 +330,7 @@ export default function BulkActions({
       return;
     }
 
-    const overlapping = segments.filter(
-      (seg) => seg.start >= startSec && seg.start < endSec
-    );
+    const overlapping = segments.filter((seg) => segmentInRange(seg, startSec, endSec));
 
     if (overlapping.length === 0) {
       toast.error("该时间范围内没有片段");
@@ -340,6 +346,42 @@ export default function BulkActions({
       setShowPanel(false);
       setStartInput("");
       setEndInput("");
+      onUpdate?.();
+    } catch (err) {
+      toast.error("操作失败: " + (err instanceof Error ? err.message : "Unknown error"));
+    }
+  };
+
+  // Add exclusion range (video-level, works even with 0 segments)
+  const handleAddExclusion = async () => {
+    const startSec = parseTime(startInput);
+    const endSec = parseTime(endInput);
+    if (startSec === null || endSec === null) {
+      toast.error("时间格式无效，请使用 M:SS.d 或 H:MM:SS.d");
+      return;
+    }
+    if (startSec >= endSec) {
+      toast.error("起始时间必须小于结束时间");
+      return;
+    }
+
+    try {
+      await addExclusionRange(timelineId, startSec, endSec);
+      toast.success(`已排除: ${formatTime(startSec)} ~ ${formatTime(endSec)}`);
+      setShowPanel(false);
+      setStartInput("");
+      setEndInput("");
+      onUpdate?.();
+    } catch (err) {
+      toast.error("操作失败: " + (err instanceof Error ? err.message : "Unknown error"));
+    }
+  };
+
+  // Remove an exclusion range
+  const handleRemoveExclusion = async (start: number, end: number) => {
+    try {
+      await removeExclusionRange(timelineId, start, end);
+      toast.success(`已移除排除: ${formatTime(start)} ~ ${formatTime(end)}`);
       onUpdate?.();
     } catch (err) {
       toast.error("操作失败: " + (err instanceof Error ? err.message : "Unknown error"));
@@ -461,6 +503,12 @@ export default function BulkActions({
               保留片段
             </button>
             <button
+              onClick={handleAddExclusion}
+              className="flex-1 py-1 text-xs bg-orange-600 hover:bg-orange-700 rounded"
+            >
+              排除范围
+            </button>
+            <button
               onClick={handleApplyTrim}
               className="flex-1 py-1 text-xs bg-purple-600 hover:bg-purple-700 rounded"
             >
@@ -487,6 +535,29 @@ export default function BulkActions({
               >
                 恢复完整
               </button>
+            </div>
+          )}
+
+          {/* Exclusion ranges status */}
+          {exclusionRanges.length > 0 && (
+            <div className="space-y-1 border-t border-gray-600/50 pt-1.5">
+              {exclusionRanges.map(([start, end], idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center gap-2 text-[10px] text-orange-400"
+                >
+                  <span>
+                    排除: {formatTime(start)} ~ {formatTime(end)}
+                  </span>
+                  <button
+                    onClick={() => handleRemoveExclusion(start, end)}
+                    className="px-1.5 py-0.5 text-[10px] bg-gray-600 hover:bg-gray-500 rounded"
+                    title="移除此排除范围"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>

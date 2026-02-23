@@ -230,6 +230,10 @@ class Timeline(BaseModel):
     video_trim_start: float = 0.0  # Trim video from this point (seconds)
     video_trim_end: Optional[float] = None  # Trim video to this point (None = no trim)
 
+    # Video exclusion ranges (cut middle sections)
+    # Each entry is [start_seconds, end_seconds]
+    video_exclusion_ranges: List[List[float]] = Field(default_factory=list)
+
     # Speaker names mapping (e.g., {"SPEAKER_0": "Elon Musk", "SPEAKER_1": "Interviewer"})
     speaker_names: Dict[str, str] = Field(default_factory=dict)
 

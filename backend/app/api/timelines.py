@@ -464,6 +464,75 @@ async def reset_video_trim(timeline_id: str):
     }
 
 
+# ============ Video Exclusion Ranges ============
+
+
+class ExclusionRangeRequest(BaseModel):
+    """Request model for adding an exclusion range."""
+    start: float
+    end: float
+
+
+@router.post("/{timeline_id}/exclusions")
+async def add_exclusion_range(timeline_id: str, request: ExclusionRangeRequest):
+    """Add a video exclusion range (cut a middle section).
+
+    This removes a time range from the exported video, useful for
+    cutting sections that have no subtitle segments.
+    """
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    if request.start >= request.end:
+        raise HTTPException(status_code=400, detail="start must be less than end")
+    if request.start < 0:
+        raise HTTPException(status_code=400, detail="start cannot be negative")
+    if request.end > timeline.source_duration:
+        raise HTTPException(status_code=400, detail="end cannot exceed video duration")
+
+    # Check for exact duplicates
+    for r in timeline.video_exclusion_ranges:
+        if r[0] == request.start and r[1] == request.end:
+            raise HTTPException(status_code=409, detail="Exclusion range already exists")
+
+    timeline.video_exclusion_ranges.append([request.start, request.end])
+    manager.save_timeline(timeline)
+
+    return {
+        "timeline_id": timeline_id,
+        "exclusion_ranges": timeline.video_exclusion_ranges,
+        "message": f"Exclusion range added: {request.start:.1f}s - {request.end:.1f}s",
+    }
+
+
+@router.delete("/{timeline_id}/exclusions")
+async def remove_exclusion_range(
+    timeline_id: str,
+    start: float = Query(..., description="Start of exclusion range"),
+    end: float = Query(..., description="End of exclusion range"),
+):
+    """Remove a video exclusion range."""
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    # Find and remove matching range
+    for i, r in enumerate(timeline.video_exclusion_ranges):
+        if r[0] == start and r[1] == end:
+            del timeline.video_exclusion_ranges[i]
+            manager.save_timeline(timeline)
+            return {
+                "timeline_id": timeline_id,
+                "exclusion_ranges": timeline.video_exclusion_ranges,
+                "message": f"Exclusion range removed: {start:.1f}s - {end:.1f}s",
+            }
+
+    raise HTTPException(status_code=404, detail="Exclusion range not found")
+
+
 # ============ Observation Endpoints (for WATCHING mode) ============
 
 

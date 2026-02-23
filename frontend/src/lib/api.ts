@@ -291,6 +291,35 @@ export async function resetVideoTrim(timelineId: string): Promise<VideoTrimInfo>
   });
 }
 
+// ============ Video Exclusion Ranges API ============
+
+export interface ExclusionRangeResponse {
+  timeline_id: string;
+  exclusion_ranges: Array<[number, number]>;
+  message: string;
+}
+
+export async function addExclusionRange(
+  timelineId: string,
+  start: number,
+  end: number
+): Promise<ExclusionRangeResponse> {
+  return fetchAPI(`/timelines/${timelineId}/exclusions`, {
+    method: "POST",
+    body: JSON.stringify({ start, end }),
+  });
+}
+
+export async function removeExclusionRange(
+  timelineId: string,
+  start: number,
+  end: number
+): Promise<ExclusionRangeResponse> {
+  return fetchAPI(`/timelines/${timelineId}/exclusions?start=${start}&end=${end}`, {
+    method: "DELETE",
+  });
+}
+
 export async function markTimelineReviewed(
   timelineId: string
 ): Promise<{ message: string }> {

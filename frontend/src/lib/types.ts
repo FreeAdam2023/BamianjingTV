@@ -68,6 +68,8 @@ export interface Timeline {
   // Video-level trim (independent of subtitle segments)
   video_trim_start: number;  // Video starts from this time (seconds)
   video_trim_end: number | null;  // Video ends at this time (null = full duration)
+  // Video exclusion ranges (cut middle sections)
+  video_exclusion_ranges: Array<[number, number]>;
   speaker_names: Record<string, string>;  // Maps speaker IDs to display names
   output_full_path: string | null;
   output_essence_path: string | null;

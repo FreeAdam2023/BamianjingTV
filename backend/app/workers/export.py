@@ -1961,19 +1961,32 @@ class ExportWorker:
         if subtitle_language_mode is None:
             subtitle_language_mode = SubtitleLanguageMode.BOTH
 
-        # Filter segments: exclude dropped, apply trim range
+        # Helper: check if segment is excluded by any exclusion range (>=50% overlap)
+        exclusion_ranges = getattr(timeline, 'video_exclusion_ranges', []) or []
+
+        def _is_excluded(seg):
+            for ex_range in exclusion_ranges:
+                ex_start, ex_end = ex_range[0], ex_range[1]
+                overlap = min(seg.end, ex_end) - max(seg.start, ex_start)
+                if overlap > 0 and overlap >= (seg.end - seg.start) * 0.5:
+                    return True
+            return False
+
+        # Filter segments: exclude dropped, apply trim range, apply exclusion ranges
         if trim_start > 0 or trim_end is not None:
             effective_trim_end = trim_end if trim_end is not None else float('inf')
             trimmed_segments = [
                 seg for seg in timeline.segments
                 if seg.state != SegmentState.DROP
                 and seg.start >= trim_start and seg.end <= effective_trim_end
+                and not _is_excluded(seg)
             ]
             time_offset = trim_start
         else:
             trimmed_segments = [
                 seg for seg in timeline.segments
                 if seg.state != SegmentState.DROP
+                and not _is_excluded(seg)
             ]
             time_offset = 0.0
 
@@ -2219,12 +2232,24 @@ class ExportWorker:
         if subtitle_language_mode is None:
             subtitle_language_mode = SubtitleLanguageMode.BOTH
 
-        # Get KEEP segments that are within the trim range
+        # Helper: check if segment is excluded by any exclusion range (>=50% overlap)
+        exclusion_ranges = getattr(timeline, 'video_exclusion_ranges', []) or []
+
+        def _is_excluded(seg):
+            for ex_range in exclusion_ranges:
+                ex_start, ex_end = ex_range[0], ex_range[1]
+                overlap = min(seg.end, ex_end) - max(seg.start, ex_start)
+                if overlap > 0 and overlap >= (seg.end - seg.start) * 0.5:
+                    return True
+            return False
+
+        # Get KEEP segments that are within the trim range and not excluded
         keep_segments = [
             seg for seg in timeline.segments
             if seg.state == SegmentState.KEEP
             and seg.start >= trim_start
             and seg.end <= effective_trim_end
+            and not _is_excluded(seg)
         ]
 
         if not keep_segments:

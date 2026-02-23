@@ -915,6 +915,7 @@ export default function ReviewPage() {
             trimEnd={timeline.video_trim_end ?? null}
             sourceDuration={timeline.source_duration}
             segments={timeline.segments}
+            exclusionRanges={timeline.video_exclusion_ranges ?? []}
             onStateChange={setSegmentState}
             onUpdate={() => refresh()}
           />
