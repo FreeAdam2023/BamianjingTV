@@ -646,13 +646,17 @@ class ExportWorker:
                 border_x = panel_x
                 slide_from = 24  # Slide from right
 
-            # Step 7a: Overlay placeholder (card panel background)
-            if placeholder_image and placeholder_image.exists():
+            # Step 7a: Overlay placeholder (card panel background) — only when a card is visible
+            if placeholder_image and placeholder_image.exists() and cards:
+                # Build enable expr: show placeholder only during card display windows
+                ph_parts = [f"between(t,{s},{e})" for _, s, e in cards]
+                ph_enable = "+".join(ph_parts)  # OR logic: sum > 0 when any card active
                 input_args.extend(["-loop", "1", "-i", str(placeholder_image)])
                 filters.append(
                     f"[{prev_label}][{input_idx}:v]overlay="
                     f"x={panel_x}:y=0:"
-                    f"shortest=1:format=auto"
+                    f"shortest=1:format=auto:"
+                    f"enable='{ph_enable}'"
                     f"[with_ph]"
                 )
                 prev_label = "with_ph"
