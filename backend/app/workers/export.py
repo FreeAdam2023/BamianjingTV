@@ -551,13 +551,12 @@ class ExportWorker:
 
     def _build_floating_wysiwyg_filter(
         self,
-        cards: List[Tuple[Path, float, float]],
+        cards: List[Tuple[Path, float, float, str]],
         ass_path: Path,
         video_duration: float,
         gradient_path: Optional[Path] = None,
         placeholder_image: Optional[Path] = None,
         show_card_panel: bool = True,
-        card_position: str = "right",
     ) -> Tuple[str, List[str], str]:
         """Build FFmpeg filter_complex for floating WYSIWYG layout (matching review page).
 
@@ -572,13 +571,13 @@ class ExportWorker:
         +------------------------------------------------+
 
         Args:
-            cards: List of (image_path, start_time, end_time) tuples
+            cards: List of (image_path, start_time, end_time, position) tuples.
+                   Each card has its own "left"/"right" position.
             ass_path: Path to ASS subtitle file (floating style)
             video_duration: Total video duration
             gradient_path: Path to gradient overlay PNG
             placeholder_image: Path to card placeholder PNG
             show_card_panel: Whether to show card panel
-            card_position: "left" or "right"
 
         Returns:
             Tuple of (filter_complex string, input arguments, final output label)
@@ -634,36 +633,45 @@ class ExportWorker:
         )
         prev_label = "with_subs"
 
-        # Steps 7+: Card panel overlay (if enabled)
-        if show_card_panel and (cards or (placeholder_image and placeholder_image.exists())):
-            # Calculate card panel position
-            if card_position == "left":
-                panel_x = 0
-                border_x = panel_width
-                slide_from = -24  # Slide from left
-            else:
-                panel_x = OUTPUT_WIDTH - panel_width
-                border_x = panel_x
-                slide_from = 24  # Slide from right
+        # Steps 7+: Card panel overlay — each card has its own position (left/right)
+        if show_card_panel and cards:
+            # Step 7a: Overlay placeholder backgrounds — one per side, enabled only
+            # during time windows when cards appear on that side
+            left_cards = [(s, e) for _, s, e, p in cards if p == "left"]
+            right_cards = [(s, e) for _, s, e, p in cards if p == "right"]
 
-            # Step 7a: Overlay placeholder (card panel background) — only when a card is visible
-            if placeholder_image and placeholder_image.exists() and cards:
-                # Build enable expr: show placeholder only during card display windows
-                ph_parts = [f"between(t,{s},{e})" for _, s, e in cards]
-                ph_enable = "+".join(ph_parts)  # OR logic: sum > 0 when any card active
-                input_args.extend(["-loop", "1", "-i", str(placeholder_image)])
-                filters.append(
-                    f"[{prev_label}][{input_idx}:v]overlay="
-                    f"x={panel_x}:y=0:"
-                    f"shortest=1:format=auto:"
-                    f"enable='{ph_enable}'"
-                    f"[with_ph]"
-                )
-                prev_label = "with_ph"
-                input_idx += 1
+            if placeholder_image and placeholder_image.exists():
+                # Left-side placeholder
+                if left_cards:
+                    ph_enable = "+".join(f"between(t,{s},{e})" for s, e in left_cards)
+                    input_args.extend(["-loop", "1", "-i", str(placeholder_image)])
+                    filters.append(
+                        f"[{prev_label}][{input_idx}:v]overlay="
+                        f"x=0:y=0:"
+                        f"shortest=1:format=auto:"
+                        f"enable='{ph_enable}'"
+                        f"[with_ph_l]"
+                    )
+                    prev_label = "with_ph_l"
+                    input_idx += 1
 
-            # Step 7b: Overlay each card PNG with slide-in animation
-            for i, (card_path, start, end) in enumerate(cards):
+                # Right-side placeholder
+                if right_cards:
+                    ph_enable = "+".join(f"between(t,{s},{e})" for s, e in right_cards)
+                    right_x = OUTPUT_WIDTH - panel_width
+                    input_args.extend(["-loop", "1", "-i", str(placeholder_image)])
+                    filters.append(
+                        f"[{prev_label}][{input_idx}:v]overlay="
+                        f"x={right_x}:y=0:"
+                        f"shortest=1:format=auto:"
+                        f"enable='{ph_enable}'"
+                        f"[with_ph_r]"
+                    )
+                    prev_label = "with_ph_r"
+                    input_idx += 1
+
+            # Step 7b: Overlay each card PNG with per-card position and slide-in animation
+            for i, (card_path, start, end, pos) in enumerate(cards):
                 input_args.extend(["-i", str(card_path)])
 
                 fade_in_duration = CARD_ANIMATION_DURATION
@@ -671,22 +679,24 @@ class ExportWorker:
                 t_fade_in_end = start + fade_in_duration
                 t_end = end
 
-                card_x = panel_x
-                card_y = 0
-
-                # X position expression: slide in from edge
-                if card_position == "left":
+                if pos == "left":
+                    card_x = 0
+                    slide_dist = 24
+                    # Slide in from left edge
                     x_expr = (
-                        f"if(lt(t,{t_start}),{panel_x}-{panel_width},"
+                        f"if(lt(t,{t_start}),-{panel_width},"
                         f"if(lt(t,{t_fade_in_end}),"
-                        f"{card_x}-{abs(slide_from)}*(1-(t-{t_start})/{fade_in_duration}),"
+                        f"{card_x}-{slide_dist}*(1-(t-{t_start})/{fade_in_duration}),"
                         f"{card_x}))"
                     )
                 else:
+                    card_x = OUTPUT_WIDTH - panel_width
+                    slide_dist = 24
+                    # Slide in from right edge
                     x_expr = (
                         f"if(lt(t,{t_start}),{OUTPUT_WIDTH},"
                         f"if(lt(t,{t_fade_in_end}),"
-                        f"{card_x}+{slide_from}*(1-(t-{t_start})/{fade_in_duration}),"
+                        f"{card_x}+{slide_dist}*(1-(t-{t_start})/{fade_in_duration}),"
                         f"{card_x}))"
                     )
 
@@ -694,7 +704,7 @@ class ExportWorker:
                 out_label = f"fcard{i}"
                 filters.append(
                     f"[{prev_label}][{input_idx}:v]overlay="
-                    f"x='{x_expr}':y='{card_y}':"
+                    f"x='{x_expr}':y=0:"
                     f"enable='{enable_expr}':"
                     f"format=auto"
                     f"[{out_label}]"
@@ -702,21 +712,37 @@ class ExportWorker:
                 prev_label = out_label
                 input_idx += 1
 
-            # Step 7c: Border line on inner edge of card panel
-            filters.append(
-                f"[{prev_label}]drawbox="
-                f"x={border_x}:y=0:w=2:h={panel_height}:"
-                f"color=0xFFFFFF@0.2:t=fill"
-                f"[with_border]"
-            )
-            prev_label = "with_border"
+            # Step 7c: Border lines on inner edges (draw for both sides if used)
+            if left_cards:
+                left_enable = "+".join(f"between(t,{s},{e})" for s, e in left_cards)
+                filters.append(
+                    f"[{prev_label}]drawbox="
+                    f"x={panel_width}:y=0:w=2:h={panel_height}:"
+                    f"color=0xFFFFFF@0.2:t=fill:"
+                    f"enable='{left_enable}'"
+                    f"[border_l]"
+                )
+                prev_label = "border_l"
+            if right_cards:
+                right_x = OUTPUT_WIDTH - panel_width
+                right_enable = "+".join(f"between(t,{s},{e})" for s, e in right_cards)
+                filters.append(
+                    f"[{prev_label}]drawbox="
+                    f"x={right_x}:y=0:w=2:h={panel_height}:"
+                    f"color=0xFFFFFF@0.2:t=fill:"
+                    f"enable='{right_enable}'"
+                    f"[border_r]"
+                )
+                prev_label = "border_r"
 
         final_label = prev_label
         filter_complex = ";".join(filters)
 
+        positions = [p for _, _, _, p in cards] if cards else []
+        pos_summary = f"{positions.count('left')}L/{positions.count('right')}R"
         logger.info(
             f"Floating WYSIWYG filter: {OUTPUT_WIDTH}x{OUTPUT_HEIGHT} full video, "
-            f"card_position={card_position}, {len(cards)} cards, "
+            f"cards={pos_summary}, "
             f"gradient={'yes' if gradient_path else 'no'}, "
             f"ass={ass_path}"
         )
@@ -1550,7 +1576,8 @@ class ExportWorker:
                 "card_type": card_type,
                 "card_data": card_data,
             })
-            card_timing[card.id] = (display_start, display_end)
+            card_position = getattr(card, 'position', 'right') or 'right'
+            card_timing[card.id] = (display_start, display_end, card_position)
 
         # Diagnostic: log card data structure for debugging black card issue
         if cards_json:
@@ -1776,8 +1803,8 @@ class ExportWorker:
             card_id = card_entry["id"]
             card_path = output_dir / f"{card_id}.png"
             if card_path.exists() and card_id in card_timing:
-                display_start, display_end = card_timing[card_id]
-                rendered_cards.append((card_path, display_start, display_end))
+                display_start, display_end, card_pos = card_timing[card_id]
+                rendered_cards.append((card_path, display_start, display_end, card_pos))
                 # Log every card PNG with its size
                 file_size = card_path.stat().st_size
                 logger.info(f"Card PNG: {card_id}.png — {file_size} bytes, {display_start:.1f}-{display_end:.1f}s")
@@ -1843,7 +1870,6 @@ class ExportWorker:
         progress_callback: Optional[Callable[[float, str], None]] = None,
         timeline_id: Optional[str] = None,
         show_card_panel: bool = True,
-        card_position: str = "right",
     ) -> Path:
         """Hybrid Remotion renderStill + FFmpeg export pipeline.
 
@@ -1878,7 +1904,7 @@ class ExportWorker:
         if progress_callback:
             progress_callback(0, "渲染卡片图片…")
 
-        rendered_cards: List[Tuple[Path, float, float]] = []
+        rendered_cards: List[Tuple[Path, float, float, str]] = []
         try:
             rendered_cards_raw, _ = await self._render_stills(
                 pinned_cards=pinned_cards,
@@ -1954,7 +1980,6 @@ class ExportWorker:
             gradient_path=gradient_path,
             placeholder_image=placeholder_image,
             show_card_panel=show_card_panel,
-            card_position=card_position,
         )
 
         cmd = ["ffmpeg", "-i", str(video_path)]
@@ -1970,7 +1995,7 @@ class ExportWorker:
 
         logger.info(
             f"Floating WYSIWYG export: {len(rendered_cards)} card stills, "
-            f"card_position={card_position}, ASS subtitles, "
+            f"per-card positions, ASS subtitles, "
             f"FFmpeg composition → {output_path}"
         )
 
@@ -2177,11 +2202,10 @@ class ExportWorker:
             ]
             time_offset = 0.0
 
-        # Read card panel visibility and position settings
+        # Read card panel visibility setting
         show_card_panel = getattr(timeline, 'show_card_panel', True)
         if show_card_panel is None:
             show_card_panel = True
-        card_position = getattr(timeline, 'card_position', 'right') or 'right'
 
         # Render pinned cards (skip cards on dropped segments)
         dropped_seg_ids = {seg.id for seg in timeline.segments if seg.state == SegmentState.DROP}
@@ -2230,7 +2254,6 @@ class ExportWorker:
                 progress_callback=progress_callback,
                 timeline_id=timeline_id,
                 show_card_panel=show_card_panel,
-                card_position=card_position,
             )
         else:
             # FLOATING / NONE modes: existing behavior (full-width video)
@@ -2488,7 +2511,6 @@ class ExportWorker:
 
                 concat_duration = self._get_video_duration(concat_output)
 
-                card_position = getattr(timeline, 'card_position', 'right') or 'right'
                 result_path = await self._render_with_remotion(
                     segments=[],  # not used when retimed_segments is provided
                     pinned_cards=retimed_pinned,
@@ -2501,7 +2523,6 @@ class ExportWorker:
                     subtitle_language_mode=subtitle_language_mode,
                     progress_callback=progress_callback,
                     timeline_id=timeline_id,
-                    card_position=card_position,
                 )
 
                 logger.info(

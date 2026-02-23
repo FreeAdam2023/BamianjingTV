@@ -17,6 +17,8 @@ interface NoteEditModalProps {
   /** Existing card to edit, or undefined for creating new */
   existingCard?: PinnedCard;
   onSuccess: () => void;
+  /** Card panel position to save with pinned card */
+  cardPosition?: "left" | "right";
 }
 
 export default function NoteEditModal({
@@ -27,6 +29,7 @@ export default function NoteEditModal({
   currentTime,
   existingCard,
   onSuccess,
+  cardPosition = "right",
 }: NoteEditModalProps) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -78,6 +81,7 @@ export default function NoteEditModal({
             title: title.trim(),
             content: content.trim(),
           },
+          position: cardPosition,
         });
       }
       onSuccess();

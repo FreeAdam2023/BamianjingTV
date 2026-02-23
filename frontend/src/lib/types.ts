@@ -851,6 +851,7 @@ export interface PinnedCard {
   display_end: number;  // When to hide in video
   card_data: WordCard | EntityCard | IdiomCard | InsightCard | NoteCard | null;  // Cached card data
   note?: string | null;  // User note for this pinned card
+  position: "left" | "right";  // Which side of the video to display
   created_at: string;
 }
 
@@ -860,6 +861,7 @@ export interface PinnedCardCreate {
   segment_id: number;
   timestamp: number;
   card_data?: WordCard | EntityCard | IdiomCard | InsightCard | NoteCard | null;
+  position?: "left" | "right";  // Which side of the video to display
 }
 
 export interface PinnedCardCheckResponse {

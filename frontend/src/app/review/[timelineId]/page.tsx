@@ -1121,6 +1121,7 @@ export default function ReviewPage() {
           currentTime={currentVideoTime}
           existingCard={noteEditModal.existingCard}
           onSuccess={() => { setNoteEditModal(null); refresh(); }}
+          cardPosition={(typeof window !== "undefined" && localStorage.getItem("scenemind_card_position") as "left" | "right") || "right"}
         />
       )}
     </main>

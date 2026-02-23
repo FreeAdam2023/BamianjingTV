@@ -173,12 +173,13 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     }
   }, [subtitleLanguageMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Initialize card position from backend timeline data
+  // Sync card position: localStorage is the user's active preference.
+  // On mount, push localStorage value to backend so export uses the correct side.
   useEffect(() => {
-    if (initialCardPosition && initialCardPosition !== cardPosition) {
-      setCardPosition(initialCardPosition);
+    if (timelineId && cardPosition) {
+      setCardPositionApi(timelineId, cardPosition).catch(() => {});
     }
-  }, [initialCardPosition]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [timelineId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Wrap toggleCardPosition to also persist to backend
   const handleToggleCardPosition = useCallback(() => {

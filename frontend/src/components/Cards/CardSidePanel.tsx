@@ -860,6 +860,7 @@ export default function CardSidePanel({
           segment_id: sourceSegmentId!,
           timestamp: sourceTimecode!,
           card_data: cardInfo.cardData,
+          position: position || "right",
         });
         onPinChange?.(pinned);
       }
