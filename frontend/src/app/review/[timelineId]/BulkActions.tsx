@@ -24,6 +24,7 @@ interface BulkActionsProps {
   trimEnd?: number | null; // Current video trim end
   sourceDuration?: number; // Total video duration
   segments?: EditableSegment[]; // Segments for time-range operations
+  onStateChange?: (segmentId: number, state: "keep" | "drop" | "undecided") => void;
   onUpdate?: () => void; // Callback after update
 }
 
@@ -42,6 +43,7 @@ export default function BulkActions({
   trimEnd = null,
   sourceDuration = 0,
   segments = [],
+  onStateChange,
   onUpdate,
 }: BulkActionsProps) {
   const toast = useToast();
@@ -55,8 +57,12 @@ export default function BulkActions({
   const [startInput, setStartInput] = useState("");
   const [endInput, setEndInput] = useState("");
 
+  // Dropped segments list
+  const [showDropped, setShowDropped] = useState(false);
+
   const hasTrim = trimStart > 0 || trimEnd !== null;
   const effectiveDuration = (trimEnd ?? sourceDuration) - trimStart;
+  const droppedSegments = segments.filter((seg) => seg.state === "drop");
 
   // Parse "M:SS", "M:SS.d", or "H:MM:SS.d" to seconds (supports decimals)
   const parseTime = (str: string): number | null => {
@@ -484,6 +490,42 @@ export default function BulkActions({
             </div>
           )}
         </div>
+      )}
+
+      {/* Dropped segments list */}
+      {droppedSegments.length > 0 && (
+        <>
+          <button
+            onClick={() => setShowDropped(!showDropped)}
+            className="w-full py-1 text-xs bg-red-900/30 hover:bg-red-900/50 border border-red-500/30 rounded flex items-center justify-center gap-1.5"
+          >
+            <span className="text-red-400">已丢弃 ({droppedSegments.length})</span>
+            <span className="text-[10px] text-gray-400">{showDropped ? "▴" : "▾"}</span>
+          </button>
+          {showDropped && (
+            <div className="bg-red-900/10 border border-red-500/20 rounded p-1.5 space-y-1 max-h-48 overflow-y-auto">
+              {droppedSegments.map((seg) => (
+                <div
+                  key={seg.id}
+                  className="flex items-center gap-2 text-xs px-1.5 py-1 bg-gray-800/50 rounded"
+                >
+                  <span className="text-gray-400 shrink-0 text-[10px] w-24">
+                    {formatTime(seg.start)} ~ {formatTime(seg.end)}
+                  </span>
+                  <span className="text-gray-300 truncate flex-1">
+                    {seg.en || seg.zh || "—"}
+                  </span>
+                  <button
+                    onClick={() => onStateChange?.(seg.id, "keep")}
+                    className="shrink-0 px-2 py-0.5 text-[10px] bg-green-600 hover:bg-green-700 rounded"
+                  >
+                    恢复
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

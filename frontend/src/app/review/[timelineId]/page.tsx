@@ -915,6 +915,7 @@ export default function ReviewPage() {
             trimEnd={timeline.video_trim_end ?? null}
             sourceDuration={timeline.source_duration}
             segments={timeline.segments}
+            onStateChange={setSegmentState}
             onUpdate={() => refresh()}
           />
           <SpeakerEditor timelineId={timelineId} onSpeakerNamesChange={() => refresh()} />
