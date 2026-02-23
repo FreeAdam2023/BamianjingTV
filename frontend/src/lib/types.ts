@@ -85,6 +85,7 @@ export interface Timeline {
   pinned_cards: PinnedCard[];
   card_display_duration: number;  // Default display duration in seconds
   show_card_panel: boolean;  // Whether to show card panel in export
+  card_position: "left" | "right";  // Card panel overlay position
   // Export progress tracking
   export_status: ExportStatus;
   export_progress: number;

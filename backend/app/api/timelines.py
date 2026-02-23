@@ -967,6 +967,35 @@ async def set_show_card_panel(
     }
 
 
+class CardPositionUpdate(BaseModel):
+    """Request model for updating card panel position."""
+    position: str  # "left" or "right"
+
+
+@router.patch("/{timeline_id}/card-position")
+async def set_card_position(timeline_id: str, update: CardPositionUpdate):
+    """Set card panel overlay position (left or right).
+
+    Controls which side the card panel overlays on in the exported video.
+    """
+    if update.position not in ("left", "right"):
+        raise HTTPException(status_code=400, detail="position must be 'left' or 'right'")
+
+    manager = _get_manager()
+    timeline = manager.get_timeline(timeline_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+
+    timeline.card_position = update.position
+    manager.save_timeline(timeline)
+
+    return {
+        "timeline_id": timeline_id,
+        "card_position": update.position,
+        "message": f"Card panel position set to {update.position}",
+    }
+
+
 class CardDisplayDurationUpdate(BaseModel):
     """Request model for updating card display duration."""
     duration: float = Query(..., ge=3.0, le=15.0, description="Display duration in seconds")

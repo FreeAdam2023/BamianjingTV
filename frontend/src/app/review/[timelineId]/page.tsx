@@ -864,6 +864,7 @@ export default function ReviewPage() {
               cardRefreshing={cardRefreshing}
               onEditEntity={handleEditEntityFromCard}
               exclusionRanges={timeline.video_exclusion_ranges ?? []}
+              initialCardPosition={timeline.card_position}
             />
             )}
           </div>

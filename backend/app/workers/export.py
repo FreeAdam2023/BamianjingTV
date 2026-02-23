@@ -508,6 +508,217 @@ class ExportWorker:
 
         return filter_complex, input_args, final_label
 
+    def _render_gradient_overlay(self, output_dir: Path) -> Path:
+        """Generate a 1920x270 gradient PNG for the floating subtitle overlay.
+
+        The gradient matches the review page CSS:
+        transparent 0% → rgba(0,0,0,0.4) 40% → rgba(0,0,0,0.7) 100%
+        """
+        gradient_path = output_dir / "gradient_overlay.png"
+        if gradient_path.exists():
+            return gradient_path
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            from PIL import Image
+        except ImportError:
+            # Fallback: use ffmpeg to create a simple semi-transparent black overlay
+            logger.warning("Pillow not available, using ffmpeg for gradient")
+            cmd = [
+                "ffmpeg", "-f", "lavfi",
+                "-i", f"color=c=black@0.6:s={OUTPUT_WIDTH}x{int(OUTPUT_HEIGHT * SUBTITLE_AREA_RATIO)}:d=0.04:r=25",
+                "-frames:v", "1", "-y", str(gradient_path),
+            ]
+            subprocess.run(cmd, capture_output=True, text=True)
+            return gradient_path
+
+        grad_h = int(OUTPUT_HEIGHT * SUBTITLE_AREA_RATIO)  # 270
+        img = Image.new("RGBA", (OUTPUT_WIDTH, grad_h), (0, 0, 0, 0))
+        from PIL import ImageDraw
+        draw = ImageDraw.Draw(img)
+        for y in range(grad_h):
+            ratio = y / grad_h  # 0 at top, 1 at bottom
+            if ratio < 0.4:
+                alpha = int(255 * 0.4 * (ratio / 0.4))
+            else:
+                alpha = int(255 * (0.4 + 0.3 * ((ratio - 0.4) / 0.6)))
+            draw.line([(0, y), (OUTPUT_WIDTH - 1, y)], fill=(0, 0, 0, alpha))
+
+        img.save(str(gradient_path), "PNG")
+        logger.info(f"Generated gradient overlay: {gradient_path} ({OUTPUT_WIDTH}x{grad_h})")
+        return gradient_path
+
+    def _build_floating_wysiwyg_filter(
+        self,
+        cards: List[Tuple[Path, float, float]],
+        ass_path: Path,
+        video_duration: float,
+        gradient_path: Optional[Path] = None,
+        placeholder_image: Optional[Path] = None,
+        show_card_panel: bool = True,
+        card_position: str = "right",
+    ) -> Tuple[str, List[str], str]:
+        """Build FFmpeg filter_complex for floating WYSIWYG layout (matching review page).
+
+        Layout:
+        +------------- 1920x1080 (100%) ---------------+
+        |                                                |
+        |   Full Video (blurred bg + sharp center)       |
+        |   [Card panel, 576x810, overlaid on L or R]   |
+        |                                                |
+        |   ══ Gradient dark overlay (bottom 270px) ══   |
+        |   ══ Floating subtitles (ASS)            ══    |
+        +------------------------------------------------+
+
+        Args:
+            cards: List of (image_path, start_time, end_time) tuples
+            ass_path: Path to ASS subtitle file (floating style)
+            video_duration: Total video duration
+            gradient_path: Path to gradient overlay PNG
+            placeholder_image: Path to card placeholder PNG
+            show_card_panel: Whether to show card panel
+            card_position: "left" or "right"
+
+        Returns:
+            Tuple of (filter_complex string, input arguments, final output label)
+        """
+        panel_width = int(OUTPUT_WIDTH * CARD_PANEL_RATIO)  # 576
+        panel_height = int(OUTPUT_HEIGHT * (1 - SUBTITLE_AREA_RATIO))  # 810
+
+        input_args = []
+        filters = []
+
+        # Step 1: Split source video into bg + fg
+        filters.append("[0:v]split=2[v_bg][v_fg]")
+
+        # Step 2: Background — scale to COVER full frame, crop, blur
+        filters.append(
+            f"[v_bg]scale={OUTPUT_WIDTH}:{OUTPUT_HEIGHT}"
+            f":force_original_aspect_ratio=increase,"
+            f"crop={OUTPUT_WIDTH}:{OUTPUT_HEIGHT},"
+            f"boxblur=25:5[bg_blur]"
+        )
+
+        # Step 3: Foreground — scale to FIT within full frame
+        filters.append(
+            f"[v_fg]scale={OUTPUT_WIDTH}:{OUTPUT_HEIGHT}"
+            f":force_original_aspect_ratio=decrease[fg_sharp]"
+        )
+
+        # Step 4: Combine — sharp centered on blurred background
+        filters.append(
+            "[bg_blur][fg_sharp]overlay=(W-w)/2:(H-h)/2[video_full]"
+        )
+
+        # Step 5: Gradient overlay at bottom (before subtitles)
+        prev_label = "video_full"
+        input_idx = 1
+
+        if gradient_path and gradient_path.exists():
+            input_args.extend(["-loop", "1", "-i", str(gradient_path)])
+            grad_y = OUTPUT_HEIGHT - int(OUTPUT_HEIGHT * SUBTITLE_AREA_RATIO)
+            filters.append(
+                f"[{prev_label}][{input_idx}:v]overlay="
+                f"x=0:y={grad_y}:"
+                f"shortest=1:format=auto"
+                f"[with_grad]"
+            )
+            prev_label = "with_grad"
+            input_idx += 1
+
+        # Step 6: ASS subtitles (floating style over gradient)
+        ass_path_escaped = str(ass_path).replace("\\", "/").replace(":", "\\:")
+        filters.append(
+            f"[{prev_label}]ass={ass_path_escaped}[with_subs]"
+        )
+        prev_label = "with_subs"
+
+        # Steps 7+: Card panel overlay (if enabled)
+        if show_card_panel and (cards or (placeholder_image and placeholder_image.exists())):
+            # Calculate card panel position
+            if card_position == "left":
+                panel_x = 0
+                border_x = panel_width
+                slide_from = -24  # Slide from left
+            else:
+                panel_x = OUTPUT_WIDTH - panel_width
+                border_x = panel_x
+                slide_from = 24  # Slide from right
+
+            # Step 7a: Overlay placeholder (card panel background)
+            if placeholder_image and placeholder_image.exists():
+                input_args.extend(["-loop", "1", "-i", str(placeholder_image)])
+                filters.append(
+                    f"[{prev_label}][{input_idx}:v]overlay="
+                    f"x={panel_x}:y=0:"
+                    f"shortest=1:format=auto"
+                    f"[with_ph]"
+                )
+                prev_label = "with_ph"
+                input_idx += 1
+
+            # Step 7b: Overlay each card PNG with slide-in animation
+            for i, (card_path, start, end) in enumerate(cards):
+                input_args.extend(["-i", str(card_path)])
+
+                fade_in_duration = CARD_ANIMATION_DURATION
+                t_start = start
+                t_fade_in_end = start + fade_in_duration
+                t_end = end
+
+                card_x = panel_x
+                card_y = 0
+
+                # X position expression: slide in from edge
+                if card_position == "left":
+                    x_expr = (
+                        f"if(lt(t,{t_start}),{panel_x}-{panel_width},"
+                        f"if(lt(t,{t_fade_in_end}),"
+                        f"{card_x}-{abs(slide_from)}*(1-(t-{t_start})/{fade_in_duration}),"
+                        f"{card_x}))"
+                    )
+                else:
+                    x_expr = (
+                        f"if(lt(t,{t_start}),{OUTPUT_WIDTH},"
+                        f"if(lt(t,{t_fade_in_end}),"
+                        f"{card_x}+{slide_from}*(1-(t-{t_start})/{fade_in_duration}),"
+                        f"{card_x}))"
+                    )
+
+                enable_expr = f"between(t,{t_start},{t_end})"
+                out_label = f"fcard{i}"
+                filters.append(
+                    f"[{prev_label}][{input_idx}:v]overlay="
+                    f"x='{x_expr}':y='{card_y}':"
+                    f"enable='{enable_expr}':"
+                    f"format=auto"
+                    f"[{out_label}]"
+                )
+                prev_label = out_label
+                input_idx += 1
+
+            # Step 7c: Border line on inner edge of card panel
+            filters.append(
+                f"[{prev_label}]drawbox="
+                f"x={border_x}:y=0:w=2:h={panel_height}:"
+                f"color=0xFFFFFF@0.2:t=fill"
+                f"[with_border]"
+            )
+            prev_label = "with_border"
+
+        final_label = prev_label
+        filter_complex = ";".join(filters)
+
+        logger.info(
+            f"Floating WYSIWYG filter: {OUTPUT_WIDTH}x{OUTPUT_HEIGHT} full video, "
+            f"card_position={card_position}, {len(cards)} cards, "
+            f"gradient={'yes' if gradient_path else 'no'}, "
+            f"ass={ass_path}"
+        )
+
+        return filter_complex, input_args, final_label
+
     def _retime_pinned_cards(
         self,
         pinned_cards: List[PinnedCard],
@@ -1628,6 +1839,7 @@ class ExportWorker:
         progress_callback: Optional[Callable[[float, str], None]] = None,
         timeline_id: Optional[str] = None,
         show_card_panel: bool = True,
+        card_position: str = "right",
     ) -> Path:
         """Hybrid Remotion renderStill + FFmpeg export pipeline.
 
@@ -1658,14 +1870,13 @@ class ExportWorker:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         stills_dir = output_path.parent / "stills"
 
-        # ── Phase A: Render card + subtitle stills via Remotion ──
+        # ── Phase A: Render card stills via Remotion ──
         if progress_callback:
-            progress_callback(0, "渲染字幕和卡片图片…")
+            progress_callback(0, "渲染卡片图片…")
 
         rendered_cards: List[Tuple[Path, float, float]] = []
-        rendered_subtitles: List[Tuple[Path, float, float]] = []
         try:
-            rendered_cards, rendered_subtitles = await self._render_stills(
+            rendered_cards_raw, _ = await self._render_stills(
                 pinned_cards=pinned_cards,
                 segments=segments,
                 output_dir=stills_dir,
@@ -1677,97 +1888,69 @@ class ExportWorker:
                 progress_callback=progress_callback,
                 timeline_id=timeline_id,
             )
+            rendered_cards = rendered_cards_raw
         except ExportCancelledError:
             raise  # Re-raise cancellation
         except Exception as e:
             logger.error(
                 f"Remotion renderStills FAILED: {e}. "
-                f"Will fall back to FFmpeg drawtext for subtitles."
+                f"Continuing without card stills."
             )
 
-        # ── Cancellation check: between Phase A and A.5 ──
+        # ── Cancellation check ──
         if timeline_id and self._check_cancelled(timeline_id):
             raise ExportCancelledError(f"Export cancelled for timeline {timeline_id}")
 
-        # ── Phase A.5: Create subtitle video track from PNGs ──
-        subtitle_video_path = None
-        if rendered_subtitles:
-            # Determine background color from subtitle_style
-            bg_color = "#1a2744"
-            if subtitle_style:
-                bg_color = getattr(subtitle_style, 'background_color', "#1a2744") or "#1a2744"
+        # ── Phase A.5: Generate ASS subtitles (floating) + gradient overlay ──
+        if progress_callback:
+            progress_callback(15, "生成字幕和渐变遮罩…")
 
-            subtitle_video_path = await self._create_subtitle_video(
-                rendered_subtitles=rendered_subtitles,
-                video_duration=video_duration,
-                output_dir=stills_dir,
-                bg_color=bg_color,
-                progress_callback=progress_callback,
+        ass_path = output_path.parent / "subtitles_floating.ass"
+        if retimed_segments:
+            # Essence export: use retimed tuples (segments=[] in this case)
+            await self._generate_essence_ass(
+                retimed_segments=retimed_segments,
+                output_path=ass_path,
+                use_traditional=use_traditional,
+                video_height=OUTPUT_HEIGHT,
+                subtitle_style=subtitle_style,
+                subtitle_style_mode=SubtitleStyleMode.FLOATING,
+                subtitle_language_mode=subtitle_language_mode,
+            )
+        else:
+            # Full export: use EditableSegment objects
+            await self.generate_ass_with_layout(
+                segments=segments,
+                output_path=ass_path,
+                use_traditional=use_traditional,
+                time_offset=time_offset,
+                video_height=OUTPUT_HEIGHT,
+                subtitle_style=subtitle_style,
+                subtitle_style_mode=SubtitleStyleMode.FLOATING,
+                subtitle_language_mode=subtitle_language_mode,
             )
 
-        # ── Cancellation check: between Phase A.5 and B ──
+        gradient_path = self._render_gradient_overlay(stills_dir)
+
+        # ── Cancellation check ──
         if timeline_id and self._check_cancelled(timeline_id):
             raise ExportCancelledError(f"Export cancelled for timeline {timeline_id}")
 
-        # ── Build fallback subtitle data if Remotion didn't produce stills ──
-        fallback_subtitles = None
-        if not subtitle_video_path:
-            lang_mode = subtitle_language_mode.value if hasattr(subtitle_language_mode, 'value') else subtitle_language_mode
-            if lang_mode != "none":
-                converter = None
-                if use_traditional:
-                    try:
-                        import opencc
-                        converter = opencc.OpenCC("s2t")
-                    except ImportError:
-                        pass
-
-                fb_subs = []
-                if retimed_segments:
-                    # Retimed segments already have correct timing
-                    for start, end, en, zh in retimed_segments:
-                        if converter and zh:
-                            zh = converter.convert(zh)
-                        show_en = en if lang_mode in ("both", "en") else ""
-                        show_zh = zh if lang_mode in ("both", "zh") else ""
-                        if show_en or show_zh:
-                            fb_subs.append((start, end, show_en, show_zh))
-                else:
-                    for seg in segments:
-                        if seg.state == SegmentState.DROP:
-                            continue
-                        start = seg.effective_start - time_offset
-                        end = seg.effective_end - time_offset
-                        en = seg.en
-                        zh = seg.zh
-                        if converter and zh:
-                            zh = converter.convert(zh)
-                        show_en = en if lang_mode in ("both", "en") else ""
-                        show_zh = zh if lang_mode in ("both", "zh") else ""
-                        if show_en or show_zh:
-                            fb_subs.append((start, end, show_en, show_zh))
-
-                if fb_subs:
-                    logger.info(
-                        f"Built {len(fb_subs)} fallback subtitles for FFmpeg drawtext "
-                        f"(Remotion subtitle stills unavailable)"
-                    )
-                    fallback_subtitles = fb_subs
-
-        # ── Phase B: FFmpeg composition with card overlays + subtitle video ──
+        # ── Phase B: FFmpeg floating WYSIWYG composition ──
         if progress_callback:
             progress_callback(25, "合成视频…")
 
         # Check for placeholder image rendered by Remotion
         placeholder_image = stills_dir / "_placeholder.png" if stills_dir.exists() else None
 
-        filter_complex, overlay_input_args, final_label = self._build_wysiwyg_filter(
+        filter_complex, overlay_input_args, final_label = self._build_floating_wysiwyg_filter(
             cards=rendered_cards,
-            subtitle_video_path=subtitle_video_path,
+            ass_path=ass_path,
             video_duration=video_duration,
-            fallback_subtitles=fallback_subtitles,
+            gradient_path=gradient_path,
             placeholder_image=placeholder_image,
             show_card_panel=show_card_panel,
+            card_position=card_position,
         )
 
         cmd = ["ffmpeg", "-i", str(video_path)]
@@ -1782,8 +1965,8 @@ class ExportWorker:
         cmd.extend(["-c:a", "aac", "-b:a", "192k", "-y", str(output_path)])
 
         logger.info(
-            f"Hybrid WYSIWYG export: {len(rendered_cards)} card stills, "
-            f"subtitle_video={'yes' if subtitle_video_path else 'no'}, "
+            f"Floating WYSIWYG export: {len(rendered_cards)} card stills, "
+            f"card_position={card_position}, ASS subtitles, "
             f"FFmpeg composition → {output_path}"
         )
 
@@ -1990,10 +2173,11 @@ class ExportWorker:
             ]
             time_offset = 0.0
 
-        # Read card panel visibility setting
+        # Read card panel visibility and position settings
         show_card_panel = getattr(timeline, 'show_card_panel', True)
         if show_card_panel is None:
             show_card_panel = True
+        card_position = getattr(timeline, 'card_position', 'right') or 'right'
 
         # Render pinned cards (skip cards on dropped segments)
         dropped_seg_ids = {seg.id for seg in timeline.segments if seg.state == SegmentState.DROP}
@@ -2042,6 +2226,7 @@ class ExportWorker:
                 progress_callback=progress_callback,
                 timeline_id=timeline_id,
                 show_card_panel=show_card_panel,
+                card_position=card_position,
             )
         else:
             # FLOATING / NONE modes: existing behavior (full-width video)
@@ -2299,6 +2484,7 @@ class ExportWorker:
 
                 concat_duration = self._get_video_duration(concat_output)
 
+                card_position = getattr(timeline, 'card_position', 'right') or 'right'
                 result_path = await self._render_with_remotion(
                     segments=[],  # not used when retimed_segments is provided
                     pinned_cards=retimed_pinned,
@@ -2311,6 +2497,7 @@ class ExportWorker:
                     subtitle_language_mode=subtitle_language_mode,
                     progress_callback=progress_callback,
                     timeline_id=timeline_id,
+                    card_position=card_position,
                 )
 
                 logger.info(

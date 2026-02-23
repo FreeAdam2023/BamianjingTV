@@ -1762,6 +1762,16 @@ export async function setShowCardPanel(
   });
 }
 
+export async function setCardPosition(
+  timelineId: string,
+  position: "left" | "right"
+): Promise<{ timeline_id: string; card_position: string; message: string }> {
+  return fetchAPI(`/timelines/${timelineId}/card-position`, {
+    method: "PATCH",
+    body: JSON.stringify({ position }),
+  });
+}
+
 export interface PinnedCardsDescriptionResponse {
   timeline_id: string;
   description: string;

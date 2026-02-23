@@ -278,6 +278,7 @@ class Timeline(BaseModel):
     pinned_cards: List[PinnedCard] = Field(default_factory=list)
     card_display_duration: float = 7.0  # Default display duration in seconds (5-10 range)
     show_card_panel: bool = True  # Whether to show card panel in export (False = full-width video)
+    card_position: str = "right"  # "left" or "right" — card panel overlay position
 
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.now)

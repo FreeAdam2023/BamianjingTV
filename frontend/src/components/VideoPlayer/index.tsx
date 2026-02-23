@@ -12,6 +12,7 @@ import SubtitleOverlay from "./SubtitleOverlay";
 import VideoControls from "./VideoControls";
 import PinnedCardOverlay from "./PinnedCardOverlay";
 import { CardSidePanel } from "@/components/Cards";
+import { setCardPosition as setCardPositionApi } from "@/lib/api";
 
 interface VideoPlayerProps {
   jobId: string;
@@ -55,6 +56,8 @@ interface VideoPlayerProps {
   onEditEntity?: (entityId: string) => void;
   // Video exclusion ranges (skip during playback)
   exclusionRanges?: Array<[number, number]>;
+  // Card panel position (synced with backend)
+  initialCardPosition?: "left" | "right";
 }
 
 export interface VideoPlayerRef {
@@ -97,6 +100,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   cardRefreshing = false,
   onEditEntity,
   exclusionRanges = [],
+  initialCardPosition,
 }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -136,6 +140,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
     updateSubtitleStyle,
     resetSubtitleStyle,
     cardPosition,
+    setCardPosition,
     toggleCardPosition,
   } = useVideoState();
 
@@ -167,6 +172,22 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
       updateSubtitleStyle({ languageMode: subtitleLanguageMode });
     }
   }, [subtitleLanguageMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Initialize card position from backend timeline data
+  useEffect(() => {
+    if (initialCardPosition && initialCardPosition !== cardPosition) {
+      setCardPosition(initialCardPosition);
+    }
+  }, [initialCardPosition]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Wrap toggleCardPosition to also persist to backend
+  const handleToggleCardPosition = useCallback(() => {
+    const newPos = cardPosition === "right" ? "left" : "right";
+    setCardPosition(newPos);
+    if (timelineId) {
+      setCardPositionApi(timelineId, newPos).catch(() => {});
+    }
+  }, [cardPosition, setCardPosition, timelineId]);
 
   // Notify backend when language mode changes locally
   const handleStyleChange = (updates: Partial<typeof subtitleStyle>) => {
@@ -623,7 +644,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
           >
             {/* Position toggle button - offset below card action buttons to avoid overlap */}
             <button
-              onClick={toggleCardPosition}
+              onClick={handleToggleCardPosition}
               className="absolute top-11 z-30 p-1 rounded bg-black/40 text-white/70 hover:bg-black/60 hover:text-white transition-colors"
               style={isOnLeft ? { right: 8 } : { left: 8 }}
               title={isOnLeft ? "移到右侧" : "移到左侧"}
@@ -719,7 +740,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
         onSubtitleStyleChange={handleStyleChange}
         onSubtitleStyleReset={resetSubtitleStyle}
         cardPosition={cardPosition}
-        onToggleCardPosition={toggleCardPosition}
+        onToggleCardPosition={handleToggleCardPosition}
       />
     </div>
   );
