@@ -316,9 +316,8 @@ export default function BulkActions({
       return;
     }
 
-    // Permissive: any overlap counts for restore/keep
     const overlapping = segments.filter(
-      (seg) => seg.start < endSec && seg.end > startSec
+      (seg) => seg.start >= startSec && seg.start < endSec
     );
 
     if (overlapping.length === 0) {
