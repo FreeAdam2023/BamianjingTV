@@ -198,8 +198,9 @@ async def _run_export(
     if not timeline:
         return
 
-    # Apply test_seconds as in-memory override (not saved to timeline JSON)
+    # Apply test_seconds as in-memory override on a COPY (never mutate the cached object)
     if test_seconds is not None and test_seconds > 0:
+        timeline = timeline.model_copy(deep=True)
         trim_start = timeline.video_trim_start or 0.0
         timeline.video_trim_end = trim_start + test_seconds
 
