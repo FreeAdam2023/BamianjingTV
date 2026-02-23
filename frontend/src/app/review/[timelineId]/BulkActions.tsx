@@ -50,18 +50,34 @@ export default function BulkActions({
   const [cleaning, setCleaning] = useState(false);
   const [cleanProgress, setCleanProgress] = useState("");
 
-  // Trim editing
-  const [showTrimEdit, setShowTrimEdit] = useState(false);
-  const [trimStartInput, setTrimStartInput] = useState("");
-  const [trimEndInput, setTrimEndInput] = useState("");
-
-  // Time-range drop
-  const [showRangeDrop, setShowRangeDrop] = useState(false);
-  const [rangeStart, setRangeStart] = useState("");
-  const [rangeEnd, setRangeEnd] = useState("");
+  // Unified range selector
+  const [showPanel, setShowPanel] = useState(false);
+  const [startInput, setStartInput] = useState("");
+  const [endInput, setEndInput] = useState("");
 
   const hasTrim = trimStart > 0 || trimEnd !== null;
   const effectiveDuration = (trimEnd ?? sourceDuration) - trimStart;
+
+  // Parse "M:SS", "M:SS.d", or "H:MM:SS.d" to seconds (supports decimals)
+  const parseTime = (str: string): number | null => {
+    const parts = str.trim().split(":");
+    const nums = parts.map(Number);
+    if (nums.some(isNaN)) return null;
+    if (nums.length === 2) return nums[0] * 60 + nums[1];
+    if (nums.length === 3) return nums[0] * 3600 + nums[1] * 60 + nums[2];
+    return null;
+  };
+
+  // Compute overlapping segment count for display
+  const overlappingCount = (() => {
+    if (!startInput || !endInput) return null;
+    const s = parseTime(startInput);
+    const e = parseTime(endInput);
+    if (s !== null && e !== null && e > s) {
+      return segments.filter((seg) => seg.start < e && seg.end > s).length;
+    }
+    return null;
+  })();
 
   const handleKeepAll = async () => {
     const confirmed = await confirm({
@@ -158,27 +174,27 @@ export default function BulkActions({
     }
   };
 
-  // Video-level trim operations — capture to editable inputs
+  // Capture playhead to start/end inputs
   const handleCaptureStart = useCallback(() => {
-    setTrimStartInput(formatTime(currentTime));
-    if (!showTrimEdit) setShowTrimEdit(true);
-  }, [currentTime, showTrimEdit]);
+    setStartInput(formatTime(currentTime));
+    if (!showPanel) setShowPanel(true);
+  }, [currentTime, showPanel]);
 
   const handleCaptureEnd = useCallback(() => {
-    setTrimEndInput(formatTime(currentTime));
-    if (!showTrimEdit) setShowTrimEdit(true);
-  }, [currentTime, showTrimEdit]);
+    setEndInput(formatTime(currentTime));
+    if (!showPanel) setShowPanel(true);
+  }, [currentTime, showPanel]);
 
-  // Apply edited trim values
+  // Apply video trim
   const handleApplyTrim = async () => {
-    const startVal = trimStartInput ? parseTime(trimStartInput) : null;
-    const endVal = trimEndInput ? parseTime(trimEndInput) : null;
+    const startVal = startInput ? parseTime(startInput) : null;
+    const endVal = endInput ? parseTime(endInput) : null;
 
-    if (trimStartInput && startVal === null) {
+    if (startInput && startVal === null) {
       toast.error("起点时间格式无效，请使用 M:SS.d");
       return;
     }
-    if (trimEndInput && endVal === null) {
+    if (endInput && endVal === null) {
       toast.error("终点时间格式无效，请使用 M:SS.d");
       return;
     }
@@ -186,7 +202,7 @@ export default function BulkActions({
       toast.error("起点必须小于终点");
       return;
     }
-    if (!trimStartInput && !trimEndInput) {
+    if (!startInput && !endInput) {
       toast.error("请至少设置起点或终点");
       return;
     }
@@ -209,7 +225,9 @@ export default function BulkActions({
           endVal !== null ? endVal : undefined,
         );
         toast.success(`裁剪已应用: ${startStr} ~ ${endStr}`);
-        setShowTrimEdit(false);
+        setShowPanel(false);
+        setStartInput("");
+        setEndInput("");
         onUpdate?.();
       } catch (err) {
         toast.error("操作失败: " + (err instanceof Error ? err.message : "Unknown error"));
@@ -228,9 +246,8 @@ export default function BulkActions({
       try {
         await resetVideoTrim(timelineId);
         toast.success("已恢复完整视频");
-        setShowTrimEdit(false);
-        setTrimStartInput("");
-        setTrimEndInput("");
+        setStartInput("");
+        setEndInput("");
         if (onUpdate) onUpdate();
       } catch (err) {
         toast.error(
@@ -240,32 +257,10 @@ export default function BulkActions({
     }
   };
 
-  // Set current playhead as range start
-  const handleSetRangeStart = useCallback(() => {
-    setRangeStart(formatTime(currentTime));
-    if (!showRangeDrop) setShowRangeDrop(true);
-  }, [currentTime, showRangeDrop]);
-
-  // Set current playhead as range end
-  const handleSetRangeEnd = useCallback(() => {
-    setRangeEnd(formatTime(currentTime));
-    if (!showRangeDrop) setShowRangeDrop(true);
-  }, [currentTime, showRangeDrop]);
-
-  // Parse "M:SS", "M:SS.d", or "H:MM:SS.d" to seconds (supports decimals)
-  const parseTime = (str: string): number | null => {
-    const parts = str.trim().split(":");
-    const nums = parts.map(Number);
-    if (nums.some(isNaN)) return null;
-    if (nums.length === 2) return nums[0] * 60 + nums[1];
-    if (nums.length === 3) return nums[0] * 3600 + nums[1] * 60 + nums[2];
-    return null;
-  };
-
   // Drop all segments overlapping the time range
   const handleRangeDrop = async () => {
-    const startSec = parseTime(rangeStart);
-    const endSec = parseTime(rangeEnd);
+    const startSec = parseTime(startInput);
+    const endSec = parseTime(endInput);
     if (startSec === null || endSec === null) {
       toast.error("时间格式无效，请使用 M:SS.d 或 H:MM:SS.d");
       return;
@@ -275,7 +270,6 @@ export default function BulkActions({
       return;
     }
 
-    // Find segments that overlap with the range
     const overlapping = segments.filter(
       (seg) => seg.start < endSec && seg.end > startSec
     );
@@ -299,9 +293,9 @@ export default function BulkActions({
           state: "drop",
         });
         toast.success(`已丢弃 ${result.updated} 个片段`);
-        setShowRangeDrop(false);
-        setRangeStart("");
-        setRangeEnd("");
+        setShowPanel(false);
+        setStartInput("");
+        setEndInput("");
         onUpdate?.();
       } catch (err) {
         toast.error("操作失败: " + (err instanceof Error ? err.message : "Unknown error"));
@@ -309,10 +303,10 @@ export default function BulkActions({
     }
   };
 
-  // Keep all segments in the time range (reverse of drop)
+  // Keep all segments in the time range
   const handleRangeKeep = async () => {
-    const startSec = parseTime(rangeStart);
-    const endSec = parseTime(rangeEnd);
+    const startSec = parseTime(startInput);
+    const endSec = parseTime(endInput);
     if (startSec === null || endSec === null) {
       toast.error("时间格式无效，请使用 M:SS.d 或 H:MM:SS.d");
       return;
@@ -337,13 +331,19 @@ export default function BulkActions({
         state: "keep",
       });
       toast.success(`已保留 ${result.updated} 个片段`);
-      setShowRangeDrop(false);
-      setRangeStart("");
-      setRangeEnd("");
+      setShowPanel(false);
+      setStartInput("");
+      setEndInput("");
       onUpdate?.();
     } catch (err) {
       toast.error("操作失败: " + (err instanceof Error ? err.message : "Unknown error"));
     }
+  };
+
+  const handleClosePanel = () => {
+    setShowPanel(false);
+    setStartInput("");
+    setEndInput("");
   };
 
   return (
@@ -381,149 +381,108 @@ export default function BulkActions({
         </button>
       </div>
 
-      {/* Row 2: Video Trim — capture playhead to editable inputs */}
-      <div className="flex gap-2">
+      {/* Row 2: Toggle button for unified range selector */}
+      <div className="flex items-center gap-2">
         <button
-          onClick={handleCaptureStart}
-          className="flex-1 py-1 text-xs bg-purple-600 hover:bg-purple-700 rounded flex items-center justify-center gap-1"
-          title={`捕获当前播放位置 ${formatTime(currentTime)} 为起点`}
+          onClick={() => setShowPanel(!showPanel)}
+          className="flex-1 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded flex items-center justify-center gap-1"
         >
           <span>✂️</span>
-          <span>Start @ {formatTime(currentTime)}</span>
+          <span>时间范围选择</span>
+          <span className="text-[10px]">{showPanel ? "▴" : "▾"}</span>
         </button>
-        <button
-          onClick={handleCaptureEnd}
-          className="flex-1 py-1 text-xs bg-purple-600 hover:bg-purple-700 rounded flex items-center justify-center gap-1"
-          title={`捕获当前播放位置 ${formatTime(currentTime)} 为终点`}
-        >
-          <span>End @ {formatTime(currentTime)}</span>
-          <span>✂️</span>
-        </button>
+        {hasTrim && !showPanel && (
+          <span className="text-[10px] text-green-400 shrink-0">已裁剪 ✓</span>
+        )}
       </div>
 
-      {/* Row 3: Trim edit panel (editable inputs + apply) */}
-      {(showTrimEdit || hasTrim) && (
-        <div className="bg-purple-900/30 border border-purple-500/30 rounded p-2 space-y-2">
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-purple-300 shrink-0">✂️ 裁剪:</span>
+      {/* Row 3: Unified panel */}
+      {(showPanel || hasTrim) && (
+        <div className="bg-gray-800/50 border border-gray-600/50 rounded p-2 space-y-2">
+          {/* Input row */}
+          <div className="flex items-center gap-1.5 text-xs">
+            <button
+              onClick={handleCaptureStart}
+              className="w-6 h-6 flex items-center justify-center bg-gray-600 hover:bg-gray-500 rounded text-[10px] shrink-0"
+              title={`捕获 ${formatTime(currentTime)} 为起点`}
+            >
+              ⏱
+            </button>
             <input
               type="text"
-              value={trimStartInput || (hasTrim ? formatTime(trimStart) : "")}
-              onChange={(e) => { setTrimStartInput(e.target.value); if (!showTrimEdit) setShowTrimEdit(true); }}
+              value={startInput}
+              onChange={(e) => setStartInput(e.target.value)}
               placeholder="起点"
-              className="w-20 px-1.5 py-0.5 bg-gray-700 border border-gray-600 rounded text-white text-xs text-center focus:border-purple-500 focus:outline-none"
+              className="w-[4.5rem] px-1.5 py-0.5 bg-gray-700 border border-gray-600 rounded text-white text-xs text-center focus:border-blue-500 focus:outline-none"
             />
             <span className="text-gray-400">~</span>
+            <button
+              onClick={handleCaptureEnd}
+              className="w-6 h-6 flex items-center justify-center bg-gray-600 hover:bg-gray-500 rounded text-[10px] shrink-0"
+              title={`捕获 ${formatTime(currentTime)} 为终点`}
+            >
+              ⏱
+            </button>
             <input
               type="text"
-              value={trimEndInput || (hasTrim && trimEnd !== null ? formatTime(trimEnd) : "")}
-              onChange={(e) => { setTrimEndInput(e.target.value); if (!showTrimEdit) setShowTrimEdit(true); }}
+              value={endInput}
+              onChange={(e) => setEndInput(e.target.value)}
               placeholder="终点"
-              className="w-20 px-1.5 py-0.5 bg-gray-700 border border-gray-600 rounded text-white text-xs text-center focus:border-purple-500 focus:outline-none"
+              className="w-[4.5rem] px-1.5 py-0.5 bg-gray-700 border border-gray-600 rounded text-white text-xs text-center focus:border-blue-500 focus:outline-none"
             />
-            {hasTrim && (
-              <span className="text-gray-400 text-[10px]">
-                当前: {formatTime(trimStart)} ~ {formatTime(trimEnd ?? sourceDuration)} ({formatTime(effectiveDuration)})
+            {overlappingCount !== null && (
+              <span className="text-gray-400 text-[10px] shrink-0">
+                ({overlappingCount}个片段)
               </span>
             )}
+            <span className="ml-auto text-gray-500 text-[10px] shrink-0">
+              ⏱ {formatTime(currentTime)}
+            </span>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handleApplyTrim}
-              className="flex-1 py-1 text-xs bg-purple-600 hover:bg-purple-700 rounded"
-            >
-              应用裁剪
-            </button>
-            {hasTrim && (
-              <button
-                onClick={handleResetTrim}
-                className="px-3 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded"
-              >
-                恢复完整
-              </button>
-            )}
-            {showTrimEdit && !hasTrim && (
-              <button
-                onClick={() => { setShowTrimEdit(false); setTrimStartInput(""); setTrimEndInput(""); }}
-                className="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded"
-              >
-                取消
-              </button>
-            )}
-          </div>
-        </div>
-      )}
 
-      {/* Row 4: Time Range Drop */}
-      <div className="flex gap-2">
-        <button
-          onClick={handleSetRangeStart}
-          className="flex-1 py-1 text-xs bg-orange-600 hover:bg-orange-700 rounded flex items-center justify-center gap-1"
-          title={`将当前播放位置 ${formatTime(currentTime)} 设为范围起点`}
-        >
-          <span>📌</span>
-          <span>起点 @ {formatTime(currentTime)}</span>
-        </button>
-        <button
-          onClick={handleSetRangeEnd}
-          className="flex-1 py-1 text-xs bg-orange-600 hover:bg-orange-700 rounded flex items-center justify-center gap-1"
-          title={`将当前播放位置 ${formatTime(currentTime)} 设为范围终点`}
-        >
-          <span>终点 @ {formatTime(currentTime)}</span>
-          <span>📌</span>
-        </button>
-      </div>
-
-      {/* Row 5: Range Drop Panel (expanded) */}
-      {showRangeDrop && (
-        <div className="bg-orange-900/30 border border-orange-500/30 rounded p-2 space-y-2">
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-orange-300 shrink-0">范围:</span>
-            <input
-              type="text"
-              value={rangeStart}
-              onChange={(e) => setRangeStart(e.target.value)}
-              placeholder="0:00.0"
-              className="w-20 px-1.5 py-0.5 bg-gray-700 border border-gray-600 rounded text-white text-xs text-center focus:border-orange-500 focus:outline-none"
-            />
-            <span className="text-gray-400">~</span>
-            <input
-              type="text"
-              value={rangeEnd}
-              onChange={(e) => setRangeEnd(e.target.value)}
-              placeholder="0:00.0"
-              className="w-20 px-1.5 py-0.5 bg-gray-700 border border-gray-600 rounded text-white text-xs text-center focus:border-orange-500 focus:outline-none"
-            />
-            {rangeStart && rangeEnd && (() => {
-              const s = parseTime(rangeStart);
-              const e = parseTime(rangeEnd);
-              if (s !== null && e !== null && e > s) {
-                const count = segments.filter((seg) => seg.start < e && seg.end > s).length;
-                return <span className="text-gray-400 text-[10px]">({count} 个片段)</span>;
-              }
-              return null;
-            })()}
-          </div>
-          <div className="flex gap-2">
+          {/* Action row */}
+          <div className="flex gap-1.5">
             <button
               onClick={handleRangeDrop}
               className="flex-1 py-1 text-xs bg-red-600 hover:bg-red-700 rounded"
             >
-              丢弃该范围
+              丢弃片段
             </button>
             <button
               onClick={handleRangeKeep}
               className="flex-1 py-1 text-xs bg-green-600 hover:bg-green-700 rounded"
             >
-              保留该范围
+              保留片段
             </button>
             <button
-              onClick={() => { setShowRangeDrop(false); setRangeStart(""); setRangeEnd(""); }}
-              className="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded"
+              onClick={handleApplyTrim}
+              className="flex-1 py-1 text-xs bg-purple-600 hover:bg-purple-700 rounded"
             >
-              取消
+              裁剪视频
+            </button>
+            <button
+              onClick={handleClosePanel}
+              className="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded"
+              title="关闭面板"
+            >
+              ✕
             </button>
           </div>
+
+          {/* Trim status row */}
+          {hasTrim && (
+            <div className="flex items-center gap-2 text-[10px] text-gray-400 border-t border-gray-600/50 pt-1.5">
+              <span>
+                已裁剪: {formatTime(trimStart)} ~ {formatTime(trimEnd ?? sourceDuration)} ({formatTime(effectiveDuration)})
+              </span>
+              <button
+                onClick={handleResetTrim}
+                className="px-2 py-0.5 text-[10px] bg-gray-600 hover:bg-gray-500 rounded"
+              >
+                恢复完整
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
