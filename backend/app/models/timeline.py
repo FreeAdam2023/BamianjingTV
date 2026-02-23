@@ -114,7 +114,7 @@ class PinnedCard(BaseModel):
     display_end: float  # When to stop showing card
     card_data: Optional[dict] = None  # Cached card data for export
     note: Optional[str] = None  # User note for this pinned card
-    position: str = "right"  # "left" or "right" — which side of the video to display
+    position: str = ""  # "left" or "right" — which side of video; empty = use timeline default
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -127,7 +127,7 @@ class PinnedCardCreate(BaseModel):
     timestamp: float
     card_data: Optional[dict] = None
     note: Optional[str] = None
-    position: str = "right"  # "left" or "right"
+    position: str = ""  # "left" or "right"; empty = use timeline default
 
 
 class InsightCard(BaseModel):

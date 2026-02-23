@@ -2209,10 +2209,16 @@ class ExportWorker:
 
         # Render pinned cards (skip cards on dropped segments)
         dropped_seg_ids = {seg.id for seg in timeline.segments if seg.state == SegmentState.DROP}
+        default_card_pos = getattr(timeline, 'card_position', 'right') or 'right'
         pinned_cards = [
             c for c in (getattr(timeline, 'pinned_cards', []) or [])
             if c.segment_id not in dropped_seg_ids
         ]
+        # Backfill position for cards created before per-card position was added
+        # Cards with empty position (old data) inherit from timeline's card_position
+        for card in pinned_cards:
+            if not getattr(card, 'position', ''):
+                card.position = default_card_pos
 
         # When card panel is hidden, don't render any cards
         if not show_card_panel:
