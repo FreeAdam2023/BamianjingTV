@@ -2214,11 +2214,12 @@ class ExportWorker:
             c for c in (getattr(timeline, 'pinned_cards', []) or [])
             if c.segment_id not in dropped_seg_ids
         ]
-        # Backfill position for cards created before per-card position was added
-        # Cards with empty position (old data) inherit from timeline's card_position
+        # Apply timeline's default card position to all cards.
+        # Per-card position overrides are only used when explicitly different
+        # from the timeline default (new feature, no existing overrides yet).
+        logger.info(f"Card position: timeline default={default_card_pos}, {len(pinned_cards)} cards")
         for card in pinned_cards:
-            if not getattr(card, 'position', ''):
-                card.position = default_card_pos
+            card.position = default_card_pos
 
         # When card panel is hidden, don't render any cards
         if not show_card_panel:
@@ -2514,10 +2515,9 @@ class ExportWorker:
                     c for c in (getattr(timeline, 'pinned_cards', []) or [])
                     if c.segment_id not in dropped_seg_ids
                 ]
-                # Backfill position for old cards
+                # Apply timeline default position to all cards
                 for card in pinned_cards:
-                    if not getattr(card, 'position', ''):
-                        card.position = default_card_pos
+                    card.position = default_card_pos
                 retimed_pinned = self._retime_pinned_cards(pinned_cards, keep_segments)
 
                 concat_duration = self._get_video_duration(concat_output)
