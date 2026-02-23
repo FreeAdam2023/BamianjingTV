@@ -68,7 +68,7 @@ export default function NoteEditModal({
         });
       } else {
         // Create new note card
-        const cardId = `note-${crypto.randomUUID().slice(0, 8)}`;
+        const cardId = `note-${Math.random().toString(36).slice(2, 10)}`;
         await pinCard(timelineId, {
           card_type: "note",
           card_id: cardId,
