@@ -2509,10 +2509,15 @@ class ExportWorker:
             if subtitle_style_mode == SubtitleStyleMode.HALF_SCREEN:
                 # Retime pinned cards to match concatenated segments
                 dropped_seg_ids = {seg.id for seg in timeline.segments if seg.state == SegmentState.DROP}
+                default_card_pos = getattr(timeline, 'card_position', 'right') or 'right'
                 pinned_cards = [
                     c for c in (getattr(timeline, 'pinned_cards', []) or [])
                     if c.segment_id not in dropped_seg_ids
                 ]
+                # Backfill position for old cards
+                for card in pinned_cards:
+                    if not getattr(card, 'position', ''):
+                        card.position = default_card_pos
                 retimed_pinned = self._retime_pinned_cards(pinned_cards, keep_segments)
 
                 concat_duration = self._get_video_duration(concat_output)

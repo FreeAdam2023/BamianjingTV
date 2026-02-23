@@ -174,10 +174,13 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoP
   }, [subtitleLanguageMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync card position: localStorage is the user's active preference.
-  // On mount, push localStorage value to backend so export uses the correct side.
+  // Read directly from localStorage (not state) to avoid timing issues with useEffect order.
   useEffect(() => {
-    if (timelineId && cardPosition) {
-      setCardPositionApi(timelineId, cardPosition).catch(() => {});
+    if (timelineId) {
+      const pos = localStorage.getItem("cardPosition") as "left" | "right";
+      if (pos) {
+        setCardPositionApi(timelineId, pos).catch(() => {});
+      }
     }
   }, [timelineId]); // eslint-disable-line react-hooks/exhaustive-deps
 
