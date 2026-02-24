@@ -3,328 +3,281 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import PageHeader from "@/components/ui/PageHeader";
 import {
-  getStudioStatus,
-  setStudioScene,
-  setStudioWeather,
-  setStudioPrivacy,
-  setStudioLighting,
-  setStudioCharacter,
-  setStudioScreenContent,
+  createLofiSession,
+  listLofiSessions,
+  getLofiSession,
+  updateLofiSession,
+  deleteLofiSession,
+  startLofiGeneration,
+  publishLofiSession,
+  regenerateLofiMetadata,
+  getLofiAudioUrl,
+  getLofiVideoUrl,
+  getLofiThumbnailUrl,
+  listLofiThemes,
+  listLofiImages,
 } from "@/lib/api";
 import type {
-  StudioState,
-  ScenePreset,
-  WeatherType,
-  CharacterAction,
-  CharacterExpression,
-  ScreenContentType,
+  LofiSession,
+  LofiSessionStatus,
+  LofiTheme,
+  LofiThemeInfo,
+  LofiImageInfo,
 } from "@/lib/types";
 
-const SCENE_LABELS: Record<ScenePreset, { label: string; icon: string }> = {
-  modern_office: { label: "现代办公室", icon: "🏢" },
-  news_desk: { label: "新闻演播台", icon: "📺" },
-  podcast_studio: { label: "播客录音室", icon: "🎙" },
-  classroom: { label: "教室", icon: "📚" },
-  home_study: { label: "书房", icon: "🪑" },
+const THEME_LABELS: Record<LofiTheme, string> = {
+  lofi_hip_hop: "Lofi Hip Hop",
+  jazz: "Jazz",
+  ambient: "Ambient",
+  chillhop: "Chillhop",
+  study: "Study",
+  sleep: "Sleep",
+  coffee_shop: "Coffee Shop",
+  rain: "Rainy Day",
+  night: "Late Night",
+  piano: "Piano",
+  guitar: "Guitar",
 };
 
-const WEATHER_LABELS: Record<WeatherType, { label: string; icon: string }> = {
-  clear: { label: "晴天", icon: "☀" },
-  cloudy: { label: "多云", icon: "⛅" },
-  rain: { label: "雨天", icon: "🌧" },
-  snow: { label: "雪天", icon: "❄" },
-  night: { label: "夜晚", icon: "🌙" },
+const STATUS_CONFIG: Record<
+  LofiSessionStatus,
+  { label: string; color: string; bg: string }
+> = {
+  pending: { label: "Pending", color: "text-gray-400", bg: "bg-gray-500/20" },
+  generating_music: { label: "Generating Music...", color: "text-blue-400", bg: "bg-blue-500/20" },
+  mixing_audio: { label: "Mixing Audio...", color: "text-blue-400", bg: "bg-blue-500/20" },
+  generating_visuals: { label: "Generating Video...", color: "text-purple-400", bg: "bg-purple-500/20" },
+  compositing: { label: "Compositing...", color: "text-purple-400", bg: "bg-purple-500/20" },
+  generating_thumbnail: { label: "Generating Thumbnail...", color: "text-cyan-400", bg: "bg-cyan-500/20" },
+  generating_metadata: { label: "Generating Metadata...", color: "text-cyan-400", bg: "bg-cyan-500/20" },
+  awaiting_review: { label: "Ready for Review", color: "text-yellow-400", bg: "bg-yellow-500/20" },
+  publishing: { label: "Publishing...", color: "text-orange-400", bg: "bg-orange-500/20" },
+  published: { label: "Published", color: "text-green-400", bg: "bg-green-500/20" },
+  failed: { label: "Failed", color: "text-red-400", bg: "bg-red-500/20" },
+  cancelled: { label: "Cancelled", color: "text-gray-400", bg: "bg-gray-500/20" },
 };
 
-const ACTION_LABELS: Record<CharacterAction, string> = {
-  idle: "空闲",
-  talking: "说话",
-  nodding: "点头",
-  thinking: "思考",
-  waving: "挥手",
-  writing: "写字",
-};
+const AMBIENT_OPTIONS = [
+  { value: "rain", label: "Rain" },
+  { value: "fireplace", label: "Fireplace" },
+  { value: "birds", label: "Birds" },
+  { value: "thunder", label: "Thunder" },
+  { value: "wind", label: "Wind" },
+  { value: "ocean", label: "Ocean" },
+  { value: "cafe", label: "Cafe" },
+  { value: "vinyl_crackle", label: "Vinyl Crackle" },
+];
 
-const EXPRESSION_LABELS: Record<CharacterExpression, string> = {
-  neutral: "自然",
-  smile: "微笑",
-  serious: "严肃",
-  surprised: "惊讶",
-};
+type FilterStatus = "all" | "generating" | "awaiting_review" | "published";
 
-const SCREEN_CONTENT_LABELS: Record<ScreenContentType, { label: string; icon: string }> = {
-  screen_capture: { label: "屏幕采集", icon: "🖥" },
-  web_url: { label: "网页", icon: "🌐" },
-  custom_image: { label: "自定义图片", icon: "🖼" },
-  off: { label: "关闭", icon: "⬛" },
-};
+function formatDuration(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0) return `${h}h ${m > 0 ? `${m}m` : ""}`.trim();
+  return `${m}m`;
+}
 
-const SCENES_WITH_MONITOR: ScenePreset[] = ["modern_office", "home_study", "news_desk"];
-
-/** Debounce helper: always calls the latest callback after `delay` ms of inactivity. */
-function useDebouncedCallback<T extends (...args: never[]) => void>(callback: T, delay: number) {
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const callbackRef = useRef(callback);
-  callbackRef.current = callback;
-  return useCallback(
-    (...args: Parameters<T>) => {
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => callbackRef.current(...args), delay);
-    },
-    [delay],
-  ) as (...args: Parameters<T>) => void;
+function isGenerating(status: LofiSessionStatus): boolean {
+  return [
+    "generating_music",
+    "mixing_audio",
+    "generating_visuals",
+    "compositing",
+    "generating_thumbnail",
+    "generating_metadata",
+    "publishing",
+  ].includes(status);
 }
 
 export default function StudioPage() {
-  const [state, setState] = useState<StudioState | null>(null);
+  const [sessions, setSessions] = useState<LofiSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<FilterStatus>("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
-  const [lastSuccess, setLastSuccess] = useState<string | null>(null);
+  const [themes, setThemes] = useState<LofiThemeInfo[]>([]);
+  const [images, setImages] = useState<LofiImageInfo[]>([]);
 
-  // Local slider values (smooth dragging before commit)
-  const [localPrivacy, setLocalPrivacy] = useState(0);
-  const [localTimeOfDay, setLocalTimeOfDay] = useState(14);
-  const [localKey, setLocalKey] = useState(0.8);
-  const [localFill, setLocalFill] = useState(0.4);
-  const [localBack, setLocalBack] = useState(0.6);
-  const [localTemp, setLocalTemp] = useState(5500);
-  const [localScreenBrightness, setLocalScreenBrightness] = useState(1.0);
-  const [screenUrl, setScreenUrl] = useState("");
+  // Create form state
+  const [createTheme, setCreateTheme] = useState<LofiTheme>("lofi_hip_hop");
+  const [createDuration, setCreateDuration] = useState(3600);
+  const [createModelSize, setCreateModelSize] = useState("medium");
+  const [createAmbient, setCreateAmbient] = useState<string[]>([]);
+  const [createImage, setCreateImage] = useState<string>("");
+  const [creating, setCreating] = useState(false);
 
-  // Refs for latest slider values (avoids stale closures in onChange handlers)
-  const lightingRef = useRef({ key: localKey, fill: localFill, back: localBack, temp: localTemp });
-  lightingRef.current = { key: localKey, fill: localFill, back: localBack, temp: localTemp };
+  // Review form state
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editTags, setEditTags] = useState<string[]>([]);
+  const [editPrivacy, setEditPrivacy] = useState("private");
+  const [newTag, setNewTag] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  // Track whether user is dragging a slider (suppress polling sync)
-  const dragging = useRef(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Auto-dismiss error after 5 seconds
+  // Auto-dismiss error
   useEffect(() => {
     if (!error) return;
     const t = setTimeout(() => setError(null), 5000);
     return () => clearTimeout(t);
   }, [error]);
 
-  // Auto-dismiss success flash after 2 seconds
-  useEffect(() => {
-    if (!lastSuccess) return;
-    const t = setTimeout(() => setLastSuccess(null), 2000);
-    return () => clearTimeout(t);
-  }, [lastSuccess]);
-
-  const syncLocals = useCallback((s: StudioState) => {
-    if (!dragging.current) {
-      setLocalPrivacy(s.privacy_level);
-      setLocalTimeOfDay(s.time_of_day);
-      setLocalKey(s.lighting_key);
-      setLocalFill(s.lighting_fill);
-      setLocalBack(s.lighting_back);
-      setLocalTemp(s.lighting_temperature);
-      setLocalScreenBrightness(s.screen_brightness);
-      setScreenUrl(s.screen_url || "");
-    }
-  }, []);
-
-  const loadState = useCallback(async () => {
+  const loadSessions = useCallback(async () => {
     try {
-      const s = await getStudioStatus();
-      setState(s);
-      syncLocals(s);
+      const data = await listLofiSessions();
+      setSessions(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load studio state");
+      setError(err instanceof Error ? err.message : "Failed to load sessions");
     } finally {
       setLoading(false);
     }
-  }, [syncLocals]);
+  }, []);
 
   useEffect(() => {
-    loadState();
-  }, [loadState]);
+    loadSessions();
+    listLofiThemes().then(setThemes).catch(() => {});
+    listLofiImages().then(setImages).catch(() => {});
+  }, [loadSessions]);
 
-  // Auto-refresh status every 10s (don't overwrite sliders while dragging)
+  // Poll for updates when any session is generating
   useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        const s = await getStudioStatus();
-        setState(s);
-        syncLocals(s);
-      } catch {
-        // ignore polling errors
+    const hasGenerating = sessions.some((s) => isGenerating(s.status));
+    if (hasGenerating) {
+      if (!pollRef.current) {
+        pollRef.current = setInterval(loadSessions, 5000);
       }
-    }, 10000);
-    return () => clearInterval(interval);
-  }, [syncLocals]);
-
-  // --- Command handlers ---
-
-  async function handleScene(preset: string) {
-    setSending(true);
-    try {
-      const res = await setStudioScene(preset);
-      setState(res.state);
-      syncLocals(res.state);
-      if (res.success) {
-        setLastSuccess("场景已切换");
-      } else {
-        setError(res.message);
+    } else {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed");
-    } finally {
-      setSending(false);
     }
-  }
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [sessions, loadSessions]);
 
-  async function handleWeather(type: string) {
-    setSending(true);
-    try {
-      const res = await setStudioWeather(type, localTimeOfDay);
-      setState(res.state);
-      syncLocals(res.state);
-      if (res.success) {
-        setLastSuccess("天气已更新");
-      } else {
-        setError(res.message);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed");
-    } finally {
-      setSending(false);
+  const selected = sessions.find((s) => s.id === selectedId) || null;
+
+  // Sync review form when selection changes
+  useEffect(() => {
+    if (selected) {
+      setEditTitle(selected.metadata.title);
+      setEditDescription(selected.metadata.description);
+      setEditTags([...selected.metadata.tags]);
+      setEditPrivacy(selected.metadata.privacy_status);
     }
-  }
+  }, [selected]);
 
-  const commitTimeOfDay = useDebouncedCallback(
-    async (value: number) => {
-      dragging.current = false;
-      try {
-        const res = await setStudioWeather(state?.weather || "clear", value);
-        setState(res.state);
-      } catch { /* ignore */ }
-    },
-    300,
-  );
+  const filteredSessions = sessions.filter((s) => {
+    if (filter === "all") return true;
+    if (filter === "generating") return isGenerating(s.status);
+    if (filter === "awaiting_review") return s.status === "awaiting_review";
+    if (filter === "published") return s.status === "published";
+    return true;
+  });
 
-  const commitPrivacy = useDebouncedCallback(
-    async (value: number) => {
-      dragging.current = false;
-      try {
-        const res = await setStudioPrivacy(value);
-        setState(res.state);
-      } catch { /* ignore */ }
-    },
-    300,
-  );
-
-  const commitLighting = useDebouncedCallback(
-    async (k: number, f: number, b: number, t: number) => {
-      dragging.current = false;
-      try {
-        const res = await setStudioLighting({ key: k, fill: f, back: b, temperature: t });
-        setState(res.state);
-      } catch { /* ignore */ }
-    },
-    300,
-  );
-
-  async function handleAction(action: string) {
-    setSending(true);
+  async function handleCreate() {
+    setCreating(true);
     try {
-      const res = await setStudioCharacter({ action });
-      setState(res.state);
-      if (res.success) {
-        setLastSuccess("动作已切换");
-      } else {
-        setError(res.message);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed");
-    } finally {
-      setSending(false);
-    }
-  }
-
-  async function handleExpression(expression: string) {
-    setSending(true);
-    try {
-      const res = await setStudioCharacter({ expression });
-      setState(res.state);
-      if (res.success) {
-        setLastSuccess("表情已切换");
-      } else {
-        setError(res.message);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed");
-    } finally {
-      setSending(false);
-    }
-  }
-
-  async function handleScreenContent(contentType: string) {
-    setSending(true);
-    try {
-      const res = await setStudioScreenContent({
-        content_type: contentType,
-        url: screenUrl || undefined,
-        brightness: localScreenBrightness,
+      const session = await createLofiSession({
+        target_duration: createDuration,
+        theme: createTheme,
+        model_size: createModelSize,
+        ambient_sounds: createAmbient,
+        image_path: createImage || undefined,
       });
-      setState(res.state);
-      syncLocals(res.state);
-      if (res.success) {
-        setLastSuccess("显示器内容已更新");
-      } else {
-        setError(res.message);
-      }
+      // Auto-start generation
+      await startLofiGeneration(session.id);
+      setShowCreate(false);
+      await loadSessions();
+      setSelectedId(session.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed");
+      setError(err instanceof Error ? err.message : "Failed to create session");
     } finally {
-      setSending(false);
+      setCreating(false);
     }
   }
 
-  async function handleScreenUrlSubmit() {
-    if (!state) return;
-    setSending(true);
+  async function handleSaveMetadata() {
+    if (!selectedId) return;
+    setSaving(true);
     try {
-      const res = await setStudioScreenContent({
-        content_type: state.screen_content_type,
-        url: screenUrl || undefined,
-        brightness: localScreenBrightness,
+      await updateLofiSession(selectedId, {
+        title: editTitle,
+        description: editDescription,
+        tags: editTags,
+        privacy_status: editPrivacy,
       });
-      setState(res.state);
-      syncLocals(res.state);
-      if (res.success) {
-        setLastSuccess("URL 已更新");
-      } else {
-        setError(res.message);
-      }
+      await loadSessions();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed");
+      setError(err instanceof Error ? err.message : "Failed to save");
     } finally {
-      setSending(false);
+      setSaving(false);
     }
   }
 
-  const commitScreenBrightness = useDebouncedCallback(
-    async (value: number) => {
-      dragging.current = false;
-      try {
-        const res = await setStudioScreenContent({
-          content_type: state?.screen_content_type || "off",
-          url: screenUrl || undefined,
-          brightness: value,
-        });
-        setState(res.state);
-      } catch { /* ignore */ }
-    },
-    300,
-  );
+  async function handlePublish() {
+    if (!selectedId) return;
+    await handleSaveMetadata();
+    try {
+      await publishLofiSession(selectedId);
+      await loadSessions();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to publish");
+    }
+  }
 
-  function formatTime(hour: number): string {
-    const h = Math.floor(hour);
-    const m = Math.round((hour - h) * 60);
-    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+  async function handleRegenerate() {
+    if (!selectedId) return;
+    try {
+      await regenerateLofiMetadata(selectedId);
+      // Wait a moment for the background task to complete
+      setTimeout(async () => {
+        const updated = await getLofiSession(selectedId);
+        setSessions((prev) =>
+          prev.map((s) => (s.id === updated.id ? updated : s))
+        );
+        setEditTitle(updated.metadata.title);
+        setEditDescription(updated.metadata.description);
+        setEditTags([...updated.metadata.tags]);
+      }, 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to regenerate");
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await deleteLofiSession(id);
+      if (selectedId === id) setSelectedId(null);
+      await loadSessions();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete");
+    }
+  }
+
+  async function handleRetry(id: string) {
+    try {
+      await startLofiGeneration(id);
+      await loadSessions();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to restart");
+    }
+  }
+
+  function addTag() {
+    const tag = newTag.trim();
+    if (tag && !editTags.includes(tag)) {
+      setEditTags([...editTags, tag]);
+      setNewTag("");
+    }
+  }
+
+  function removeTag(tag: string) {
+    setEditTags(editTags.filter((t) => t !== tag));
   }
 
   if (loading) {
@@ -332,7 +285,7 @@ export default function StudioPage() {
       <main className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="spinner mx-auto mb-4" />
-          <p className="text-gray-400">加载中...</p>
+          <p className="text-gray-400">Loading...</p>
         </div>
       </main>
     );
@@ -340,508 +293,509 @@ export default function StudioPage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      {/* Shared PageHeader */}
       <PageHeader
-        title="虚拟演播室"
-        subtitle="Virtual Studio"
-        icon="🎬"
-        iconGradient="from-cyan-500 to-blue-600"
+        title="Lofi Studio"
+        subtitle="AI-powered lofi video factory"
+        icon="🎵"
+        iconGradient="from-purple-500 to-pink-600"
         backHref="/"
         actions={
-          <span
-            className={`inline-flex items-center gap-1.5 text-sm ${
-              state?.ue_connected ? "text-green-400" : "text-yellow-400"
-            }`}
+          <button
+            onClick={() => setShowCreate(true)}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-500 transition-colors"
           >
-            <span
-              className={`w-2 h-2 rounded-full ${
-                state?.ue_connected ? "bg-green-400" : "bg-yellow-400 animate-pulse"
-              }`}
-            />
-            {state?.ue_connected ? "UE5 已连接" : "UE5 离线"}
-          </span>
+            + New Session
+          </button>
         }
-      />
+      >
+        {/* Filter tabs */}
+        <div className="flex gap-2 mt-2">
+          {(
+            [
+              ["all", "All"],
+              ["generating", "Generating"],
+              ["awaiting_review", "Review"],
+              ["published", "Published"],
+            ] as [FilterStatus, string][]
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setFilter(key)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                filter === key
+                  ? "bg-purple-600 text-white"
+                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+              }`}
+            >
+              {label}
+              {key === "all" && ` (${sessions.length})`}
+              {key === "generating" &&
+                ` (${sessions.filter((s) => isGenerating(s.status)).length})`}
+              {key === "awaiting_review" &&
+                ` (${sessions.filter((s) => s.status === "awaiting_review").length})`}
+              {key === "published" &&
+                ` (${sessions.filter((s) => s.status === "published").length})`}
+            </button>
+          ))}
+        </div>
+      </PageHeader>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Success toast */}
-        {lastSuccess && (
-          <div className="mb-4 p-3 bg-green-500/10 border border-green-500/30 rounded-lg animate-fade-in">
-            <p className="text-green-400 text-sm flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              {lastSuccess}
-            </p>
-          </div>
-        )}
-
-        {/* Error banner — auto-dismisses after 5s */}
-        {error && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex justify-between items-center animate-fade-in">
+      {/* Error banner */}
+      {error && (
+        <div className="max-w-6xl mx-auto px-6 mt-4">
+          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex justify-between items-center">
             <p className="text-red-400 text-sm">{error}</p>
             <button
               onClick={() => setError(null)}
               className="text-red-400 hover:text-red-300"
-              aria-label="关闭错误提示"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
-        )}
+        </div>
+      )}
 
+      <div className="max-w-6xl mx-auto px-6 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Right column on desktop, FIRST on mobile for preview visibility */}
-          <div className="order-first lg:order-last space-y-6">
-            {/* Pixel Streaming Preview */}
-            <div className="card animate-fade-in">
-              <h2 className="text-lg font-semibold mb-4">预览</h2>
-              <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden border border-gray-700 flex items-center justify-center">
-                {state?.ue_connected && state.pixel_streaming_url ? (
-                  <iframe
-                    src={state.pixel_streaming_url}
-                    className="w-full h-full"
-                    title="Pixel Streaming Preview"
-                    allow="autoplay"
+          {/* Session Grid */}
+          <div className="lg:col-span-2">
+            {filteredSessions.length === 0 ? (
+              <div className="card text-center py-12">
+                <p className="text-gray-500 mb-4">No sessions yet</p>
+                <button
+                  onClick={() => setShowCreate(true)}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-500"
+                >
+                  Create your first lofi session
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {filteredSessions.map((session) => (
+                  <SessionCard
+                    key={session.id}
+                    session={session}
+                    isSelected={session.id === selectedId}
+                    onClick={() => setSelectedId(session.id)}
+                    onDelete={() => handleDelete(session.id)}
+                    onRetry={() => handleRetry(session.id)}
                   />
-                ) : (
-                  <div className="text-center text-gray-500">
-                    <svg className="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                    <p className="text-sm">UE5 未连接</p>
-                    <p className="text-xs mt-1">启动渲染服务器后可预览</p>
-                  </div>
-                )}
+                ))}
               </div>
-            </div>
-
-            {/* Status Panel */}
-            <div className="card animate-fade-in" style={{ animationDelay: "50ms" }}>
-              <h2 className="text-lg font-semibold mb-4">状态</h2>
-              <div className="space-y-3 text-sm">
-                <StatusRow
-                  label="UE5 连接"
-                  value={state?.ue_connected ? "已连接" : "离线"}
-                  color={state?.ue_connected ? "text-green-400" : "text-yellow-400"}
-                />
-                <StatusRow
-                  label="FPS"
-                  value={state?.ue_fps != null ? `${state.ue_fps.toFixed(0)}` : "-"}
-                />
-                <StatusRow
-                  label="GPU 占用"
-                  value={state?.ue_gpu_usage != null ? `${state.ue_gpu_usage.toFixed(0)}%` : "-"}
-                />
-                <div className="border-t border-gray-700 my-2" />
-                <StatusRow label="场景" value={SCENE_LABELS[state?.scene || "modern_office"].label} />
-                <StatusRow
-                  label="天气"
-                  value={WEATHER_LABELS[state?.weather || "clear"].label}
-                />
-                <StatusRow label="时间" value={formatTime(state?.time_of_day || 14)} />
-                <StatusRow
-                  label="隐私雾化"
-                  value={`${Math.round((state?.privacy_level || 0) * 100)}%`}
-                />
-                <StatusRow
-                  label="动作"
-                  value={ACTION_LABELS[state?.character_action || "idle"]}
-                />
-                <StatusRow
-                  label="表情"
-                  value={EXPRESSION_LABELS[state?.character_expression || "neutral"]}
-                />
-                {state && SCENES_WITH_MONITOR.includes(state.scene) && (
-                  <>
-                    <div className="border-t border-gray-700 my-2" />
-                    <StatusRow
-                      label="显示器"
-                      value={SCREEN_CONTENT_LABELS[state.screen_content_type || "off"].label}
-                    />
-                    <StatusRow
-                      label="屏幕亮度"
-                      value={`${Math.round((state.screen_brightness ?? 1) * 100)}%`}
-                    />
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="card animate-fade-in" style={{ animationDelay: "100ms" }}>
-              <h2 className="text-lg font-semibold mb-4">快捷操作</h2>
-              <div className="space-y-2">
-                <button
-                  onClick={() => { setLocalPrivacy(0); commitPrivacy(0); }}
-                  disabled={sending}
-                  className="btn btn-secondary w-full text-sm disabled:opacity-50"
-                >
-                  清除隐私雾化
-                </button>
-                <button
-                  onClick={() => { setLocalPrivacy(1); commitPrivacy(1); }}
-                  disabled={sending}
-                  className="btn btn-secondary w-full text-sm disabled:opacity-50"
-                >
-                  最大隐私雾化
-                </button>
-                <button
-                  onClick={loadState}
-                  className="btn btn-secondary w-full text-sm"
-                >
-                  刷新状态
-                </button>
-              </div>
-            </div>
+            )}
           </div>
 
-          {/* Left column: Controls */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Scene Presets */}
-            <div className="card animate-fade-in" style={{ animationDelay: "50ms" }}>
-              <h2 className="text-lg font-semibold mb-4">场景预设</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {(Object.entries(SCENE_LABELS) as [ScenePreset, { label: string; icon: string }][]).map(
-                  ([preset, { label, icon }]) => (
-                    <button
-                      key={preset}
-                      onClick={() => handleScene(preset)}
-                      disabled={sending}
-                      aria-pressed={state?.scene === preset}
-                      className={`p-4 rounded-xl border-2 transition-all text-center disabled:opacity-50 ${
-                        state?.scene === preset
-                          ? "border-blue-500 bg-blue-500/10 text-blue-300"
-                          : "border-gray-700 bg-gray-800/50 text-gray-400 hover:border-gray-600 hover:text-gray-300"
-                      }`}
-                    >
-                      <div className="text-2xl mb-2">{icon}</div>
-                      <div className="text-sm font-medium">{label}</div>
-                    </button>
-                  )
-                )}
-              </div>
-            </div>
-
-            {/* Weather & Time */}
-            <div className="card animate-fade-in" style={{ animationDelay: "100ms" }}>
-              <h2 className="text-lg font-semibold mb-4">天气 / 时间</h2>
-              <div className="flex flex-wrap gap-2 mb-4">
-                {(Object.entries(WEATHER_LABELS) as [WeatherType, { label: string; icon: string }][]).map(
-                  ([type, { label, icon }]) => (
-                    <button
-                      key={type}
-                      onClick={() => handleWeather(type)}
-                      disabled={sending}
-                      aria-pressed={state?.weather === type}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
-                        state?.weather === type
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-                      }`}
-                    >
-                      {icon} {label}
-                    </button>
-                  )
-                )}
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1" htmlFor="time-of-day">
-                  时间：{formatTime(localTimeOfDay)}
-                </label>
-                <input
-                  id="time-of-day"
-                  type="range"
-                  min={0}
-                  max={24}
-                  step={0.5}
-                  value={localTimeOfDay}
-                  aria-label={`时间 ${formatTime(localTimeOfDay)}`}
-                  aria-valuemin={0}
-                  aria-valuemax={24}
-                  aria-valuenow={localTimeOfDay}
-                  aria-valuetext={formatTime(localTimeOfDay)}
-                  onChange={(e) => {
-                    dragging.current = true;
-                    const v = Number(e.target.value);
-                    setLocalTimeOfDay(v);
-                    commitTimeOfDay(v);
-                  }}
-                  className="w-full accent-blue-500"
-                />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span>00:00</span>
-                  <span>06:00</span>
-                  <span>12:00</span>
-                  <span>18:00</span>
-                  <span>24:00</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Privacy Blur */}
-            <div className="card animate-fade-in" style={{ animationDelay: "150ms" }}>
-              <h2 className="text-lg font-semibold mb-4">隐私雾化</h2>
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-gray-400 w-12">
-                  {Math.round(localPrivacy * 100)}%
-                </span>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={localPrivacy}
-                  aria-label={`隐私雾化 ${Math.round(localPrivacy * 100)}%`}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={Math.round(localPrivacy * 100)}
-                  aria-valuetext={`${Math.round(localPrivacy * 100)}%`}
-                  onChange={(e) => {
-                    dragging.current = true;
-                    const v = Number(e.target.value);
-                    setLocalPrivacy(v);
-                    commitPrivacy(v);
-                  }}
-                  className="flex-1 accent-purple-500"
-                />
-              </div>
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>清晰</span>
-                <span>完全模糊</span>
-              </div>
-            </div>
-
-            {/* Lighting */}
-            <div className="card animate-fade-in" style={{ animationDelay: "200ms" }}>
-              <h2 className="text-lg font-semibold mb-4">灯光</h2>
-              <div className="space-y-4">
-                {[
-                  { label: "主光", ariaLabel: "主光强度", value: localKey, setter: setLocalKey },
-                  { label: "补光", ariaLabel: "补光强度", value: localFill, setter: setLocalFill },
-                  { label: "轮廓光", ariaLabel: "轮廓光强度", value: localBack, setter: setLocalBack },
-                ].map(({ label, ariaLabel, value, setter }) => (
-                  <div key={label}>
-                    <label className="block text-sm text-gray-400 mb-1">
-                      {label}：{Math.round(value * 100)}%
-                    </label>
-                    <input
-                      type="range"
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      value={value}
-                      aria-label={`${ariaLabel} ${Math.round(value * 100)}%`}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuenow={Math.round(value * 100)}
-                      aria-valuetext={`${Math.round(value * 100)}%`}
-                      onChange={(e) => {
-                        dragging.current = true;
-                        const v = Number(e.target.value);
-                        setter(v);
-                        // Read latest values from ref to avoid stale closures
-                        const latest = { ...lightingRef.current };
-                        if (label === "主光") latest.key = v;
-                        else if (label === "补光") latest.fill = v;
-                        else if (label === "轮廓光") latest.back = v;
-                        commitLighting(latest.key, latest.fill, latest.back, latest.temp);
-                      }}
-                      className="w-full accent-amber-500"
+          {/* Review Panel */}
+          <div className="space-y-4">
+            {selected ? (
+              <>
+                {/* Preview */}
+                <div className="card">
+                  <h3 className="text-sm font-semibold text-gray-400 mb-3">Preview</h3>
+                  {selected.final_video_path ? (
+                    <video
+                      src={getLofiVideoUrl(selected.id)}
+                      controls
+                      className="w-full rounded-lg"
                     />
-                  </div>
-                ))}
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1" htmlFor="color-temp">
-                    色温：{localTemp}K
-                  </label>
-                  <input
-                    id="color-temp"
-                    type="range"
-                    min={2000}
-                    max={10000}
-                    step={100}
-                    value={localTemp}
-                    aria-label={`色温 ${localTemp}K`}
-                    aria-valuemin={2000}
-                    aria-valuemax={10000}
-                    aria-valuenow={localTemp}
-                    aria-valuetext={`${localTemp}K`}
-                    onChange={(e) => {
-                      dragging.current = true;
-                      const v = Number(e.target.value);
-                      setLocalTemp(v);
-                      const latest = lightingRef.current;
-                      commitLighting(latest.key, latest.fill, latest.back, v);
-                    }}
-                    className="w-full accent-amber-500"
-                  />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>2000K 暖色</span>
-                    <span>5500K 日光</span>
-                    <span>10000K 冷色</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Character */}
-            <div className="card animate-fade-in" style={{ animationDelay: "250ms" }}>
-              <h2 className="text-lg font-semibold mb-4">角色</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-2">动作</label>
-                  <div className="flex flex-wrap gap-2" role="group" aria-label="角色动作">
-                    {(Object.entries(ACTION_LABELS) as [CharacterAction, string][]).map(
-                      ([action, label]) => (
-                        <button
-                          key={action}
-                          onClick={() => handleAction(action)}
-                          disabled={sending}
-                          aria-pressed={state?.character_action === action}
-                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
-                            state?.character_action === action
-                              ? "bg-green-600 text-white"
-                              : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      )
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-2">表情</label>
-                  <div className="flex flex-wrap gap-2" role="group" aria-label="角色表情">
-                    {(Object.entries(EXPRESSION_LABELS) as [CharacterExpression, string][]).map(
-                      ([expr, label]) => (
-                        <button
-                          key={expr}
-                          onClick={() => handleExpression(expr)}
-                          disabled={sending}
-                          aria-pressed={state?.character_expression === expr}
-                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
-                            state?.character_expression === expr
-                              ? "bg-green-600 text-white"
-                              : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      )
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Screen Content — only shown for scenes with monitors */}
-            {state && SCENES_WITH_MONITOR.includes(state.scene) && (
-              <div className="card animate-fade-in" style={{ animationDelay: "300ms" }}>
-                <h2 className="text-lg font-semibold mb-4">显示器内容</h2>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-2">内容源</label>
-                    <div className="flex flex-wrap gap-2" role="group" aria-label="显示器内容源">
-                      {(Object.entries(SCREEN_CONTENT_LABELS) as [ScreenContentType, { label: string; icon: string }][]).map(
-                        ([type, { label, icon }]) => (
-                          <button
-                            key={type}
-                            onClick={() => handleScreenContent(type)}
-                            disabled={sending}
-                            aria-pressed={state?.screen_content_type === type}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
-                              state?.screen_content_type === type
-                                ? "bg-cyan-600 text-white"
-                                : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-                            }`}
-                          >
-                            {icon} {label}
-                          </button>
-                        )
-                      )}
-                    </div>
-                  </div>
-
-                  {(state.screen_content_type === "web_url" || state.screen_content_type === "custom_image") && (
-                    <div>
-                      <label className="block text-sm text-gray-400 mb-1" htmlFor="screen-url">
-                        {state.screen_content_type === "web_url" ? "网页 URL" : "图片 URL"}
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          id="screen-url"
-                          type="url"
-                          value={screenUrl}
-                          onChange={(e) => setScreenUrl(e.target.value)}
-                          placeholder={state.screen_content_type === "web_url" ? "https://example.com" : "https://example.com/image.png"}
-                          className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:border-cyan-500 focus:outline-none"
-                        />
-                        <button
-                          onClick={handleScreenUrlSubmit}
-                          disabled={sending || !screenUrl}
-                          className="px-4 py-2 bg-cyan-600 text-white rounded-lg text-sm font-medium hover:bg-cyan-500 disabled:opacity-50 transition-colors"
-                        >
-                          应用
-                        </button>
-                      </div>
+                  ) : selected.final_audio_path ? (
+                    <audio
+                      src={getLofiAudioUrl(selected.id)}
+                      controls
+                      className="w-full"
+                    />
+                  ) : (
+                    <div className="aspect-video bg-gray-900 rounded-lg flex items-center justify-center">
+                      <p className="text-gray-500 text-sm">
+                        {isGenerating(selected.status)
+                          ? `${STATUS_CONFIG[selected.status].label} (${Math.round(selected.progress)}%)`
+                          : "No preview available"}
+                      </p>
                     </div>
                   )}
 
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1">
-                      亮度：{Math.round(localScreenBrightness * 100)}%
-                    </label>
-                    <input
-                      type="range"
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      value={localScreenBrightness}
-                      aria-label={`显示器亮度 ${Math.round(localScreenBrightness * 100)}%`}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuenow={Math.round(localScreenBrightness * 100)}
-                      aria-valuetext={`${Math.round(localScreenBrightness * 100)}%`}
-                      onChange={(e) => {
-                        dragging.current = true;
-                        const v = Number(e.target.value);
-                        setLocalScreenBrightness(v);
-                        commitScreenBrightness(v);
-                      }}
-                      className="w-full accent-cyan-500"
-                    />
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>关闭</span>
-                      <span>最亮</span>
+                  {/* Progress bar */}
+                  {isGenerating(selected.status) && (
+                    <div className="mt-3">
+                      <div className="flex justify-between text-xs text-gray-400 mb-1">
+                        <span>{STATUS_CONFIG[selected.status].label}</span>
+                        <span>{Math.round(selected.progress)}%</span>
+                      </div>
+                      <div className="w-full bg-gray-700 rounded-full h-2">
+                        <div
+                          className="bg-purple-500 h-2 rounded-full transition-all duration-500"
+                          style={{ width: `${selected.progress}%` }}
+                        />
+                      </div>
                     </div>
+                  )}
+                </div>
+
+                {/* Metadata Editor */}
+                {(selected.status === "awaiting_review" ||
+                  selected.status === "published") && (
+                  <div className="card space-y-3">
+                    <h3 className="text-sm font-semibold text-gray-400">Metadata</h3>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Title</label>
+                      <input
+                        type="text"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 focus:border-purple-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Description</label>
+                      <textarea
+                        value={editDescription}
+                        onChange={(e) => setEditDescription(e.target.value)}
+                        rows={4}
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 focus:border-purple-500 focus:outline-none resize-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Tags</label>
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {editTags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded text-xs"
+                          >
+                            {tag}
+                            <button
+                              onClick={() => removeTag(tag)}
+                              className="hover:text-white"
+                            >
+                              x
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex gap-1">
+                        <input
+                          type="text"
+                          value={newTag}
+                          onChange={(e) => setNewTag(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addTag())}
+                          placeholder="Add tag..."
+                          className="flex-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-xs text-gray-200 focus:border-purple-500 focus:outline-none"
+                        />
+                        <button
+                          onClick={addTag}
+                          className="px-2 py-1 bg-gray-700 text-gray-300 rounded text-xs hover:bg-gray-600"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Privacy</label>
+                      <select
+                        value={editPrivacy}
+                        onChange={(e) => setEditPrivacy(e.target.value)}
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 focus:border-purple-500 focus:outline-none"
+                      >
+                        <option value="private">Private</option>
+                        <option value="unlisted">Unlisted</option>
+                        <option value="public">Public</option>
+                      </select>
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        onClick={handleRegenerate}
+                        className="flex-1 px-3 py-2 bg-gray-700 text-gray-300 rounded-lg text-xs font-medium hover:bg-gray-600 transition-colors"
+                      >
+                        Regenerate Metadata
+                      </button>
+                      <button
+                        onClick={handleSaveMetadata}
+                        disabled={saving}
+                        className="flex-1 px-3 py-2 bg-purple-600 text-white rounded-lg text-xs font-medium hover:bg-purple-500 disabled:opacity-50 transition-colors"
+                      >
+                        {saving ? "Saving..." : "Save"}
+                      </button>
+                    </div>
+                    {selected.status === "awaiting_review" && (
+                      <button
+                        onClick={handlePublish}
+                        className="w-full px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-500 transition-colors"
+                      >
+                        Publish to YouTube
+                      </button>
+                    )}
+                    {selected.youtube_url && (
+                      <a
+                        href={selected.youtube_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block text-center text-sm text-blue-400 hover:text-blue-300"
+                      >
+                        View on YouTube
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {/* Session Info */}
+                <div className="card">
+                  <h3 className="text-sm font-semibold text-gray-400 mb-3">Session Info</h3>
+                  <div className="space-y-2 text-xs">
+                    <InfoRow label="ID" value={selected.id} />
+                    <InfoRow label="Theme" value={THEME_LABELS[selected.music_config.theme]} />
+                    <InfoRow label="Duration" value={formatDuration(selected.target_duration)} />
+                    <InfoRow label="Model" value={selected.music_config.model_size} />
+                    <InfoRow label="Segments" value={`${selected.music_segments.length}`} />
+                    <InfoRow label="Triggered by" value={selected.triggered_by} />
+                    {selected.error && (
+                      <div className="mt-2 p-2 bg-red-500/10 rounded text-red-400 text-xs">
+                        {selected.error}
+                      </div>
+                    )}
+                    {Object.keys(selected.step_timings).length > 0 && (
+                      <>
+                        <div className="border-t border-gray-700 my-2" />
+                        <p className="text-gray-500 font-medium">Timing</p>
+                        {Object.entries(selected.step_timings).map(([step, time]) => (
+                          <InfoRow key={step} label={step.replace(/_/g, " ")} value={`${time}s`} />
+                        ))}
+                      </>
+                    )}
                   </div>
                 </div>
+              </>
+            ) : (
+              <div className="card text-center py-8">
+                <p className="text-gray-500 text-sm">Select a session to review</p>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Create Modal */}
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl w-full max-w-md mx-4 p-6 space-y-4">
+            <h2 className="text-lg font-bold">New Lofi Session</h2>
+
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Theme</label>
+              <select
+                value={createTheme}
+                onChange={(e) => setCreateTheme(e.target.value as LofiTheme)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 focus:border-purple-500 focus:outline-none"
+              >
+                {(themes.length > 0
+                  ? themes.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))
+                  : Object.entries(THEME_LABELS).map(([val, label]) => (
+                      <option key={val} value={val}>
+                        {label}
+                      </option>
+                    ))
+                )}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">
+                Duration: {formatDuration(createDuration)}
+              </label>
+              <input
+                type="range"
+                min={300}
+                max={10800}
+                step={300}
+                value={createDuration}
+                onChange={(e) => setCreateDuration(Number(e.target.value))}
+                className="w-full accent-purple-500"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>5m</span>
+                <span>1h</span>
+                <span>2h</span>
+                <span>3h</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Model Size</label>
+              <select
+                value={createModelSize}
+                onChange={(e) => setCreateModelSize(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 focus:border-purple-500 focus:outline-none"
+              >
+                <option value="small">Small (faster)</option>
+                <option value="medium">Medium (balanced)</option>
+                <option value="large">Large (best quality)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Ambient Sounds</label>
+              <div className="flex flex-wrap gap-2">
+                {AMBIENT_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() =>
+                      setCreateAmbient((prev) =>
+                        prev.includes(opt.value)
+                          ? prev.filter((a) => a !== opt.value)
+                          : [...prev, opt.value]
+                      )
+                    }
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                      createAmbient.includes(opt.value)
+                        ? "bg-purple-600 text-white"
+                        : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {images.length > 0 && (
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Background Image</label>
+                <select
+                  value={createImage}
+                  onChange={(e) => setCreateImage(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 focus:border-purple-500 focus:outline-none"
+                >
+                  <option value="">Default</option>
+                  {images.map((img) => (
+                    <option key={img.name} value={img.path}>
+                      {img.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => setShowCreate(false)}
+                className="flex-1 px-4 py-2 bg-gray-700 text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={creating}
+                className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-500 disabled:opacity-50 transition-colors"
+              >
+                {creating ? "Creating..." : "Generate"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function StatusRow({
-  label,
-  value,
-  color = "text-gray-300",
+function SessionCard({
+  session,
+  isSelected,
+  onClick,
+  onDelete,
+  onRetry,
 }: {
-  label: string;
-  value: string;
-  color?: string;
+  session: LofiSession;
+  isSelected: boolean;
+  onClick: () => void;
+  onDelete: () => void;
+  onRetry: () => void;
 }) {
+  const config = STATUS_CONFIG[session.status];
+
+  return (
+    <div
+      onClick={onClick}
+      className={`card cursor-pointer transition-all hover:border-purple-500/50 ${
+        isSelected ? "border-purple-500 ring-1 ring-purple-500/30" : ""
+      }`}
+    >
+      {/* Thumbnail or placeholder */}
+      <div className="aspect-video bg-gray-900 rounded-lg mb-3 overflow-hidden flex items-center justify-center relative">
+        {session.thumbnail_path ? (
+          <img
+            src={getLofiThumbnailUrl(session.id)}
+            alt={session.metadata.title || "Lofi session"}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <span className="text-4xl">🎵</span>
+        )}
+        {/* Progress overlay for generating sessions */}
+        {isGenerating(session.status) && (
+          <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1">
+            <div className="w-full bg-gray-700 rounded-full h-1.5">
+              <div
+                className="bg-purple-500 h-1.5 rounded-full transition-all duration-500"
+                style={{ width: `${session.progress}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="space-y-1">
+        <p className="text-sm font-medium truncate">
+          {session.metadata.title || `${THEME_LABELS[session.music_config.theme]} Session`}
+        </p>
+        <div className="flex items-center justify-between">
+          <span
+            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${config.bg} ${config.color}`}
+          >
+            {config.label}
+          </span>
+          <span className="text-xs text-gray-500">
+            {formatDuration(session.target_duration)}
+          </span>
+        </div>
+        <p className="text-xs text-gray-500">
+          {THEME_LABELS[session.music_config.theme]}
+          {session.music_config.ambient_sounds.length > 0 &&
+            ` + ${session.music_config.ambient_sounds.join(", ")}`}
+        </p>
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-1 mt-2" onClick={(e) => e.stopPropagation()}>
+        {session.status === "failed" && (
+          <button
+            onClick={onRetry}
+            className="px-2 py-1 bg-yellow-600/20 text-yellow-400 rounded text-xs hover:bg-yellow-600/30"
+          >
+            Retry
+          </button>
+        )}
+        <button
+          onClick={onDelete}
+          className="px-2 py-1 bg-red-600/20 text-red-400 rounded text-xs hover:bg-red-600/30 ml-auto"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between">
       <span className="text-gray-500">{label}</span>
-      <span className={color}>{value}</span>
+      <span className="text-gray-300">{value}</span>
     </div>
   );
 }

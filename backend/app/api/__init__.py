@@ -67,6 +67,11 @@ from .studio import (
     router as studio_router,
     set_studio_manager,
 )
+from .lofi import (
+    router as lofi_router,
+    set_lofi_session_manager,
+    set_lofi_pipeline_worker,
+)
 
 __all__ = [
     # v2 Routers
@@ -138,4 +143,8 @@ __all__ = [
     # Studio Router and Setup functions
     "studio_router",
     "set_studio_manager",
+    # Lofi Router and Setup functions
+    "lofi_router",
+    "set_lofi_session_manager",
+    "set_lofi_pipeline_worker",
 ]

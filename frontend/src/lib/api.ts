@@ -85,6 +85,13 @@ import type {
   StudioState,
   StudioPresets,
   StudioCommandResponse,
+  // Lofi
+  LofiSession,
+  LofiSessionCreate,
+  LofiSessionUpdate,
+  LofiSessionStatus,
+  LofiThemeInfo,
+  LofiImageInfo,
 } from "./types";
 
 // Get API URL: use env var or derive from current host with port 8001
@@ -1897,4 +1904,88 @@ export async function setStudioScreenContent(params: {
     method: "POST",
     body: JSON.stringify(params),
   });
+}
+
+// ============ Lofi API ============
+
+export async function createLofiSession(
+  request: LofiSessionCreate = {}
+): Promise<LofiSession> {
+  return fetchAPI<LofiSession>("/lofi/sessions", {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
+}
+
+export async function listLofiSessions(
+  status?: LofiSessionStatus
+): Promise<LofiSession[]> {
+  const params = status ? `?status=${status}` : "";
+  return fetchAPI<LofiSession[]>(`/lofi/sessions${params}`);
+}
+
+export async function getLofiSession(sessionId: string): Promise<LofiSession> {
+  return fetchAPI<LofiSession>(`/lofi/sessions/${sessionId}`);
+}
+
+export async function updateLofiSession(
+  sessionId: string,
+  update: LofiSessionUpdate
+): Promise<LofiSession> {
+  return fetchAPI<LofiSession>(`/lofi/sessions/${sessionId}`, {
+    method: "PATCH",
+    body: JSON.stringify(update),
+  });
+}
+
+export async function deleteLofiSession(
+  sessionId: string
+): Promise<{ message: string; session_id: string }> {
+  return fetchAPI(`/lofi/sessions/${sessionId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function startLofiGeneration(
+  sessionId: string
+): Promise<{ message: string; session_id: string }> {
+  return fetchAPI(`/lofi/sessions/${sessionId}/generate`, {
+    method: "POST",
+  });
+}
+
+export async function publishLofiSession(
+  sessionId: string
+): Promise<{ message: string; session_id: string }> {
+  return fetchAPI(`/lofi/sessions/${sessionId}/publish`, {
+    method: "POST",
+  });
+}
+
+export async function regenerateLofiMetadata(
+  sessionId: string
+): Promise<{ message: string; session_id: string }> {
+  return fetchAPI(`/lofi/sessions/${sessionId}/regenerate-metadata`, {
+    method: "POST",
+  });
+}
+
+export function getLofiAudioUrl(sessionId: string): string {
+  return `${API_BASE}/lofi/sessions/${sessionId}/audio`;
+}
+
+export function getLofiVideoUrl(sessionId: string): string {
+  return `${API_BASE}/lofi/sessions/${sessionId}/video`;
+}
+
+export function getLofiThumbnailUrl(sessionId: string): string {
+  return `${API_BASE}/lofi/sessions/${sessionId}/thumbnail`;
+}
+
+export async function listLofiThemes(): Promise<LofiThemeInfo[]> {
+  return fetchAPI<LofiThemeInfo[]>("/lofi/themes");
+}
+
+export async function listLofiImages(): Promise<LofiImageInfo[]> {
+  return fetchAPI<LofiImageInfo[]>("/lofi/images");
 }

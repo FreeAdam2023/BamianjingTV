@@ -958,3 +958,118 @@ export interface StudioCommandResponse {
   message: string;
   state: StudioState;
 }
+
+// ============ Lofi Types ============
+
+export type LofiSessionStatus =
+  | "pending"
+  | "generating_music"
+  | "mixing_audio"
+  | "generating_visuals"
+  | "compositing"
+  | "generating_thumbnail"
+  | "generating_metadata"
+  | "awaiting_review"
+  | "publishing"
+  | "published"
+  | "failed"
+  | "cancelled";
+
+export type LofiTheme =
+  | "lofi_hip_hop"
+  | "jazz"
+  | "ambient"
+  | "chillhop"
+  | "study"
+  | "sleep"
+  | "coffee_shop"
+  | "rain"
+  | "night"
+  | "piano"
+  | "guitar";
+
+export type VisualMode = "static_ken_burns" | "remotion_template" | "ai_generated" | "mixed";
+export type LofiMusicSource = "musicgen" | "suno" | "udio";
+
+export interface LofiMusicConfig {
+  source: LofiMusicSource;
+  theme: LofiTheme;
+  custom_prompt: string | null;
+  model_size: string;
+  segment_duration: number;
+  crossfade_duration: number;
+  ambient_sounds: string[];
+  ambient_volume: number;
+}
+
+export interface LofiVisualConfig {
+  mode: VisualMode;
+  image_path: string | null;
+  ken_burns_speed: number;
+}
+
+export interface LofiMetadata {
+  title: string;
+  description: string;
+  tags: string[];
+  privacy_status: string;
+  category_id: string;
+  thumbnail_path: string | null;
+}
+
+export interface LofiSession {
+  id: string;
+  status: LofiSessionStatus;
+  progress: number;
+  error: string | null;
+  target_duration: number;
+  music_config: LofiMusicConfig;
+  visual_config: LofiVisualConfig;
+  metadata: LofiMetadata;
+  channel_id: string | null;
+  music_segments: string[];
+  final_audio_path: string | null;
+  final_video_path: string | null;
+  thumbnail_path: string | null;
+  youtube_video_id: string | null;
+  youtube_url: string | null;
+  step_timings: Record<string, number>;
+  created_at: string;
+  updated_at: string;
+  triggered_by: string;
+}
+
+export interface LofiSessionCreate {
+  target_duration?: number;
+  theme?: LofiTheme;
+  visual_mode?: VisualMode;
+  music_source?: LofiMusicSource;
+  model_size?: string;
+  segment_duration?: number;
+  crossfade_duration?: number;
+  ambient_sounds?: string[];
+  ambient_volume?: number;
+  image_path?: string | null;
+  channel_id?: string | null;
+  triggered_by?: string;
+}
+
+export interface LofiSessionUpdate {
+  title?: string;
+  description?: string;
+  tags?: string[];
+  privacy_status?: string;
+}
+
+export interface LofiThemeInfo {
+  value: string;
+  label: string;
+  musicgen_prompt: string;
+}
+
+export interface LofiImageInfo {
+  name: string;
+  path: string;
+  width: number | null;
+  height: number | null;
+}
