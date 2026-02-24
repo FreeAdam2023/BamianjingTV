@@ -168,8 +168,8 @@ class TestSubtitleStyleConfig:
         """Test default configuration values."""
         config = SubtitleStyleConfig()
 
-        assert config.en_font_size == 40
-        assert config.zh_font_size == 40
+        assert config.en_font_size == 58
+        assert config.zh_font_size == 58
         assert config.en_color == "#ffffff"
         assert config.zh_color == "#facc15"
         assert config.background_color == "#1a2744"

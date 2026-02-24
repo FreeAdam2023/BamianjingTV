@@ -21,8 +21,8 @@ class SubtitleStyleMode(str, Enum):
 @dataclass
 class SubtitleStyleConfig:
     """Configuration for subtitle styling."""
-    en_font_size: int = 40
-    zh_font_size: int = 40
+    en_font_size: int = 58
+    zh_font_size: int = 58
     en_color: str = "#ffffff"  # White
     zh_color: str = "#facc15"  # Yellow
     background_color: str = "#1a2744"  # Dark blue
@@ -271,8 +271,8 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: English,Arial,44,&H00FFFFFF,&H000000FF,&H00404040,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,20,20,30,1
-Style: Chinese,Microsoft YaHei,52,&H0000FFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,1,2,20,20,120,1
+Style: English,Arial,58,&H00FFFFFF,&H000000FF,&H00404040,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,20,20,30,1
+Style: Chinese,Microsoft YaHei,64,&H0000FFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,1,2,20,20,120,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

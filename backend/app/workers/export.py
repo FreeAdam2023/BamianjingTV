@@ -1208,8 +1208,8 @@ class ExportWorker:
         # Build SubtitleStyleConfig from request options
         config = SubtitleStyleConfig()
         if subtitle_style:
-            config.en_font_size = getattr(subtitle_style, 'en_font_size', 40) or 40
-            config.zh_font_size = getattr(subtitle_style, 'zh_font_size', 40) or 40
+            config.en_font_size = getattr(subtitle_style, 'en_font_size', 58) or 58
+            config.zh_font_size = getattr(subtitle_style, 'zh_font_size', 58) or 58
             config.en_color = getattr(subtitle_style, 'en_color', "#ffffff") or "#ffffff"
             config.zh_color = getattr(subtitle_style, 'zh_color', "#facc15") or "#facc15"
             config.background_color = getattr(subtitle_style, 'background_color', "#1a2744") or "#1a2744"
@@ -1774,15 +1774,15 @@ class ExportWorker:
             style_config = {
                 "enColor": "#ffffff",
                 "zhColor": "#facc15",
-                "enFontSize": 40,
-                "zhFontSize": 40,
+                "enFontSize": 58,
+                "zhFontSize": 58,
             }
             bg_color = "#1a2744"
             if subtitle_style:
                 style_config["enColor"] = getattr(subtitle_style, 'en_color', "#ffffff") or "#ffffff"
                 style_config["zhColor"] = getattr(subtitle_style, 'zh_color', "#facc15") or "#facc15"
-                style_config["enFontSize"] = getattr(subtitle_style, 'en_font_size', 40) or 40
-                style_config["zhFontSize"] = getattr(subtitle_style, 'zh_font_size', 40) or 40
+                style_config["enFontSize"] = getattr(subtitle_style, 'en_font_size', 58) or 58
+                style_config["zhFontSize"] = getattr(subtitle_style, 'zh_font_size', 58) or 58
                 bg_color = getattr(subtitle_style, 'background_color', "#1a2744") or "#1a2744"
 
             language_mode = subtitle_language_mode.value
@@ -3010,8 +3010,8 @@ class ExportWorker:
         # Build SubtitleStyleConfig from request options
         config = SubtitleStyleConfig()
         if subtitle_style:
-            config.en_font_size = getattr(subtitle_style, 'en_font_size', 40) or 40
-            config.zh_font_size = getattr(subtitle_style, 'zh_font_size', 40) or 40
+            config.en_font_size = getattr(subtitle_style, 'en_font_size', 58) or 58
+            config.zh_font_size = getattr(subtitle_style, 'zh_font_size', 58) or 58
             config.en_color = getattr(subtitle_style, 'en_color', "#ffffff") or "#ffffff"
             config.zh_color = getattr(subtitle_style, 'zh_color', "#facc15") or "#facc15"
             config.background_color = getattr(subtitle_style, 'background_color', "#1a2744") or "#1a2744"
