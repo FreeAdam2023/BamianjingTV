@@ -7,10 +7,13 @@ from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from loguru import logger
+from pydantic import BaseModel
 
 from app.config import settings
 from app.models.lofi import (
-    LofiImageInfo,
+    ImageSource,
+    ImageStatus,
+    LofiPoolImage,
     LofiSession,
     LofiSessionCreate,
     LofiSessionStatus,
@@ -28,6 +31,7 @@ router = APIRouter(prefix="/lofi", tags=["lofi"])
 # Module-level dependencies
 _session_manager: Optional[LofiSessionManager] = None
 _pipeline_worker: Optional[LofiPipelineWorker] = None
+_image_pool = None  # Optional[LofiImagePool] — avoids circular import at module level
 
 
 def set_lofi_session_manager(manager: LofiSessionManager) -> None:
@@ -42,6 +46,12 @@ def set_lofi_pipeline_worker(worker: LofiPipelineWorker) -> None:
     _pipeline_worker = worker
 
 
+def set_lofi_image_pool(pool) -> None:
+    """Set the lofi image pool instance."""
+    global _image_pool
+    _image_pool = pool
+
+
 def _get_manager() -> LofiSessionManager:
     if _session_manager is None:
         raise HTTPException(status_code=503, detail="Lofi session manager not initialized")
@@ -52,6 +62,12 @@ def _get_worker() -> LofiPipelineWorker:
     if _pipeline_worker is None:
         raise HTTPException(status_code=503, detail="Lofi pipeline worker not initialized")
     return _pipeline_worker
+
+
+def _get_image_pool():
+    if _image_pool is None:
+        raise HTTPException(status_code=503, detail="Lofi image pool not initialized")
+    return _image_pool
 
 
 # ============ Session CRUD ============
@@ -245,7 +261,7 @@ async def get_session_thumbnail(session_id: str):
     return FileResponse(path, media_type="image/png", filename=f"lofi_{session_id}_thumb.png")
 
 
-# ============ Themes & Images ============
+# ============ Themes ============
 
 
 @router.get("/themes", response_model=List[LofiThemeInfo])
@@ -261,40 +277,218 @@ async def list_themes():
     ]
 
 
-@router.get("/images", response_model=List[LofiImageInfo])
-async def list_images():
-    """List available background images."""
-    images_dir = settings.lofi_images_dir
-    if not images_dir.exists():
-        return []
-
-    images = []
-    for ext in ("*.jpg", "*.jpeg", "*.png"):
-        for img_path in sorted(images_dir.glob(ext)):
-            images.append(
-                LofiImageInfo(
-                    name=img_path.stem,
-                    path=str(img_path),
-                )
-            )
-    return images
+# ============ Image Pool ============
 
 
-@router.post("/images/upload", response_model=LofiImageInfo)
-async def upload_image(file: UploadFile = File(...)):
-    """Upload a custom background image."""
+@router.get("/images", response_model=List[LofiPoolImage])
+async def list_images(
+    status: Optional[ImageStatus] = None,
+    theme: Optional[LofiTheme] = None,
+    source: Optional[ImageSource] = None,
+):
+    """List pool images with optional filters."""
+    pool = _get_image_pool()
+    return pool.list_images(status=status, theme=theme, source=source)
+
+
+@router.get("/images/{image_id}", response_model=LofiPoolImage)
+async def get_image(image_id: str):
+    """Get a single image from the pool."""
+    pool = _get_image_pool()
+    img = pool.get_image(image_id)
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found")
+    return img
+
+
+@router.post("/images/upload", response_model=LofiPoolImage)
+async def upload_image(
+    file: UploadFile = File(...),
+    themes: Optional[str] = None,
+):
+    """Upload a background image and add it to the pool as PENDING."""
+    pool = _get_image_pool()
     images_dir = settings.lofi_images_dir
     images_dir.mkdir(parents=True, exist_ok=True)
 
-    # Validate file type
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
 
-    # Save file
     filename = file.filename or "custom.jpg"
     dest = images_dir / filename
     with open(dest, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    logger.info(f"Uploaded lofi background image: {filename}")
-    return LofiImageInfo(name=dest.stem, path=str(dest))
+    theme_list = []
+    if themes:
+        for t in themes.split(","):
+            t = t.strip()
+            if t:
+                try:
+                    theme_list.append(LofiTheme(t))
+                except ValueError:
+                    pass
+
+    img = LofiPoolImage(
+        filename=filename,
+        source=ImageSource.UPLOAD,
+        status=ImageStatus.PENDING,
+        themes=theme_list,
+    )
+    pool.add_image(img)
+    logger.info(f"Uploaded lofi image: {filename} (id={img.id})")
+    return img
+
+
+class GenerateImageRequest(BaseModel):
+    theme: LofiTheme = LofiTheme.LOFI_HIP_HOP
+    custom_prompt: Optional[str] = None
+
+
+@router.post("/images/generate", response_model=LofiPoolImage)
+async def generate_image(request: GenerateImageRequest):
+    """Generate a background image using AI and add to the pool."""
+    pool = _get_image_pool()
+    from app.workers.image_generator import generate_lofi_image
+
+    try:
+        path = await generate_lofi_image(
+            theme=request.theme,
+            custom_prompt=request.custom_prompt,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Image generation failed: {e}")
+
+    img = LofiPoolImage(
+        filename=path.name,
+        source=ImageSource.AI_GENERATED,
+        status=ImageStatus.PENDING,
+        themes=[request.theme],
+        prompt=request.custom_prompt or None,
+    )
+    pool.add_image(img)
+    logger.info(f"Generated AI image: {path.name} (id={img.id})")
+    return img
+
+
+class SearchPixabayRequest(BaseModel):
+    query: str
+    per_page: int = 20
+
+
+@router.post("/images/search-pixabay")
+async def search_pixabay_images(request: SearchPixabayRequest):
+    """Search Pixabay for images. Returns preview results (not saved to pool)."""
+    from app.workers.pixabay_search import search_pixabay
+
+    try:
+        results = await search_pixabay(
+            query=request.query,
+            per_page=request.per_page,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Pixabay search failed: {e}")
+
+    return results
+
+
+class ImportPixabayRequest(BaseModel):
+    pixabay_id: str
+    url: str
+    themes: List[LofiTheme] = []
+
+
+@router.post("/images/import-pixabay", response_model=LofiPoolImage)
+async def import_pixabay_image(request: ImportPixabayRequest):
+    """Download and import a Pixabay image into the pool."""
+    pool = _get_image_pool()
+    from app.workers.pixabay_search import download_pixabay_image
+
+    try:
+        path = await download_pixabay_image(
+            pixabay_id=request.pixabay_id,
+            url=request.url,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Pixabay download failed: {e}")
+
+    img = LofiPoolImage(
+        filename=path.name,
+        source=ImageSource.PIXABAY,
+        status=ImageStatus.PENDING,
+        themes=request.themes,
+        pixabay_id=request.pixabay_id,
+        pixabay_url=request.url,
+    )
+    pool.add_image(img)
+    logger.info(f"Imported Pixabay image: {path.name} (id={img.id})")
+    return img
+
+
+class UpdateStatusRequest(BaseModel):
+    status: ImageStatus
+
+
+@router.patch("/images/{image_id}/status", response_model=LofiPoolImage)
+async def update_image_status(image_id: str, request: UpdateStatusRequest):
+    """Approve or reject an image."""
+    pool = _get_image_pool()
+    img = pool.update_status(image_id, request.status)
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found")
+    return img
+
+
+class UpdateThemesRequest(BaseModel):
+    themes: List[LofiTheme]
+
+
+@router.patch("/images/{image_id}/themes", response_model=LofiPoolImage)
+async def update_image_themes(image_id: str, request: UpdateThemesRequest):
+    """Update theme tags for an image."""
+    pool = _get_image_pool()
+    img = pool.update_themes(image_id, request.themes)
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found")
+    return img
+
+
+@router.delete("/images/{image_id}")
+async def delete_image(image_id: str):
+    """Remove an image from the pool and delete the file."""
+    pool = _get_image_pool()
+    if not pool.delete_image(image_id):
+        raise HTTPException(status_code=404, detail="Image not found")
+    return {"message": "Image deleted", "image_id": image_id}
+
+
+@router.get("/images/{image_id}/file")
+async def get_image_file(image_id: str):
+    """Serve an image file from the pool."""
+    pool = _get_image_pool()
+    img = pool.get_image(image_id)
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found")
+    path = settings.lofi_images_dir / img.filename
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Image file not found")
+    suffix = path.suffix.lower()
+    media_type = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+    }.get(suffix, "image/jpeg")
+    return FileResponse(path, media_type=media_type, filename=img.filename)
+
+
+@router.post("/images/sync")
+async def sync_images():
+    """Scan disk for images not yet in the pool and add them."""
+    pool = _get_image_pool()
+    added = pool.sync_from_disk()
+    return {"message": f"Synced {added} images from disk", "added": added}

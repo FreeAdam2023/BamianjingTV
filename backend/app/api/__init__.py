@@ -71,6 +71,7 @@ from .lofi import (
     router as lofi_router,
     set_lofi_session_manager,
     set_lofi_pipeline_worker,
+    set_lofi_image_pool,
 )
 
 __all__ = [
@@ -147,4 +148,5 @@ __all__ = [
     "lofi_router",
     "set_lofi_session_manager",
     "set_lofi_pipeline_worker",
+    "set_lofi_image_pool",
 ]

@@ -92,6 +92,11 @@ import type {
   LofiSessionStatus,
   LofiThemeInfo,
   LofiImageInfo,
+  LofiPoolImage,
+  PixabayResult,
+  ImageStatus,
+  ImageSource,
+  LofiTheme,
 } from "./types";
 
 // Get API URL: use env var or derive from current host with port 8001
@@ -1988,4 +1993,89 @@ export async function listLofiThemes(): Promise<LofiThemeInfo[]> {
 
 export async function listLofiImages(): Promise<LofiImageInfo[]> {
   return fetchAPI<LofiImageInfo[]>("/lofi/images");
+}
+
+// ============ Lofi Image Pool API ============
+
+export async function listLofiPoolImages(
+  status?: ImageStatus,
+  theme?: LofiTheme,
+  source?: ImageSource
+): Promise<LofiPoolImage[]> {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  if (theme) params.set("theme", theme);
+  if (source) params.set("source", source);
+  const qs = params.toString();
+  return fetchAPI<LofiPoolImage[]>(`/lofi/images${qs ? `?${qs}` : ""}`);
+}
+
+export async function getLofiPoolImage(imageId: string): Promise<LofiPoolImage> {
+  return fetchAPI<LofiPoolImage>(`/lofi/images/${imageId}`);
+}
+
+export async function generateLofiImage(
+  theme: LofiTheme,
+  customPrompt?: string
+): Promise<LofiPoolImage> {
+  return fetchAPI<LofiPoolImage>("/lofi/images/generate", {
+    method: "POST",
+    body: JSON.stringify({
+      theme,
+      custom_prompt: customPrompt || null,
+    }),
+  });
+}
+
+export async function searchPixabay(
+  query: string,
+  perPage: number = 20
+): Promise<PixabayResult[]> {
+  return fetchAPI<PixabayResult[]>("/lofi/images/search-pixabay", {
+    method: "POST",
+    body: JSON.stringify({ query, per_page: perPage }),
+  });
+}
+
+export async function importPixabayImage(
+  pixabayId: string,
+  url: string,
+  themes: LofiTheme[] = []
+): Promise<LofiPoolImage> {
+  return fetchAPI<LofiPoolImage>("/lofi/images/import-pixabay", {
+    method: "POST",
+    body: JSON.stringify({ pixabay_id: pixabayId, url, themes }),
+  });
+}
+
+export async function updateLofiImageStatus(
+  imageId: string,
+  status: ImageStatus
+): Promise<LofiPoolImage> {
+  return fetchAPI<LofiPoolImage>(`/lofi/images/${imageId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function updateLofiImageThemes(
+  imageId: string,
+  themes: LofiTheme[]
+): Promise<LofiPoolImage> {
+  return fetchAPI<LofiPoolImage>(`/lofi/images/${imageId}/themes`, {
+    method: "PATCH",
+    body: JSON.stringify({ themes }),
+  });
+}
+
+export async function deleteLofiImage(imageId: string): Promise<void> {
+  await fetchAPI(`/lofi/images/${imageId}`, { method: "DELETE" });
+}
+
+export function getLofiImageFileUrl(imageId: string): string {
+  return `${API_BASE}/lofi/images/${imageId}/file`;
+}
+
+export async function syncLofiImages(): Promise<{ added: number }> {
+  return fetchAPI<{ added: number }>("/lofi/images/sync", { method: "POST" });
 }

@@ -40,11 +40,13 @@ class LofiPipelineWorker:
         music_generator: MusicGeneratorWorker,
         ambient_library: Optional[AmbientLibrary] = None,
         youtube_worker: Optional[YouTubeWorker] = None,
+        image_pool=None,
     ):
         self.session_manager = session_manager
         self.music_generator = music_generator
         self.ambient_library = ambient_library
         self.youtube_worker = youtube_worker
+        self.image_pool = image_pool
 
     async def run_pipeline(self, session_id: str) -> None:
         """Run the full pipeline for a session."""
@@ -623,14 +625,30 @@ class LofiPipelineWorker:
             raise
 
     def _resolve_image_path(self, session: LofiSession) -> Optional[Path]:
-        """Resolve the background image path."""
+        """Resolve the background image path.
+
+        Priority:
+        1. Explicit image_path in session config
+        2. Random approved image from pool matching session theme
+        3. Random approved image from pool (any theme)
+        4. Legacy fallback: first file in lofi_images_dir
+        """
         if session.visual_config.image_path:
             path = Path(session.visual_config.image_path)
             if path.is_absolute():
                 return path
-            # Try relative to lofi_images_dir
             return settings.lofi_images_dir / session.visual_config.image_path
-        # Default: first image in lofi_images_dir
+
+        # Try image pool
+        if self.image_pool:
+            theme = session.music_config.theme
+            img = self.image_pool.get_random_approved(theme)
+            if not img:
+                img = self.image_pool.get_random_approved(None)
+            if img:
+                return settings.lofi_images_dir / img.filename
+
+        # Legacy fallback
         images_dir = settings.lofi_images_dir
         if images_dir.exists():
             for ext in ("*.jpg", "*.jpeg", "*.png"):

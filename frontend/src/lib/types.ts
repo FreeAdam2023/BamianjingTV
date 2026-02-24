@@ -1073,3 +1073,31 @@ export interface LofiImageInfo {
   width: number | null;
   height: number | null;
 }
+
+// ============ Lofi Image Pool Types ============
+
+export type ImageSource = "upload" | "ai_generated" | "pixabay";
+export type ImageStatus = "pending" | "approved" | "rejected";
+
+export interface LofiPoolImage {
+  id: string;
+  filename: string;
+  source: ImageSource;
+  status: ImageStatus;
+  themes: LofiTheme[];
+  prompt: string | null;
+  pixabay_id: string | null;
+  pixabay_url: string | null;
+  width: number | null;
+  height: number | null;
+  created_at: string;
+}
+
+export interface PixabayResult {
+  id: string;
+  preview_url: string;
+  large_url: string;
+  tags: string;
+  width: number;
+  height: number;
+}

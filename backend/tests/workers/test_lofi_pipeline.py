@@ -389,6 +389,87 @@ class TestResolveImagePath:
             result = worker._resolve_image_path(session)
         assert result is None
 
+    def test_pool_theme_match(self, mock_session_manager, mock_music_generator, temp_dir):
+        """When image_pool has approved images matching theme, use them."""
+        from app.models.lofi import ImageSource, ImageStatus, LofiPoolImage
+
+        mock_pool = MagicMock()
+        approved_img = LofiPoolImage(
+            filename="jazz_bg.jpg",
+            source=ImageSource.UPLOAD,
+            status=ImageStatus.APPROVED,
+            themes=[LofiTheme.JAZZ],
+        )
+        mock_pool.get_random_approved.return_value = approved_img
+
+        worker_with_pool = LofiPipelineWorker(
+            session_manager=mock_session_manager,
+            music_generator=mock_music_generator,
+            image_pool=mock_pool,
+        )
+        session = _make_session(
+            music_config=MusicConfig(theme=LofiTheme.JAZZ),
+            visual_config=VisualConfig(image_path=None),
+        )
+
+        with patch("app.workers.lofi_pipeline.settings") as mock_settings:
+            mock_settings.lofi_images_dir = temp_dir
+            result = worker_with_pool._resolve_image_path(session)
+
+        assert result is not None
+        assert result.name == "jazz_bg.jpg"
+        mock_pool.get_random_approved.assert_called_once_with(LofiTheme.JAZZ)
+
+    def test_pool_fallback_any_theme(self, mock_session_manager, mock_music_generator, temp_dir):
+        """When no theme match, fall back to any approved image."""
+        from app.models.lofi import ImageSource, ImageStatus, LofiPoolImage
+
+        fallback_img = LofiPoolImage(
+            filename="generic.jpg",
+            source=ImageSource.UPLOAD,
+            status=ImageStatus.APPROVED,
+        )
+
+        mock_pool = MagicMock()
+        # First call (with theme) returns None, second (without) returns fallback
+        mock_pool.get_random_approved.side_effect = [None, fallback_img]
+
+        worker_with_pool = LofiPipelineWorker(
+            session_manager=mock_session_manager,
+            music_generator=mock_music_generator,
+            image_pool=mock_pool,
+        )
+        session = _make_session(
+            visual_config=VisualConfig(image_path=None),
+        )
+
+        with patch("app.workers.lofi_pipeline.settings") as mock_settings:
+            mock_settings.lofi_images_dir = temp_dir
+            result = worker_with_pool._resolve_image_path(session)
+
+        assert result is not None
+        assert result.name == "generic.jpg"
+        assert mock_pool.get_random_approved.call_count == 2
+
+    def test_explicit_path_overrides_pool(self, mock_session_manager, mock_music_generator, temp_dir):
+        """Explicit image_path should be used even when pool is available."""
+        mock_pool = MagicMock()
+        worker_with_pool = LofiPipelineWorker(
+            session_manager=mock_session_manager,
+            music_generator=mock_music_generator,
+            image_pool=mock_pool,
+        )
+        session = _make_session(
+            visual_config=VisualConfig(image_path="custom.jpg"),
+        )
+
+        with patch("app.workers.lofi_pipeline.settings") as mock_settings:
+            mock_settings.lofi_images_dir = temp_dir
+            result = worker_with_pool._resolve_image_path(session)
+
+        assert result.name == "custom.jpg"
+        mock_pool.get_random_approved.assert_not_called()
+
 
 class TestTryNvenc:
     def test_replaces_codec(self, worker):

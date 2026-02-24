@@ -8,6 +8,20 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 
+class ImageSource(str, Enum):
+    """Source of a pool image."""
+    UPLOAD = "upload"
+    AI_GENERATED = "ai_generated"
+    PIXABAY = "pixabay"
+
+
+class ImageStatus(str, Enum):
+    """Approval status of a pool image."""
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
 class LofiSessionStatus(str, Enum):
     """Status of a lofi session."""
     PENDING = "pending"
@@ -73,6 +87,21 @@ class LofiTheme(str, Enum):
             "guitar": "Guitar",
         }
         return labels[self.value]
+
+
+class LofiPoolImage(BaseModel):
+    """A background image in the lofi image pool."""
+    id: str = Field(default_factory=lambda: uuid4().hex[:12])
+    filename: str
+    source: ImageSource
+    status: ImageStatus = ImageStatus.PENDING
+    themes: List[LofiTheme] = Field(default_factory=list)
+    prompt: Optional[str] = None
+    pixabay_id: Optional[str] = None
+    pixabay_url: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    created_at: datetime = Field(default_factory=datetime.now)
 
 
 class VisualMode(str, Enum):

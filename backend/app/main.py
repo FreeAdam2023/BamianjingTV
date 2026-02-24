@@ -97,6 +97,7 @@ from app.api import (
     lofi_router,
     set_lofi_session_manager,
     set_lofi_pipeline_worker,
+    set_lofi_image_pool,
 )
 
 
@@ -269,22 +270,29 @@ async def lifespan(app: FastAPI):
 
     logger.info("Initialized Virtual Studio manager")
 
-    # ========== Lofi: Initialize lofi session manager and pipeline worker ==========
+    # ========== Lofi: Initialize lofi session manager, image pool, and pipeline worker ==========
     from app.services.lofi_manager import LofiSessionManager
+    from app.services.lofi_image_pool import LofiImagePool
     from app.workers.lofi_pipeline import LofiPipelineWorker
 
     lofi_session_manager = LofiSessionManager()
     set_lofi_session_manager(lofi_session_manager)
+
+    lofi_image_pool = LofiImagePool()
+    lofi_image_pool.sync_from_disk()
+    set_lofi_image_pool(lofi_image_pool)
 
     lofi_pipeline_worker = LofiPipelineWorker(
         session_manager=lofi_session_manager,
         music_generator=music_generator,
         ambient_library=ambient_library,
         youtube_worker=youtube_worker,
+        image_pool=lofi_image_pool,
     )
     set_lofi_pipeline_worker(lofi_pipeline_worker)
 
-    logger.info(f"Initialized Lofi: {lofi_session_manager.get_stats()['total']} sessions")
+    pool_stats = len(lofi_image_pool.list_images())
+    logger.info(f"Initialized Lofi: {lofi_session_manager.get_stats()['total']} sessions, {pool_stats} pool images")
 
     # v2: Get WebSocket connection manager
     ws_manager = get_connection_manager()

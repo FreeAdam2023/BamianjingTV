@@ -8,8 +8,16 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.api.lofi import router, set_lofi_session_manager, set_lofi_pipeline_worker
+from app.api.lofi import (
+    router,
+    set_lofi_session_manager,
+    set_lofi_pipeline_worker,
+    set_lofi_image_pool,
+)
 from app.models.lofi import (
+    ImageSource,
+    ImageStatus,
+    LofiPoolImage,
     LofiSession,
     LofiSessionStatus,
     LofiTheme,
@@ -17,6 +25,7 @@ from app.models.lofi import (
     VisualConfig,
 )
 from app.services.lofi_manager import LofiSessionManager
+from app.services.lofi_image_pool import LofiImagePool
 from app.workers.lofi_pipeline import LofiPipelineWorker
 
 
@@ -50,11 +59,21 @@ def pipeline_worker():
 
 
 @pytest.fixture
-def client(session_manager, pipeline_worker):
+def image_pool(temp_dir):
+    images_dir = temp_dir / "lofi_images"
+    images_dir.mkdir()
+    with patch("app.services.lofi_image_pool.get_config") as mock_config:
+        mock_config.return_value.lofi_images_dir = images_dir
+        return LofiImagePool()
+
+
+@pytest.fixture
+def client(session_manager, pipeline_worker, image_pool):
     app = FastAPI()
     app.include_router(router)
     set_lofi_session_manager(session_manager)
     set_lofi_pipeline_worker(pipeline_worker)
+    set_lofi_image_pool(image_pool)
     return TestClient(app)
 
 
@@ -108,20 +127,16 @@ class TestListSessions:
         assert len(data) == 2
 
     def test_filter_by_status(self, client, session_manager):
-        # Create a pending session
         client.post("/lofi/sessions", json={})
-        # Create another and manually set to awaiting_review
         resp = client.post("/lofi/sessions", json={"theme": "jazz"})
         session_id = resp.json()["id"]
         session_manager.update_session(session_id, status=LofiSessionStatus.AWAITING_REVIEW)
 
-        # Filter pending only
         resp = client.get("/lofi/sessions?status=pending")
         data = resp.json()
         assert len(data) == 1
         assert data[0]["status"] == "pending"
 
-        # Filter awaiting_review
         resp = client.get("/lofi/sessions?status=awaiting_review")
         data = resp.json()
         assert len(data) == 1
@@ -170,7 +185,7 @@ class TestUpdateSession:
         assert resp.status_code == 200
         data = resp.json()
         assert data["metadata"]["title"] == "Just Title"
-        assert data["metadata"]["description"] == ""  # unchanged
+        assert data["metadata"]["description"] == ""
 
     def test_not_found(self, client):
         resp = client.patch("/lofi/sessions/nonexistent", json={"title": "X"})
@@ -186,7 +201,6 @@ class TestDeleteSession:
         assert resp.status_code == 200
         assert resp.json()["session_id"] == session_id
 
-        # Verify gone
         resp = client.get(f"/lofi/sessions/{session_id}")
         assert resp.status_code == 404
 
@@ -291,9 +305,8 @@ class TestMediaEndpoints:
         resp = client.post("/lofi/sessions", json={})
         session_id = resp.json()["id"]
 
-        # Create a fake audio file
         audio_path = temp_dir / "audio.wav"
-        audio_path.write_bytes(b"RIFF" + b"\x00" * 100)  # Minimal WAV header
+        audio_path.write_bytes(b"RIFF" + b"\x00" * 100)
         session_manager.update_session(session_id, final_audio_path=str(audio_path))
 
         resp = client.get(f"/lofi/sessions/{session_id}/audio")
@@ -319,32 +332,66 @@ class TestListThemes:
         assert "musicgen_prompt" in theme
 
 
-class TestListImages:
-    def test_empty_dir(self, client):
-        with patch("app.api.lofi.settings") as mock_settings:
-            mock_settings.lofi_images_dir = Path("/nonexistent")
-            resp = client.get("/lofi/images")
+# ============ Image Pool Endpoint Tests ============
+
+
+class TestListPoolImages:
+    def test_empty(self, client):
+        resp = client.get("/lofi/images")
         assert resp.status_code == 200
         assert resp.json() == []
 
-    def test_with_images(self, client, temp_dir):
-        images_dir = temp_dir / "images"
-        images_dir.mkdir()
-        (images_dir / "cozy.jpg").write_bytes(b"fake")
-        (images_dir / "rainy.png").write_bytes(b"fake")
+    def test_returns_images(self, client, image_pool):
+        img = LofiPoolImage(filename="test.jpg", source=ImageSource.UPLOAD)
+        image_pool.add_image(img)
 
-        with patch("app.api.lofi.settings") as mock_settings:
-            mock_settings.lofi_images_dir = images_dir
-            resp = client.get("/lofi/images")
+        resp = client.get("/lofi/images")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data) == 2
+        assert len(data) == 1
+        assert data[0]["id"] == img.id
+        assert data[0]["source"] == "upload"
+
+    def test_filter_by_status(self, client, image_pool):
+        img1 = LofiPoolImage(filename="a.jpg", source=ImageSource.UPLOAD, status=ImageStatus.PENDING)
+        img2 = LofiPoolImage(filename="b.jpg", source=ImageSource.UPLOAD, status=ImageStatus.APPROVED)
+        image_pool.add_image(img1)
+        image_pool.add_image(img2)
+
+        resp = client.get("/lofi/images?status=approved")
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["status"] == "approved"
+
+    def test_filter_by_theme(self, client, image_pool):
+        img = LofiPoolImage(filename="a.jpg", source=ImageSource.UPLOAD, themes=[LofiTheme.JAZZ])
+        image_pool.add_image(img)
+
+        resp = client.get("/lofi/images?theme=jazz")
+        assert len(resp.json()) == 1
+
+        resp = client.get("/lofi/images?theme=rain")
+        assert len(resp.json()) == 0
 
 
-class TestUploadImage:
-    def test_success(self, client, temp_dir):
-        images_dir = temp_dir / "images"
-        images_dir.mkdir()
+class TestGetPoolImage:
+    def test_existing(self, client, image_pool):
+        img = LofiPoolImage(filename="test.jpg", source=ImageSource.UPLOAD)
+        image_pool.add_image(img)
+
+        resp = client.get(f"/lofi/images/{img.id}")
+        assert resp.status_code == 200
+        assert resp.json()["id"] == img.id
+
+    def test_not_found(self, client):
+        resp = client.get("/lofi/images/nonexistent")
+        assert resp.status_code == 404
+
+
+class TestUploadPoolImage:
+    def test_success(self, client, image_pool, temp_dir):
+        images_dir = temp_dir / "lofi_images"
+        images_dir.mkdir(exist_ok=True)
 
         with patch("app.api.lofi.settings") as mock_settings:
             mock_settings.lofi_images_dir = images_dir
@@ -354,12 +401,13 @@ class TestUploadImage:
             )
         assert resp.status_code == 200
         data = resp.json()
-        assert data["name"] == "test"
-        assert (images_dir / "test.jpg").exists()
+        assert data["filename"] == "test.jpg"
+        assert data["source"] == "upload"
+        assert data["status"] == "pending"
 
     def test_non_image_rejected(self, client, temp_dir):
-        images_dir = temp_dir / "images"
-        images_dir.mkdir()
+        images_dir = temp_dir / "lofi_images"
+        images_dir.mkdir(exist_ok=True)
 
         with patch("app.api.lofi.settings") as mock_settings:
             mock_settings.lofi_images_dir = images_dir
@@ -370,12 +418,153 @@ class TestUploadImage:
         assert resp.status_code == 400
 
 
+class TestGeneratePoolImage:
+    def test_success(self, client, image_pool, temp_dir):
+        images_dir = temp_dir / "lofi_images"
+        images_dir.mkdir(exist_ok=True)
+        fake_path = images_dir / "ai_jazz_test.png"
+        fake_path.write_bytes(b"fake")
+
+        with patch("app.workers.image_generator.generate_lofi_image", new_callable=AsyncMock, return_value=fake_path):
+            resp = client.post("/lofi/images/generate", json={
+                "theme": "jazz",
+                "custom_prompt": "beautiful jazz bar",
+            })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["source"] == "ai_generated"
+        assert data["themes"] == ["jazz"]
+
+    def test_no_model_configured(self, client):
+        with patch("app.workers.image_generator.generate_lofi_image", new_callable=AsyncMock, side_effect=ValueError("image_model not configured")):
+            resp = client.post("/lofi/images/generate", json={"theme": "jazz"})
+        assert resp.status_code == 400
+
+
+class TestSearchPixabay:
+    def test_success(self, client):
+        mock_results = [
+            {"id": "123", "preview_url": "https://test.com/preview.jpg", "large_url": "https://test.com/large.jpg", "tags": "cozy", "width": 3840, "height": 2160},
+        ]
+        with patch("app.workers.pixabay_search.search_pixabay", new_callable=AsyncMock, return_value=mock_results):
+            resp = client.post("/lofi/images/search-pixabay", json={"query": "cozy room"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["id"] == "123"
+
+    def test_no_api_key(self, client):
+        with patch("app.workers.pixabay_search.search_pixabay", new_callable=AsyncMock, side_effect=ValueError("PIXABAY_API_KEY not configured")):
+            resp = client.post("/lofi/images/search-pixabay", json={"query": "test"})
+        assert resp.status_code == 400
+
+
+class TestImportPixabay:
+    def test_success(self, client, image_pool, temp_dir):
+        images_dir = temp_dir / "lofi_images"
+        images_dir.mkdir(exist_ok=True)
+        fake_path = images_dir / "pixabay_123_abc.jpg"
+        fake_path.write_bytes(b"fake")
+
+        with patch("app.workers.pixabay_search.download_pixabay_image", new_callable=AsyncMock, return_value=fake_path):
+            resp = client.post("/lofi/images/import-pixabay", json={
+                "pixabay_id": "123",
+                "url": "https://pixabay.com/large_123.jpg",
+                "themes": ["jazz"],
+            })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["source"] == "pixabay"
+        assert data["pixabay_id"] == "123"
+        assert data["themes"] == ["jazz"]
+
+
+class TestUpdateImageStatus:
+    def test_approve(self, client, image_pool):
+        img = LofiPoolImage(filename="test.jpg", source=ImageSource.UPLOAD)
+        image_pool.add_image(img)
+
+        resp = client.patch(f"/lofi/images/{img.id}/status", json={"status": "approved"})
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "approved"
+
+    def test_reject(self, client, image_pool):
+        img = LofiPoolImage(filename="test.jpg", source=ImageSource.UPLOAD)
+        image_pool.add_image(img)
+
+        resp = client.patch(f"/lofi/images/{img.id}/status", json={"status": "rejected"})
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "rejected"
+
+    def test_not_found(self, client):
+        resp = client.patch("/lofi/images/nonexistent/status", json={"status": "approved"})
+        assert resp.status_code == 404
+
+
+class TestUpdateImageThemes:
+    def test_update(self, client, image_pool):
+        img = LofiPoolImage(filename="test.jpg", source=ImageSource.UPLOAD)
+        image_pool.add_image(img)
+
+        resp = client.patch(f"/lofi/images/{img.id}/themes", json={"themes": ["jazz", "piano"]})
+        assert resp.status_code == 200
+        assert resp.json()["themes"] == ["jazz", "piano"]
+
+    def test_not_found(self, client):
+        resp = client.patch("/lofi/images/nonexistent/themes", json={"themes": []})
+        assert resp.status_code == 404
+
+
+class TestDeletePoolImage:
+    def test_success(self, client, image_pool):
+        img = LofiPoolImage(filename="test.jpg", source=ImageSource.UPLOAD)
+        image_pool.add_image(img)
+
+        resp = client.delete(f"/lofi/images/{img.id}")
+        assert resp.status_code == 200
+        assert resp.json()["image_id"] == img.id
+
+    def test_not_found(self, client):
+        resp = client.delete("/lofi/images/nonexistent")
+        assert resp.status_code == 404
+
+
+class TestGetImageFile:
+    def test_success(self, client, image_pool, temp_dir):
+        images_dir = temp_dir / "lofi_images"
+        (images_dir / "test.jpg").write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 100)
+        img = LofiPoolImage(filename="test.jpg", source=ImageSource.UPLOAD)
+        image_pool.add_image(img)
+
+        with patch("app.api.lofi.settings") as mock_settings:
+            mock_settings.lofi_images_dir = images_dir
+            resp = client.get(f"/lofi/images/{img.id}/file")
+        assert resp.status_code == 200
+
+    def test_not_found(self, client):
+        resp = client.get("/lofi/images/nonexistent/file")
+        assert resp.status_code == 404
+
+
+class TestSyncImages:
+    def test_sync(self, client, image_pool, temp_dir):
+        images_dir = temp_dir / "lofi_images"
+        (images_dir / "new1.jpg").write_bytes(b"fake")
+        (images_dir / "new2.png").write_bytes(b"fake")
+
+        resp = client.post("/lofi/images/sync")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["added"] == 2
+
+
 class TestManagerNotInitialized:
     def test_503_on_list(self):
         app = FastAPI()
         app.include_router(router)
         set_lofi_session_manager(None)
         set_lofi_pipeline_worker(None)
+        set_lofi_image_pool(None)
         c = TestClient(app)
         resp = c.get("/lofi/sessions")
         assert resp.status_code == 503
@@ -395,4 +584,12 @@ class TestManagerNotInitialized:
         set_lofi_pipeline_worker(None)
         c = TestClient(app)
         resp = c.post("/lofi/sessions/test/generate")
+        assert resp.status_code == 503
+
+    def test_503_on_pool_images(self):
+        app = FastAPI()
+        app.include_router(router)
+        set_lofi_image_pool(None)
+        c = TestClient(app)
+        resp = c.get("/lofi/images")
         assert resp.status_code == 503

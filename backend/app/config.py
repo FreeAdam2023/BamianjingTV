@@ -118,6 +118,9 @@ class Settings(BaseSettings):
     # OpenAI: "dall-e-3"
     image_model: str = ""  # Empty = disabled by default
 
+    # Pixabay API settings (for lofi background image search)
+    pixabay_api_key: str = ""  # Free API key from pixabay.com
+
     # Legacy Azure settings (only used if llm_base_url contains "azure")
     azure_api_version: str = "2024-12-01-preview"
     azure_deployment: str = ""
