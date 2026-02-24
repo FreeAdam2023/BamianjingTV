@@ -119,16 +119,13 @@ async def process_job(
                     Path(subtitle_path)
                 )
 
-                # Parse Chinese subtitles if bilingual
+                # Always use LLM for translation — skip YouTube Chinese subtitles
+                # even if bilingual YouTube subs are available
                 if download_result.get("has_bilingual_youtube_subs"):
-                    zh_path = download_result.get("zh_subtitle_path")
-                    if zh_path and Path(zh_path).exists():
-                        zh_segments = await download_worker.parse_youtube_subtitles(
-                            Path(zh_path)
-                        )
-                        logger.info(
-                            f"Parsed {len(zh_segments)} Chinese subtitle segments for job {job_id}"
-                        )
+                    logger.info(
+                        f"Bilingual YouTube subs available for job {job_id}, "
+                        "but using LLM translation as default"
+                    )
 
                 # Convert to DiarizedTranscript format
                 diarized_transcript = DiarizedTranscript(
