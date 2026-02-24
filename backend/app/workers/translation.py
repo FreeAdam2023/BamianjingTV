@@ -217,11 +217,12 @@ class TranslationWorker:
         self.client = None
 
     def _should_use_azure(self, target_language: str) -> bool:
-        """Check if Azure Translator should be used for this language."""
-        return (
-            target_language in AZURE_SUPPORTED_LANGUAGES
-            and azure_translator.is_available()
-        )
+        """Check if Azure Translator should be used for this language.
+
+        Disabled: always use Grok LLM for translation to avoid
+        content safety filtering issues with Azure Translator.
+        """
+        return False
 
     def _get_translation_prompt(self, target_language: str = "zh-TW") -> str:
         """Get the translation prompt for the target language.
