@@ -82,11 +82,16 @@ async def process_job(
         use_youtube_subs = getattr(job, "subtitle_source", "whisper") in ("youtube", "youtube_auto")
         prefer_auto = getattr(job, "subtitle_source", "whisper") == "youtube_auto"
 
+        # Use source language for subtitle download (default: "en")
+        src_lang = getattr(job, "source_language", "en") or "en"
+        subtitle_langs = [src_lang] if src_lang != "auto" else ["en"]
+
         download_result = await download_worker.download(
             url=job.url,
             output_dir=job_dir,
             fetch_subtitles=use_youtube_subs,
             prefer_auto_subs=prefer_auto,
+            subtitle_langs=subtitle_langs,
         )
 
         job.source_video = download_result["video_path"]
@@ -177,8 +182,13 @@ async def process_job(
                 transcript = load_json_model(raw_path, Transcript)
             else:
                 await job_manager.update_status(job, JobStatus.TRANSCRIBING, 0.30)
+                # Use user-selected source language; auto-detect only if "auto"
+                whisper_lang = getattr(job, "source_language", "en") or "en"
+                if whisper_lang == "auto":
+                    whisper_lang = None  # Let Whisper auto-detect
                 transcript = await whisper_worker.transcribe(
                     audio_path=Path(job.source_audio),
+                    language=whisper_lang,
                     model_name=getattr(job, "whisper_model", None),
                 )
                 await whisper_worker.save_transcript(transcript, raw_path)

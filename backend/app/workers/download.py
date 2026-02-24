@@ -77,24 +77,34 @@ class DownloadWorker:
             auto_subs = info.get("automatic_captions", {})
 
             # Check for manual (human-uploaded) subtitles first
+            # Use prefix matching to handle variants like en-US, en-GB, etc.
             for lang in subtitle_langs:
-                if lang in available_subs:
-                    logger.info(f"Found manual subtitles for language: {lang}")
+                matched = [k for k in available_subs if k == lang or k.startswith(f"{lang}-")]
+                if matched:
+                    logger.info(f"Found manual subtitles for language: {lang} (matched: {matched})")
                     has_subtitles = True
                     break
 
             # If no manual subs found and auto subs requested, accept auto-generated
             if not has_subtitles and prefer_auto_subs:
-                auto_langs = [l for l in subtitle_langs if l in auto_subs]
-                if auto_langs:
-                    logger.info(f"Using auto-generated subtitles ({auto_langs}) as requested")
+                auto_matched = [
+                    k for k in auto_subs
+                    for lang in subtitle_langs
+                    if k == lang or k.startswith(f"{lang}-")
+                ]
+                if auto_matched:
+                    logger.info(f"Using auto-generated subtitles ({auto_matched}) as requested")
                     has_subtitles = True
                 else:
                     logger.info("No subtitles found for requested languages")
             elif not has_subtitles:
-                auto_langs = [l for l in subtitle_langs if l in auto_subs]
-                if auto_langs:
-                    logger.info(f"Only auto-generated subtitles found ({auto_langs}), preferring Whisper")
+                auto_matched = [
+                    k for k in auto_subs
+                    for lang in subtitle_langs
+                    if k == lang or k.startswith(f"{lang}-")
+                ]
+                if auto_matched:
+                    logger.info(f"Only auto-generated subtitles found ({auto_matched}), preferring Whisper")
                 else:
                     logger.info("No subtitles found for requested languages")
 
@@ -343,11 +353,16 @@ class DownloadWorker:
         for write_auto in attempts:
             subtitle_path = output_dir / "subtitle.en.vtt"
 
+            # Use wildcard patterns to match language variants (en, en-US, en-GB, etc.)
+            sub_lang_patterns = []
+            for lang in langs:
+                sub_lang_patterns.append(lang)
+                sub_lang_patterns.append(f"{lang}-*")
             cmd = [
                 "yt-dlp",
                 "--skip-download",
                 "--sub-format", "vtt",
-                "--sub-langs", ",".join(langs),
+                "--sub-langs", ",".join(sub_lang_patterns),
                 "-o", str(output_dir / "subtitle"),
             ]
 
@@ -361,11 +376,16 @@ class DownloadWorker:
             result = subprocess.run(cmd, capture_output=True, text=True)
 
             # Check for downloaded subtitle file (yt-dlp adds language suffix)
+            # Match exact lang and variants like en-US, en-GB, etc.
+            import glob as glob_mod
             for lang in langs:
                 possible_paths = [
                     output_dir / f"subtitle.{lang}.vtt",
-                    output_dir / f"subtitle.{lang.split('-')[0]}.vtt",
                 ]
+                # Also glob for variants like subtitle.en-US.vtt
+                possible_paths.extend(
+                    Path(p) for p in glob_mod.glob(str(output_dir / f"subtitle.{lang}-*.vtt"))
+                )
                 for path in possible_paths:
                     if path.exists():
                         # Rename to standard name

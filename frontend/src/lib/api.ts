@@ -548,6 +548,7 @@ export async function probeSubtitles(url: string): Promise<ProbeSubtitlesRespons
 export interface JobUploadOptions {
   file: File;
   mode?: string;
+  source_language?: string;
   target_language?: string;
   skip_diarization?: boolean;
   whisper_model?: string;
@@ -567,6 +568,7 @@ export async function createJobWithUpload(
   const formData = new FormData();
   formData.append("file", options.file);
   formData.append("mode", options.mode || "learning");
+  formData.append("source_language", options.source_language || "en");
   formData.append("target_language", options.target_language || "zh-CN");
   formData.append("skip_diarization", String(options.skip_diarization ?? true));
   formData.append("whisper_model", options.whisper_model || "large-v3");

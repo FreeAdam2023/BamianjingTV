@@ -102,6 +102,7 @@ class JobCreate(BaseModel):
 
     url: str = Field(..., description="Video URL")
     mode: JobMode = Field(default=JobMode.LEARNING, description="Processing mode")
+    source_language: str = Field(default="en", description="Source language code (en, zh, ja, auto, etc.). 'auto' for Whisper auto-detection.")
     target_language: str = Field(default="zh-TW", description="Target language code (zh-TW, zh-CN, ja, ko, etc.)")
     use_traditional_chinese: bool = Field(
         default=True, description="Use Traditional Chinese for subtitles (derived from target_language)"
@@ -245,6 +246,9 @@ class Job(BaseModel):
     )
     whisper_model: str = Field(
         default="large-v3", description="Whisper model size"
+    )
+    source_language: str = Field(
+        default="en", description="Source language code (en, zh, ja, auto)"
     )
     subtitle_source: str = Field(
         default="whisper", description="Transcription source used"

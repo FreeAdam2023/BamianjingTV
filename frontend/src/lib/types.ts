@@ -316,6 +316,7 @@ export interface ProbeSubtitlesResponse {
 export interface JobCreate {
   url: string;
   mode?: JobMode;
+  source_language?: string;
   target_language?: string;
   use_traditional_chinese?: boolean;
   skip_diarization?: boolean;

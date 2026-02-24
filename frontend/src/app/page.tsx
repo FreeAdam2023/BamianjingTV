@@ -155,6 +155,7 @@ export default function Home() {
       const effectiveTargetLang = targetLanguage;
 
       const jobOptions: Partial<JobCreate> = {
+        source_language: sourceLanguage,
         target_language: effectiveTargetLang,
         skip_diarization: !enableDiarization,
         whisper_model: whisperModel,
@@ -170,6 +171,7 @@ export default function Home() {
         await createJobWithUpload(
           {
             file: uploadFile!,
+            source_language: sourceLanguage,
             target_language: effectiveTargetLang,
             skip_diarization: !enableDiarization,
             whisper_model: whisperModel,

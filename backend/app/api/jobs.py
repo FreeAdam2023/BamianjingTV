@@ -119,6 +119,7 @@ async def create_job(
     job.use_traditional_chinese = job_create.use_traditional_chinese
     job.skip_diarization = job_create.skip_diarization
     job.whisper_model = job_create.whisper_model
+    job.source_language = job_create.source_language
     job.subtitle_source = job_create.subtitle_source
     _job_manager.save_job(job)
 
@@ -138,6 +139,7 @@ async def create_job(
 async def create_job_with_upload(
     file: UploadFile = File(...),
     mode: str = Form("learning"),
+    source_language: str = Form("en"),
     target_language: str = Form("zh-TW"),
     skip_diarization: bool = Form(True),
     whisper_model: str = Form("large-v3"),
@@ -208,6 +210,7 @@ async def create_job_with_upload(
 
     # Set mode and options
     job.mode = JobMode(mode)
+    job.source_language = source_language
     job.skip_diarization = skip_diarization
     job.whisper_model = whisper_model
     job.use_traditional_chinese = target_language.startswith("zh-TW")
