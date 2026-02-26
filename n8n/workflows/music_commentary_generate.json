@@ -1,0 +1,130 @@
+{
+  "name": "Music Commentary Daily Generate",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 3 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Daily 3AM Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "id": "schedule-trigger-mc"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_URL || 'http://localhost:8001' }}/music-commentary/sessions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"url\": \"{{ $json.url || '' }}\",\n  \"genre\": \"pop\",\n  \"difficulty\": \"intermediate\",\n  \"target_duration\": 240,\n  \"max_lyrics_lines\": 12,\n  \"triggered_by\": \"n8n\"\n}",
+        "options": {}
+      },
+      "name": "Create MC Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300],
+      "id": "http-create-mc-session"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_URL || 'http://localhost:8001' }}/music-commentary/sessions/{{ $json.id }}/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Start Generation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 300],
+      "id": "http-start-mc-generation"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "log-mc-1",
+              "name": "message",
+              "value": "=Music commentary session {{ $('Create MC Session').item.json.id }} created and generation started",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Log Success",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [960, 300],
+      "id": "set-mc-log"
+    }
+  ],
+  "connections": {
+    "Daily 3AM Trigger": {
+      "main": [
+        [
+          {
+            "node": "Create MC Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create MC Session": {
+      "main": [
+        [
+          {
+            "node": "Start Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Generation": {
+      "main": [
+        [
+          {
+            "node": "Log Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "music_commentary"
+    }
+  ]
+}

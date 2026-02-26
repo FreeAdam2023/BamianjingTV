@@ -73,6 +73,11 @@ from .lofi import (
     set_lofi_pipeline_worker,
     set_lofi_image_pool,
 )
+from .music_commentary import (
+    router as music_commentary_router,
+    set_mc_session_manager,
+    set_mc_pipeline_worker,
+)
 
 __all__ = [
     # v2 Routers
@@ -149,4 +154,8 @@ __all__ = [
     "set_lofi_session_manager",
     "set_lofi_pipeline_worker",
     "set_lofi_image_pool",
+    # Music Commentary Router and Setup functions
+    "music_commentary_router",
+    "set_mc_session_manager",
+    "set_mc_pipeline_worker",
 ]

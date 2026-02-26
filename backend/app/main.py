@@ -98,6 +98,10 @@ from app.api import (
     set_lofi_session_manager,
     set_lofi_pipeline_worker,
     set_lofi_image_pool,
+    # Music Commentary setup functions
+    music_commentary_router,
+    set_mc_session_manager,
+    set_mc_pipeline_worker,
 )
 
 
@@ -294,6 +298,26 @@ async def lifespan(app: FastAPI):
     pool_stats = len(lofi_image_pool.list_images())
     logger.info(f"Initialized Lofi: {lofi_session_manager.get_stats()['total']} sessions, {pool_stats} pool images")
 
+    # ========== Music Commentary: Initialize session manager and pipeline worker ==========
+    from app.services.music_commentary_manager import MusicCommentarySessionManager
+    from app.workers.music_commentary_pipeline import MusicCommentaryPipelineWorker
+
+    mc_session_manager = MusicCommentarySessionManager()
+    set_mc_session_manager(mc_session_manager)
+
+    mc_pipeline_worker = MusicCommentaryPipelineWorker(
+        session_manager=mc_session_manager,
+        download_worker=download_worker,
+        whisper_worker=whisper_worker,
+        translation_worker=translation_worker,
+        card_generator=card_generator,
+        youtube_worker=youtube_worker,
+        voice_clone_worker=voice_clone_worker,
+    )
+    set_mc_pipeline_worker(mc_pipeline_worker)
+
+    logger.info(f"Initialized Music Commentary: {mc_session_manager.get_stats()['total']} sessions")
+
     # v2: Get WebSocket connection manager
     ws_manager = get_connection_manager()
 
@@ -419,6 +443,7 @@ app.include_router(creative_router)
 app.include_router(music_router)
 app.include_router(studio_router)
 app.include_router(lofi_router)
+app.include_router(music_commentary_router)
 
 
 # ============ Root Endpoints ============

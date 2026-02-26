@@ -1101,3 +1101,142 @@ export interface PixabayResult {
   width: number;
   height: number;
 }
+
+// ============ Music Commentary Types ============
+
+export type MusicCommentaryStatus =
+  | "pending"
+  | "downloading"
+  | "transcribing"
+  | "translating"
+  | "annotating"
+  | "scripting"
+  | "generating_tts"
+  | "assembling_audio"
+  | "generating_visual"
+  | "generating_metadata"
+  | "awaiting_review"
+  | "publishing"
+  | "published"
+  | "failed";
+
+export type MusicGenre =
+  | "pop"
+  | "rock"
+  | "hip_hop"
+  | "rnb"
+  | "country"
+  | "indie"
+  | "electronic"
+  | "jazz"
+  | "classical"
+  | "other";
+
+export type DifficultyLevel = "beginner" | "intermediate" | "advanced";
+
+export interface SongConfig {
+  url: string;
+  title: string | null;
+  artist: string | null;
+  genre: MusicGenre;
+  highlight_start: number | null;
+  highlight_end: number | null;
+}
+
+export interface ScriptConfig {
+  narration_language: string;
+  difficulty: DifficultyLevel;
+  max_lyrics_lines: number;
+  target_duration: number;
+}
+
+export interface MCTTSConfig {
+  engine: string;
+  reference_audio: string | null;
+  speed: number;
+}
+
+export interface MCAudioMixConfig {
+  song_volume_during_narration: number;
+  song_volume_during_playback: number;
+  narration_volume: number;
+}
+
+export interface MCYouTubeMetadata {
+  title: string;
+  description: string;
+  tags: string[];
+  privacy_status: string;
+  category_id: string;
+}
+
+export interface LyricsExplanation {
+  lyric_en: string;
+  lyric_zh: string;
+  explanation: string;
+  vocabulary: string[];
+  start_time: number | null;
+  end_time: number | null;
+}
+
+export interface CommentaryScript {
+  hook_text: string;
+  background_text: string;
+  lyrics_explanations: LyricsExplanation[];
+  deep_dive_text: string;
+  outro_text: string;
+}
+
+export interface MusicCommentarySession {
+  id: string;
+  status: MusicCommentaryStatus;
+  progress: number;
+  error: string | null;
+  song_config: SongConfig;
+  script_config: ScriptConfig;
+  tts_config: MCTTSConfig;
+  audio_mix_config: MCAudioMixConfig;
+  metadata: MCYouTubeMetadata;
+  script: CommentaryScript | null;
+  source_audio_path: string | null;
+  source_video_path: string | null;
+  transcript_path: string | null;
+  translation_path: string | null;
+  annotations_path: string | null;
+  script_path: string | null;
+  tts_audio_path: string | null;
+  final_audio_path: string | null;
+  final_video_path: string | null;
+  thumbnail_path: string | null;
+  youtube_video_id: string | null;
+  youtube_url: string | null;
+  step_timings: Record<string, number>;
+  created_at: string;
+  updated_at: string;
+  triggered_by: string;
+}
+
+export interface MusicCommentarySessionCreate {
+  url: string;
+  title?: string;
+  artist?: string;
+  genre?: MusicGenre;
+  difficulty?: DifficultyLevel;
+  max_lyrics_lines?: number;
+  target_duration?: number;
+  highlight_start?: number;
+  highlight_end?: number;
+  triggered_by?: string;
+}
+
+export interface MusicCommentarySessionUpdate {
+  title?: string;
+  description?: string;
+  tags?: string[];
+  privacy_status?: string;
+}
+
+export interface MusicGenreInfo {
+  value: string;
+  label: string;
+}

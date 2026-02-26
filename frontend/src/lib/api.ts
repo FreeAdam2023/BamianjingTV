@@ -97,6 +97,12 @@ import type {
   ImageStatus,
   ImageSource,
   LofiTheme,
+  // Music Commentary
+  MusicCommentarySession,
+  MusicCommentarySessionCreate,
+  MusicCommentarySessionUpdate,
+  MusicCommentaryStatus,
+  MusicGenreInfo,
 } from "./types";
 
 // Get API URL: use env var or derive from current host with port 8001
@@ -2078,4 +2084,74 @@ export function getLofiImageFileUrl(imageId: string): string {
 
 export async function syncLofiImages(): Promise<{ added: number }> {
   return fetchAPI<{ added: number }>("/lofi/images/sync", { method: "POST" });
+}
+
+// ============ Music Commentary API ============
+
+export async function createMCSession(
+  request: MusicCommentarySessionCreate
+): Promise<MusicCommentarySession> {
+  return fetchAPI<MusicCommentarySession>("/music-commentary/sessions", {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
+}
+
+export async function listMCSessions(
+  status?: MusicCommentaryStatus
+): Promise<MusicCommentarySession[]> {
+  const params = status ? `?status=${status}` : "";
+  return fetchAPI<MusicCommentarySession[]>(`/music-commentary/sessions${params}`);
+}
+
+export async function getMCSession(sessionId: string): Promise<MusicCommentarySession> {
+  return fetchAPI<MusicCommentarySession>(`/music-commentary/sessions/${sessionId}`);
+}
+
+export async function updateMCSession(
+  sessionId: string,
+  update: MusicCommentarySessionUpdate
+): Promise<MusicCommentarySession> {
+  return fetchAPI<MusicCommentarySession>(`/music-commentary/sessions/${sessionId}`, {
+    method: "PATCH",
+    body: JSON.stringify(update),
+  });
+}
+
+export async function deleteMCSession(sessionId: string): Promise<void> {
+  await fetchAPI(`/music-commentary/sessions/${sessionId}`, { method: "DELETE" });
+}
+
+export async function startMCGeneration(sessionId: string): Promise<void> {
+  await fetchAPI(`/music-commentary/sessions/${sessionId}/generate`, {
+    method: "POST",
+  });
+}
+
+export async function publishMCSession(sessionId: string): Promise<void> {
+  await fetchAPI(`/music-commentary/sessions/${sessionId}/publish`, {
+    method: "POST",
+  });
+}
+
+export async function regenerateMCMetadata(sessionId: string): Promise<void> {
+  await fetchAPI(`/music-commentary/sessions/${sessionId}/regenerate-metadata`, {
+    method: "POST",
+  });
+}
+
+export function getMCAudioUrl(sessionId: string): string {
+  return `${API_BASE}/music-commentary/sessions/${sessionId}/audio`;
+}
+
+export function getMCVideoUrl(sessionId: string): string {
+  return `${API_BASE}/music-commentary/sessions/${sessionId}/video`;
+}
+
+export function getMCThumbnailUrl(sessionId: string): string {
+  return `${API_BASE}/music-commentary/sessions/${sessionId}/thumbnail`;
+}
+
+export async function listMCGenres(): Promise<MusicGenreInfo[]> {
+  return fetchAPI<MusicGenreInfo[]>("/music-commentary/genres");
 }

@@ -84,6 +84,11 @@ class Settings(BaseSettings):
         """Path to lofi background images directory."""
         return self.data_dir / "lofi_images"
 
+    @property
+    def music_commentary_dir(self) -> Path:
+        """Path to music commentary sessions directory."""
+        return self.data_dir / "music_commentary"
+
     # Music generation settings
     music_device: str = "cuda"
 
@@ -215,3 +220,4 @@ settings.music_dir.mkdir(parents=True, exist_ok=True)
 settings.ambient_dir.mkdir(parents=True, exist_ok=True)
 settings.lofi_dir.mkdir(parents=True, exist_ok=True)
 settings.lofi_images_dir.mkdir(parents=True, exist_ok=True)
+settings.music_commentary_dir.mkdir(parents=True, exist_ok=True)
