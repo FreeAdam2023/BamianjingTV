@@ -149,30 +149,30 @@ export default function MemoryBookList({ defaultBookId }: MemoryBookListProps) {
   }
 
   return (
-    <div className="h-full flex">
+    <div className="h-full flex flex-col md:flex-row">
       {/* Sidebar - Book List */}
-      <div className="w-64 border-r border-gray-700 flex flex-col">
-        <div className="p-4 border-b border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-100">记忆收藏夹</h2>
+      <div className="w-full md:w-64 border-b md:border-b-0 md:border-r border-gray-700 flex flex-col">
+        <div className="p-4 border-b border-gray-700 flex md:block items-center gap-3">
+          <h2 className="text-lg font-semibold text-gray-100 flex-shrink-0">记忆收藏夹</h2>
           <button
             onClick={() => setShowCreateDialog(true)}
-            className="mt-2 w-full px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 text-sm"
+            className="mt-0 md:mt-2 w-auto md:w-full px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 text-sm flex-shrink-0"
           >
             + 新建收藏夹
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex md:flex-col overflow-x-auto md:overflow-x-hidden overflow-y-hidden md:overflow-y-auto md:flex-1">
           {books.map((book) => (
             <div
               key={book.book_id}
               onClick={() => handleSelectBook(book.book_id)}
-              className={`p-3 cursor-pointer border-b border-gray-800 hover:bg-gray-800 transition-colors ${
+              className={`p-3 cursor-pointer border-b md:border-b border-gray-800 hover:bg-gray-800 transition-colors flex-shrink-0 md:flex-shrink ${
                 selectedBook?.book_id === book.book_id ? "bg-gray-800" : ""
               }`}
             >
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-gray-200">{book.name}</span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium text-gray-200 whitespace-nowrap md:whitespace-normal">{book.name}</span>
                 <span className="text-xs text-gray-500">{book.item_count}</span>
               </div>
             </div>

@@ -383,7 +383,7 @@ export default function MusicPage() {
     <div className="min-h-screen bg-[var(--background)]">
       {/* Header */}
       <header className="border-b border-[var(--border)] bg-[var(--card)]/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link
               href="/"
@@ -401,7 +401,7 @@ export default function MusicPage() {
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-8">
         {/* Generate Section */}
         <div className="card mb-8">
           <h2 className="text-lg font-semibold mb-4">生成音乐</h2>

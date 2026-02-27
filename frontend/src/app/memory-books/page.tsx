@@ -12,7 +12,7 @@ export default function MemoryBooksPage() {
     <div className="min-h-screen bg-[var(--background)]">
       {/* Header */}
       <header className="border-b border-[var(--border)] bg-[var(--card)]/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link
               href="/"
@@ -24,7 +24,7 @@ export default function MemoryBooksPage() {
             </Link>
             <h1 className="text-xl font-semibold text-gray-100">Memory Books</h1>
           </div>
-          <div className="flex items-center gap-2 text-sm text-gray-500">
+          <div className="hidden md:flex items-center gap-2 text-sm text-gray-500">
             <span>Collect words and entities while learning</span>
           </div>
         </div>

@@ -150,7 +150,7 @@ export default function DubbingPage() {
     <div className="min-h-screen bg-[var(--background)]">
       {/* Header */}
       <header className="border-b border-[var(--border)] bg-[var(--card)]/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link
               href={`/review/${timelineId}`}
@@ -169,7 +169,7 @@ export default function DubbingPage() {
       </header>
 
       {/* Main content */}
-      <main className="max-w-6xl mx-auto px-6 py-6">
+      <main className="max-w-6xl mx-auto px-4 md:px-6 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left column - Configuration */}
           <div className="lg:col-span-1 space-y-6">

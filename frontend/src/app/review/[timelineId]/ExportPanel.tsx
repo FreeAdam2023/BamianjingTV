@@ -299,7 +299,7 @@ export default function ExportPanel({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-gray-800 rounded-lg p-6 w-[520px] max-h-[90vh] overflow-y-auto relative">
+      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-[520px] mx-4 max-h-[90vh] overflow-y-auto relative">
         {/* Close button */}
         <button
           onClick={onClose}

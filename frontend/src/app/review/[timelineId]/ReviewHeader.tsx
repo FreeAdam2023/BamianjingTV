@@ -51,17 +51,17 @@ export default function ReviewHeader({
   onModeChange,
 }: ReviewHeaderProps) {
   return (
-    <header className="bg-gray-800 px-4 py-3 flex items-center justify-between">
-      <div className="flex items-center gap-4">
+    <header className="bg-gray-800 px-3 md:px-4 py-3 flex items-center justify-between">
+      <div className="flex items-center gap-2 md:gap-4">
         <Link href="/" className="text-gray-400 hover:text-white">
           &larr; 返回
         </Link>
-        <h1 className="text-lg font-medium truncate max-w-md">{title}</h1>
+        <h1 className="text-lg font-medium truncate max-w-[200px] md:max-w-md">{title}</h1>
         {saving && <span className="text-yellow-400 text-sm">保存中...</span>}
 
         {/* Creative mode toggle */}
         {onModeChange && (
-          <div className="flex items-center gap-1 ml-2">
+          <div className="hidden md:flex items-center gap-1 ml-2">
             <button
               onClick={() => onModeChange(false)}
               className={`px-3 py-1 text-sm rounded-lg transition-colors ${
@@ -90,7 +90,7 @@ export default function ReviewHeader({
 
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 md:gap-4">
         {/* Export Status Indicator */}
         {(exportStatus !== "idle" || forcePolling) && (
           <ExportStatusIndicator
@@ -105,7 +105,7 @@ export default function ReviewHeader({
 
         {/* Stats */}
         {stats && (
-          <div className="text-sm">
+          <div className="hidden md:block text-sm">
             <span className="text-green-400">{stats.keep} 保留</span>
             {" / "}
             <span className="text-red-400">{stats.drop} 丢弃</span>

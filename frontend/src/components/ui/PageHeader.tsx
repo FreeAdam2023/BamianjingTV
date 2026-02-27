@@ -40,7 +40,7 @@ export default function PageHeader({
 }: PageHeaderProps) {
   return (
     <header className="border-b border-[var(--border)] bg-[var(--card)]/50 backdrop-blur-sm sticky top-0 z-50">
-      <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div className="max-w-6xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           {/* Back button */}
           {backHref && (
@@ -76,7 +76,7 @@ export default function PageHeader({
 
           {/* Title & Subtitle */}
           <div>
-            <h1 className="text-xl font-bold">{title}</h1>
+            <h1 className="text-lg md:text-xl font-bold">{title}</h1>
             {subtitle && (
               <p className="text-xs text-gray-500">{subtitle}</p>
             )}
@@ -85,13 +85,13 @@ export default function PageHeader({
 
         {/* Actions */}
         {actions && (
-          <div className="flex items-center gap-3">{actions}</div>
+          <div className="flex items-center gap-2 md:gap-3">{actions}</div>
         )}
       </div>
 
       {/* Additional content */}
       {children && (
-        <div className="max-w-6xl mx-auto px-6 pb-4">{children}</div>
+        <div className="max-w-6xl mx-auto px-4 md:px-6 pb-4">{children}</div>
       )}
     </header>
   );

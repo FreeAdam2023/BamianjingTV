@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback } from "react";
 import { listTimelines, listJobs, getStats, formatDuration, createJob, createJobWithUpload, updateTimelineTitle, probeSubtitles } from "@/lib/api";
 import type { TimelineSummary, Job, JobCreate, WhisperModel, SubtitleSource, ProbeSubtitlesResponse } from "@/lib/types";
 import type { UploadProgress } from "@/lib/api";
+import MobileNav from "@/components/ui/MobileNav";
 
 const SOURCE_LANGUAGES = [
   { value: "en", label: "English" },
@@ -270,7 +271,7 @@ export default function Home() {
     <main className="min-h-screen">
       {/* Header */}
       <header className="border-b border-[var(--border)] bg-[var(--card)]/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center text-xl">
               🧠
@@ -281,54 +282,59 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Link
-              href="/channels"
-              className="btn btn-secondary flex items-center gap-2"
-              title="Manage publishing channels"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z" />
-              </svg>
-              Channels
-            </Link>
-            <Link
-              href="/music"
-              className="btn btn-secondary flex items-center gap-2"
-              title="AI Music Generation"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-              </svg>
-              AI Music
-            </Link>
-            <Link
-              href="/studio"
-              className="btn btn-secondary flex items-center gap-2"
-              title="Virtual Studio"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-              Studio
-            </Link>
-            <Link
-              href="/jobs"
-              className="btn btn-secondary"
-              title="View all jobs"
-            >
-              Jobs
-            </Link>
+            <div className="hidden lg:flex items-center gap-3">
+              <Link
+                href="/channels"
+                className="btn btn-secondary flex items-center gap-2"
+                title="Manage publishing channels"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z" />
+                </svg>
+                Channels
+              </Link>
+              <Link
+                href="/music"
+                className="btn btn-secondary flex items-center gap-2"
+                title="AI Music Generation"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                </svg>
+                AI Music
+              </Link>
+              <Link
+                href="/studio"
+                className="btn btn-secondary flex items-center gap-2"
+                title="Virtual Studio"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Studio
+              </Link>
+              <Link
+                href="/jobs"
+                className="btn btn-secondary"
+                title="View all jobs"
+              >
+                Jobs
+              </Link>
+            </div>
             <button onClick={openModal} className="btn btn-primary">
               + Add Video
             </button>
+            <div className="lg:hidden">
+              <MobileNav />
+            </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-8">
         {/* Stats */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 animate-fade-in">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 animate-fade-in">
             <div className="stat-card">
               <div className="stat-value">
                 {(stats.timelines as Record<string, number>)?.pending || 0}
@@ -443,7 +449,7 @@ export default function Home() {
               >
                 <div className="flex justify-between items-start gap-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
                       <h3
                         className="text-lg font-semibold truncate cursor-text hover:bg-gray-700/50 rounded px-1 -mx-1 outline-none focus:ring-1 focus:ring-blue-500"
                         contentEditable
@@ -485,7 +491,7 @@ export default function Home() {
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0 flex flex-col items-end gap-2">
-                    <div className="flex gap-2 mb-1">
+                    <div className="flex flex-wrap gap-2 mb-1">
                       <span className="badge badge-success">{timeline.keep_count} keep</span>
                       <span className="badge badge-danger">{timeline.drop_count} drop</span>
                       <span className="badge bg-gray-700 text-gray-300">{timeline.undecided_count} pending</span>

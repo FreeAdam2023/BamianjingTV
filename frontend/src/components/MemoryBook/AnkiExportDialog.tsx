@@ -48,7 +48,7 @@ export default function AnkiExportDialog({ book, onClose }: AnkiExportDialogProp
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg p-6 w-[480px] border border-gray-700">
+      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-[480px] mx-4 border border-gray-700">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold text-gray-100">Export to Anki</h3>

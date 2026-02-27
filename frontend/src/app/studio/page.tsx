@@ -836,7 +836,7 @@ export default function StudioPage() {
 
       {/* Error banner */}
       {error && (
-        <div className="max-w-6xl mx-auto px-6 mt-4">
+        <div className="max-w-6xl mx-auto px-4 md:px-6 mt-4">
           <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex justify-between items-center">
             <p className="text-red-400 text-sm">{error}</p>
             <button
@@ -853,7 +853,7 @@ export default function StudioPage() {
 
       {/* ========== Lofi Content ========== */}
       {contentType === "lofi" && mainTab === "sessions" && (
-        <div className="max-w-6xl mx-auto px-6 py-6">
+        <div className="max-w-6xl mx-auto px-4 md:px-6 py-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Session Grid */}
             <div className="lg:col-span-2">
@@ -1073,7 +1073,7 @@ export default function StudioPage() {
 
       {/* Images Tab */}
       {contentType === "lofi" && mainTab === "images" && (
-        <div className="max-w-6xl mx-auto px-6 py-6">
+        <div className="max-w-6xl mx-auto px-4 md:px-6 py-6">
           {filteredImages.length === 0 ? (
             <div className="card text-center py-12">
               <p className="text-gray-500 mb-4">No images in pool</p>
@@ -1383,7 +1383,7 @@ export default function StudioPage() {
 
       {/* ========== Music Commentary Content ========== */}
       {contentType === "music_commentary" && (
-        <div className="max-w-6xl mx-auto px-6 py-6">
+        <div className="max-w-6xl mx-auto px-4 md:px-6 py-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Session List */}
             <div className="lg:col-span-2">

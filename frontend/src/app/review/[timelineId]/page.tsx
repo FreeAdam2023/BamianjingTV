@@ -126,6 +126,16 @@ export default function ReviewPage() {
     [rawOpenWordCard, timeline?.source_language]
   );
 
+  // Small-screen detection — show "use desktop" message below md breakpoint
+  const [isSmallScreen, setIsSmallScreen] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    setIsSmallScreen(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsSmallScreen(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
   // Creative mode state
   const [isCreativeMode, setIsCreativeMode] = useState(false);
   const { config: creativeConfig, style: creativeStyle, setConfig: setCreativeConfig, setStyle: setCreativeStyle } = useCreativeConfig();
@@ -755,6 +765,19 @@ export default function ReviewPage() {
     segments: timeline?.segments.map((s) => ({ start: s.start, end: s.end })),
   });
 
+  if (isSmallScreen) {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-6">
+        <div className="text-center max-w-sm">
+          <div className="text-5xl mb-4">🖥️</div>
+          <h2 className="text-xl font-bold mb-2">请使用电脑打开</h2>
+          <p className="text-gray-400 mb-6">视频审阅页面需要较大屏幕以获得最佳体验</p>
+          <Link href="/" className="btn btn-primary">返回首页</Link>
+        </div>
+      </main>
+    );
+  }
+
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center">
@@ -895,7 +918,7 @@ export default function ReviewPage() {
         </div>
 
         {/* Segment list panel */}
-        <div className="w-[480px] flex-shrink-0 border-l border-gray-700 flex flex-col">
+        <div className="w-[320px] lg:w-[480px] flex-shrink-0 border-l border-gray-700 flex flex-col">
           {/* Style selector (for CREATIVE mode) */}
           {isCreativeMode && (
             <>
