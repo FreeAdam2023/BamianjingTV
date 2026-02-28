@@ -495,7 +495,9 @@ class ExportWorker:
                     )
                     prev_label = out
 
-        final_label = prev_label
+        # Normalize SAR to 1:1 (square pixels) for YouTube compatibility
+        filters.append(f"[{prev_label}]setsar=1[sar_out]")
+        final_label = "sar_out"
 
         filter_complex = ";".join(filters)
 
@@ -735,7 +737,10 @@ class ExportWorker:
                 )
                 prev_label = "border_r"
 
-        final_label = prev_label
+        # Normalize SAR to 1:1 (square pixels) for YouTube compatibility
+        filters.append(f"[{prev_label}]setsar=1[sar_out]")
+        final_label = "sar_out"
+
         filter_complex = ";".join(filters)
 
         positions = [p for _, _, _, p in cards] if cards else []
@@ -1041,8 +1046,10 @@ class ExportWorker:
                     f"[v{i}]"
                 )
 
-        # Final output label
-        final_label = f"v{len(cards) - 1}" if cards else "0:v"
+        # Normalize SAR to 1:1 (square pixels) for YouTube compatibility
+        last_label = f"v{len(cards) - 1}" if cards else "0:v"
+        filters.append(f"[{last_label}]setsar=1[sar_out]")
+        final_label = "sar_out"
 
         filter_complex = ";".join(filters)
         return filter_complex, input_args, final_label
@@ -2548,6 +2555,9 @@ class ExportWorker:
                         cmd.extend(["-map", f"[{final_label}]", "-map", "0:a?"])
                     elif vf_filter:
                         cmd.extend(["-vf", vf_filter])
+                    else:
+                        # Normalize SAR even when no subtitles/cards
+                        cmd.extend(["-vf", "setsar=1"])
 
                     if self.use_nvenc:
                         cmd.extend(["-c:v", "h264_nvenc", "-preset", "p4"])
@@ -2621,6 +2631,9 @@ class ExportWorker:
                 cmd.extend(["-map", f"[{final_label}]", "-map", "0:a?"])
             elif vf_filter:
                 cmd.extend(["-vf", vf_filter])
+            else:
+                # Normalize SAR even when no subtitles/cards
+                cmd.extend(["-vf", "setsar=1"])
 
             if self.use_nvenc:
                 cmd.extend(["-c:v", "h264_nvenc", "-preset", "p4"])
@@ -2709,7 +2722,8 @@ class ExportWorker:
         logger.info("Floating layout: subtitles overlay on full video")
 
         # Simple filter: just overlay ASS subtitles on video
-        return f"ass={ass_path_escaped}"
+        # setsar=1 normalizes pixel aspect ratio for YouTube compatibility
+        return f"ass={ass_path_escaped},setsar=1"
 
     async def export_essence(
         self,
@@ -2868,6 +2882,9 @@ class ExportWorker:
                 cmd = ["ffmpeg", "-i", str(concat_output)]
                 if vf_filter:
                     cmd.extend(["-vf", vf_filter])
+                else:
+                    # Normalize SAR even when no subtitles
+                    cmd.extend(["-vf", "setsar=1"])
 
             if self.use_nvenc:
                 cmd.extend(["-c:v", "h264_nvenc", "-preset", "p4"])
